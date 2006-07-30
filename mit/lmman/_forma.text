@@ -267,6 +267,11 @@ Here are the requests:
 .NOFILL - disable filling and paragraph features
 .NYI - ignored
 .PAGE - new page
+.RAGGED-RIGHT n - if more than n 1000ths of an inch of white space needs to
+	be inserted between words to justify a line, punt and leave the right
+	hand edge ragged.  If n is omitted, it defaults to 250.  If this request
+	is not used, an error occurs if a line cannot be justified because too
+	much white space (more than 1/3 inch) needs to be inserted.
 .SECTION title - start section
 .SETQ name value - define variable
 .SP n-lines - put blank lines

@@ -126,7 +126,7 @@ that the address field (3FEF|6*) is addressing a constant (that is what
 the single-quote in 3'KEY* means), and that the printed representation
 of that constant is 3KEY*.  With the help of this "comment" we finally
 get the real story about what this instruction is doing: it is pushing
-(a pointer to) the symbol KEY onto the stack.
+(a pointer to) the symbol 3key* onto the stack.
 
 The next instruction looks like this:
 
@@ -183,7 +183,7 @@ The fifth and last instruction is similar to the fourth:
 
 What is new here is the new value of the destination field.  This one is
 called 3D-RETURN*, and it can be used anywhere destination
-fields in general can be used (like in "MOVE" instructions).  Sending
+fields in general can be used (like in 3MOVE* instructions).  Sending
 something to "Destination-Return" means that this value should be the
 returned value of the function, and that we should return from this
 function.  This is a bit unusual in instruction sets; rather than having
@@ -204,11 +204,11 @@ Now, let's look at the program as a whole and see what it did:
 
 First it pushes the symbol 3key*.  Then it pushes the value of 3x*.
 Then it pushes the symbol 3propname*.  Then it invokes 3get*, which
-pops the value of of 3x* and the symbol 3propname* off the stack and
+pops the value of 3x* and the symbol 3propname* off the stack and
 uses them as arguments, thus doing the equivalent of evaluating the form
 3(get x 'propname)*.  The result is left on the stack; the stack now
 contains the result of the 3get* on top, and the symbol 3key*
-underneath that.  Next, it invokes 3assq* on these two values, this
+underneath that.  Next, it invokes 3assq* on these two values, thus
 doing the equivalent of evaluating 3(assq 'key (get x 'propname))*.
 Finally, it returns the value produced by 3assq*.  Now, the original
 Lisp program we compiled was:
@@ -225,8 +225,8 @@ In summary, we have seen two kinds of instructions so far: the 3MOVE*
 instruction, which takes a destination and an address, and two of the
 large set of miscellaneous instructions, which take only a destination,
 and implicitly get their inputs from the stack.  We have seen two
-destinations (3D-PDL* and 3D-RETURN*), and two forms of address (FEF
-addressing and ARG addressing).
+destinations (3D-PDL* and 3D-RETURN*), and two forms of address (3FEF*
+addressing and 3ARG* addressing).
 
 .section A More Advanced Example
 
@@ -283,25 +283,23 @@ instructions work together to take the 3car* of 3y* and store it into
 field won't tell you which of the two you're talking about; you'll have
 to figure that out yourself.)
 
-The next instruction is a familiar 3MOVE* instruction, but it uses a new
-destination: 3D-IGNORE*.  This means that the datum being addressed
-isn't moved anywhere.  If so, then why bother doing this instruction?
-The reason is that there is conceptually a set of 2indicator*
-bits, like there are in the PDP-11, and that storing a datum sets these
-bits so that later instructions can test them.  So the reason that the
-3MOVE* instruction is being done is so that someone can test the
-"indicators" set up by the value that was moved, namely the value of
-3z*.
+The next instruction is a familiar 3MOVE* instruction, but it uses a
+new destination: 3D-IGNORE*.  This means that the datum being
+addressed isn't moved anywhere.  If so, then why bother doing this
+instruction?  The reason is that there is conceptually a set of
+2indicator* bits, as in the PDP-11.  Every instruction that moves or
+produces a datum sets the "indicator" bits from that datum so that
+following instructions can test them.  So the reason that the 3MOVE*
+instruction is being done is so that someone can test the "indicators"
+set up by the value that was moved, namely the value of 3z*.
 
 All instructions except the branch instructions set the "indicator" bits
 from the result produced and/or stored by that instruction.  (In fact,
 the 3POP* in instruction 21 set the "indicators" properly, and so the
 3MOVE* at instruction 22 is superfluous.  However, the compiler is not
-clever enough to notice that.)  The reason is that there aren't really
-any "indicator" bits as such; the result of the previous instruction is
-arranged to be left around in a register, so that the branch
-instructions can test it.  But you can think of it as if there really
-were indicator bits in there somewhere.
+clever enough to notice that.)
+.c We needn't explain that the "indicator" bits in CADR actually hold the
+.c entire datum, not just a summary of its atom/cons and nil/non-nil status.
 
 The next instruction is a conditional branch; it changes the flow of
 control, based on the values in the "indicator" bits.  The instruction
@@ -370,7 +368,7 @@ to 3D-LAST*, using the 3MOVE* instruction.  Moving to 3D-LAST* is what
 actually invokes the function, so at this point the function 3foo* is
 invoked.  When it returns, its result is sent to the destination stored
 in the stack frame: 3D-RETURN*.  Therefore, the value returned by the
-call to 3foo* will be returned as the value of the function.  Sure
+call to 3foo* will be returned as the value of the function 3bar*.  Sure
 enough, this is what the original Lisp code says to do.
 
 When the compiler pushes arguments to a function call, it sometimes does
@@ -404,8 +402,8 @@ returns, its result should be pushed onto the stack, so that it will be
 the next argument to 3b*.  Next, the first and second arguments to
 3c* are passed; the second one is sent to 3D-LAST* and so the
 function 3c* is called.  Its result, as we said, will be pushed onto
-the stack, and thus become the first argument to 3c*.  Finally, the
-second argument to 3c* is passed, by storing in 3D-LAST*; 3c* gets
+the stack, and thus become the first argument to 3b*.  Finally, the
+second argument to 3b* is passed, by storing in 3D-LAST*; 3b* gets
 called, and its result is sent to 3D-RETURN* and is returned from
 3a*.
 
@@ -447,7 +445,11 @@ top element of the stack into the specified address, but doesn't pop it
 off the stack.
 
 Then there are seven Class II instructions to implement heavily-used
-two-argument functions: 3+*, 3-*, 3**, 3/*, 3LOGAND*, 3LOGXOR*, and
+'c
+'c Here and below we use font 6 rather than 3 for minus.  Maybe fix this
+'c font problem at some later time in Bolio itself.
+'c
+two-argument functions: 3+*, 6-*, 3**, 3/*, 3LOGAND*, 3LOGXOR*, and
 3LOGIOR*.  These instructions take their first argument from the top of
 the stack (popping them off) and their second argument from the
 specified address, and they push their result on the stack.  Thus the
@@ -471,7 +473,7 @@ The disassembled code looks like this:
 23 MOVE D-RETURN PDL-POP
 .end_lisp
 
-Instructions 20 and 21 use two of the new Class II instructions: the 3-*
+Instructions 20 and 21 use two of the new Class II instructions: the 6-*
 and 3LOGXOR* instructions.  Instructions 21 and 23 use the 3PDL-POP*
 address type, and instruction 20 uses the "constant" base register to
 get to a fixnum 32*.  Finally, instruction 22 uses the 3MOVEM*
@@ -547,8 +549,8 @@ The disassembled code looks like this:
 37 CAAR D-RETURN PDL-POP
 .end_lisp
 
-Instruction 25 is an 3=* instruction; it compares the top of the
-stack, 3x*, with the the addressed quantity, 3y*.  The 3x* is
+Instruction 25 is an 3=* instruction; it numerically compares the top of the
+stack, 3x*, with the addressed quantity, 3y*.  The 3x* is
 popped off the stack, and the indicators are set to the result of the
 equality test.  Instruction 26 checks the indicators, branching to 35 if
 the result of the call to 3=* was NIL; that is, the machine will
@@ -588,15 +590,22 @@ used for compiling 3and* and 3or* special forms.
 Finally, there are the Class IV instructions, most of which are
 miscellaneous hand-microcoded Lisp functions. The file "AI: LISPM;
 DEFMIC >" has a list of all the miscellaneous instructions.  Most
-correspond to Lisp functions, although some of these functions are very
-low level internals that may not be documented anywhere (don't be
-disappointed if you don't understand all of them).  Please do not look
-at this file in hopes of finding obscure functions that you think you
-can use to speed up your programs; in fact, the compiler automatically
-uses these things when it can, and directly calling weird internal
-functions will only serve to make your code hard to read, without making
-it any faster.  In fact, we don't guarantee that calling undocumented
-functions will continue to work in the future.
+correspond to Lisp functions, including the subprimitives, although some
+of these functions are very low level internals that may not be
+documented anywhere (don't be disappointed if you don't understand all
+of them).  Please do not look at this file in hopes of finding obscure
+functions that you think you can use to speed up your programs; in fact,
+the compiler automatically uses these things when it can, and directly
+calling weird internal functions will only serve to make your code hard
+to read, without making it any faster.  In fact, we don't guarantee that
+calling undocumented functions will continue to work in the future.
+
+The DEFMIC file can be useful for determining if a given function is in
+microcode, although the only definitive way to tell is to compile some
+code that uses it and look at the results, since sometimes the compiler
+converts a documented function with one name into an undocumented one
+with another name.
+
 
 .section Function Entry
 
@@ -604,20 +613,22 @@ When a function is first entered in Lisp Machine Lisp, interesting
 things can happen because of the features that are invoked by use of the
 various "3&*" keywords.  The microcode performs various services when
 a function is entered, even before the first instruction of the function
-is executed.  These services are driven from a list called the
+is executed.  These services are called for by various fields of the header
+portion of the FEF, including a list called the
 2Argument Descriptor List*, or 2ADL*.  We won't go into the detailed
-format of the ADL, as it is complex and the details are not too
-interesting.
+format of any of this, as it is complex and the details are not too
+interesting.  The 3describe* function will disassemble it, but not
+necessarily into a readily-comprehensible form.
 
-The ADL is responsible for directing the initialization of unsupplied
-optional arguments, and for initializing 3&AUX* variables.  The ADL
+The function-entry services include the initialization of unsupplied
+optional arguments and of 3&AUX* variables.  The ADL
 has a little instruction set of its own, and if the form that computes
 the initial value is something simple, such as a constant, or just a
 variable, then the ADL can handle things itself.  However, if things get
 too complicated, instructions are needed, and the compiler generates
 some instructions at the front of the function to initialize the
-unsupplied variables.  In this case, the ADL specifies a different
-starting address for the function, depending on which optional arguments
+unsupplied variables.  In this case, the ADL specifies several different
+starting addresses for the function, depending on which optional arguments
 have been supplied and which have been omitted.  If all the optional
 arguments are supplied, then the ADL starts the function off after all
 the instructions that would have initialized the optional arguments;
@@ -659,10 +670,13 @@ arguments.
 
 When there is an 3&rest* argument, it is passed to the function as the
 zeroth local variable, rather than as any of the arguments.  This is not
-really so confusing as it might seem, since the "comment" tells you what
-is going on.  In fact, one hardly ever looks much at the address fields
-in disassembled code, since the "comment" tells you the right thing
-anyway.  Here is an example of the use of an 3&rest* argument:
+really so confusing as it might seem, since an 3&rest* argument is not
+an argument passed by the caller, rather it is a list of some of the
+arguments, created by the function-entry microcode services.  In any case
+the "comment" tells you what is going on.  In fact, one hardly ever
+looks much at the address fields in disassembled code, since the
+"comment" tells you the right thing anyway.  Here is an example of the
+use of an 3&rest* argument:
 
 .lisp
 (defun prod (&rest values)
@@ -677,8 +691,7 @@ The disassembled code looks like this:
 22 (MISC) APPLY D-RETURN
 .end_lisp
 
-As can be seen, 3values* is referred to as 3LOCAL|0* even though
-it is an argument.
+As can be seen, 3values* is referred to as 3LOCAL|0*.
 
 Another thing the microcode does at function entry is to bind the
 values of any arguments or 3&aux* variables that are special.
@@ -695,9 +708,10 @@ anything up to 16 (these numbers are printed in decimal)).  These
 instructions just do what they say, unbinding the last 2n* values that
 were bound, or popping the top 2n* values off the stack.
 
-There are also special instructions to implement the Lisp 3list* function,
-which is special because it takes a variable number of arguments.  Let's
-take a look at how the compiler handles 3list*.
+There are also special instructions to implement the Lisp 3list*
+function, which is special because it is a primitive which takes a
+variable number of arguments.  Let's take a look at how the compiler
+handles 3list*.
 
 .lisp
 (defun test-list (x y)
@@ -809,7 +823,7 @@ The disassembled code looks like this:
 36 MOVE D-RETURN PDL-POP
 .end_lisp
 
-The 3%call-mult-value* instruction is still used, leaving the results
+The 3%CALL-MULT-VALUE* instruction is still used, leaving the results
 on the stack; these results are used to bind the variables.
 
 Calls done with 3multiple-value-list* work with the 3%CALL-MULT-VALUE-LIST*
@@ -833,17 +847,17 @@ The disassembled code looks like this:
 27 MOVE D-RETURN PDL-POP
 .end_lisp
 
-A call to the Lisp 3return* function with more than one argument is handled
+Returning of more than one value from a function is handled
 by special miscellaneous instructions.  3%RETURN-2* and 3%RETURN-3* are
-used for 3return* of two or three arguments; these instructions take two
+used to return two or three values; these instructions take two
 and three arguments, respectively, on the stack, and return from the
 current function just as storing to 3D-RETURN* would.  If there are more
-than three arguments, they are all pushed, then the number of arguments
+than three return values, they are all pushed, then the number
 that there were is pushed, and then the 3%RETURN-N* instruction is
 executed.  None of these instructions use their destination field.
 Note: the 3return-list* function is just an ordinary miscellaneous
 instruction; it takes the list of values to return as an argument on the
-stack, and it returns those values.
+stack, and it returns those values from the current function.
 
 The function 3lexpr-funcall* is compiled using a special instruction
 called 3%SPREAD* to iterate over the elements of its last argument, which
@@ -895,7 +909,10 @@ The disassembled code looks like this:
 The 3%CATCH-OPEN* instruction is like the 3CALL* instruction; it
 starts a call to the 3*catch* function.  It takes one "argument" on
 the stack, which is the location in the program that should be branched
-to if this 3*catch3 is 3*throw*n to.  So instructions 22 and 23
+to if this 3*catch* is 3*throw*n to.  In addition to saving that
+program location, the instruction saves the state of the stack and
+of special-variable binding so that they can be restored in the event
+of a 3*throw*.  So instructions 22 and 23
 start a 3*catch* block, and the rest of the function passes its two
 arguments.  The 3*catch* function itself simply returns its second
 argument; but if a 3*throw* happens during the evaluation of the
@@ -903,10 +920,160 @@ argument; but if a 3*throw* happens during the evaluation of the
 at instruction 26.  The destination field of 3%CATCH-OPEN* is like
 that of 3CALL*; it is saved on the stack, and controls what will
 be done with the result of the call to the 3*catch*.  Note that
-even though 3*catch* is really a Lisp special form, it is implemented
+even though 3*catch* is really a Lisp special form, it is compiled
 more or less as if it were a function of two arguments.
 
 To allow compilation of 3(multiple-value (...) (*catch ...))*, there
 is a special instruction called 3%CATCH-OPEN-MULT-VALUE*, which is a
 cross between 3%CATCH-OPEN* and 3%CALL-MULT-VALUE*.
 3multiple-value-list* with 3*catch* is not supported.
+
+
+.section Estimating Run Time
+
+You may sometimes want to estimate the speed at which a function will
+execute by examination of the compiled code.  This section gives some
+rough guidelines to the relative cost of various instructions; the
+actual speed may vary from these estimates by as much as a factor of
+two.  Some of these speeds vary with time; they speed up as work is
+done to improve system efficiency and slow down sometimes when
+sweeping changes are made (for instance, when garbage collection was
+introduced it slowed down some operations even when garbage collection
+is not turned on.)  However these changes are usually much less than
+a factor of two.
+
+It is also important to realize that in many programs the
+execution time is determined by paging rather than by CPU run time.  The
+cost of paging is unfortunately harder to estimate than run time,
+because it depends on dynamic program behavior and locality of data
+structure.
+
+On a conventional computer such as the pdp-10, rough estimates of the
+run time of compiled code are fairly easy to make.  It is a reasonable
+approximation to assume that all machine instructions take about the
+same amount of time to execute.  When the compiler generates a call to
+a runtime support routine, the user can estimate the speed of that
+routine since it is implemented in the same instructions as the user's
+compiled program.  Actual speeds can vary widely because of data
+dependencies; for example, when using the 3plus* function the operation
+will be much slower if an argument is a bignum than if the arguments are
+all fixnums.  However, in Maclisp most performance-critical functions use
+declarations to remove such data dependencies, because generic, data-dependent
+operations are so much slower than type-specific operations.
+
+Things are different in the Lisp machine.  The instruction set we have just seen
+is a high-level instruction set.  Rather than specifying each individual
+machine operation, the compiler calls for higher-level Lisp operations such
+as 3cdr* or 3memq*.  This means that some instructions take many times
+longer to execute than others.  Furthermore in the Lisp machine we do not
+use data-type declarations.  Instead the machine is designed so that all
+instructions can be 2generic*, that is, they determine the types of their
+operands at run time.  This means that there are data dependencies that can
+have major effects on the speed of execution of an instruction.  For instance
+the 3+* instruction is quite fast if both operands turn out to be fixnums,
+but much slower if they are bignums.
+
+The Lisp machine also has a large amount of microcode, both to implement certain
+Lisp functions and to assist with common operations such as function calling.
+It is not as easy for a user to read microcode and estimate its speed as with
+compiled code, although it is a much more readable microcode than on most
+computers.
+
+In this section we give some estimates of the speed of various operations.
+There are also facilities for measuring the actual achieved speed of a
+program.  These will not be documented here as they are currently being changed.
+
+We will express all times in "basic units", the speed of execution of
+the simplest instruction, 3MOVE D-PDL ARG|0*.  This time is about
+two microseconds.  3MOVE* takes the same amount of time if the
+destination is 3D-IGNORE* or 3D-NEXT*, or if the address is a
+3LOCAL* or 3PDL-POP* rather than an 3ARG*.
+
+A 3MOVE* that references a constant, via either the 3FEF* base register
+or the 3CONSTANT* base register, takes about two units.  A 3MOVE* that
+references a special variable by means of the 3FEF* base register and
+an invisible pointer, takes closer to three units.
+
+Use of a complex destination (3D-LAST*, 3D-RETURN*, or 3D-NEXT-LIST*)
+takes extra time because of the extra work it has to do; calling a function,
+returning from a function, or the bookkeeping associated with forming a list.
+The cost of function calling will be discussed a bit later.
+
+The other Class I instructions take longer than 3MOVE*.  Each memory
+reference required by car/cdr operations costs about one unit.  Note
+that 3cdr* requires one memory cycle if the list is compactly
+cdr-coded and two cycles if it is not.  The 3CALL* instruction takes
+three units.  The 3CALL0* instruction takes more, of course,
+since it actually calls the function.
+
+The Class II (no destination) instructions vary.  The 3MOVEM* and 3POP*
+operations take about one unit.  (Of course they take more if 3FEF* or
+3CONSTANT* addressing is used.)  The arithmetic and logical operations and
+the predicates take two units, except for multiplication and division
+which take five.  The 3SETE-1+* and 3SETE-1-* instructions take
+two units, the same time as a push followed by a pop; i.e. 3(setq x (1+ x))* takes
+the same amount of time as 3(setq x y)*.  The 3SET-NIL* and 3SET-ZERO*
+instructions take one unit.  The special-variable binding instructions take
+several units.
+
+A branch takes between one and two units.
+
+The cost of calling a function with no arguments and no local variables
+that doesn't do anything but return 3nil* is about 15 units (7 cdrs or
+additions).  This is the cost of a 3MOVE* to 3D-LAST*, the simplest
+form of function-entry services, and a 3MOVE* to 3D-RETURN*.  If the
+function takes arguments the cost of calling the function includes the cost
+of the instructions in the caller that compute the arguments.  If the function
+has local variables initialized to 3nil* or optional arguments defaulted
+to 3nil* there is a negligible additional cost.  The cost of having an 3&rest*
+argument is less than one additional unit.  But if the function binds special
+variables there is an additional cost of 8 units per variable (this includes both
+binding the variables on entry and unbinding them on return).
+
+If the function needs an ADL, typically because of complex
+optional-argument initializations, the cost goes up substantially.  It's
+hard to characterize just how much it goes up by, since this depends on
+what you do.  Also calling for multiple values is more expensive than
+simple calling.
+
+We consider the cost of calling functions to be somewhat higher than it should
+be, and would like to improve it.  But this might require incompatible system
+architecture changes and probably will not happen, at least not soon.
+
+Flonum and bignum arithmetic are naturally slower than fixnum arithmetic.
+For instance, flonum addition takes 8 units more than fixnum addition, and
+addition of 60-bit bignums takes 15 units more.  Note that these times include
+some garbage-collection overhead for the intermediate results which have
+to be created in memory.  Fixnums and small flonums do not take up any
+memory and avoid this overhead.  Thus small-flonum addition takes only about
+2 units more than fixnum addition.  This garbage-collection overhead is
+of the "extra-pdl-area" sort rather than the full Baker garbage collector
+sort; if you don't understand this don't worry about it for now.
+
+The run time of a Class IV (or miscellaneous) instruction depends on the
+instruction and its arguments.  The simplest instructions, predicates
+such as 3atom* and 3numberp*, take 2 units.  This is basically the
+overhead for doing a Class IV instruction.  The cost of a more complex
+instruction can be estimated by looking at what it has to do.  You can
+get a reasonable estimate by charging one unit per memory reference, car
+operation, or cdr-coded cdr operation.  A non-cdr-coded cdr operation
+takes two units.  For instance, (memq 'nil '(a b c)) takes 13 units, of
+which 4 are pushing the arguments on the stack, 2 are Class IV
+instruction overhead, 6 are accounted for by cars and cdrs, and 1 is
+"left over".
+
+The cost of array accessing depends on the type of array and the number
+of dimensions.  3aref* of a 1-dimensional non-indirect array takes
+6 units and 3aset* takes 5 units, not counting pushing the arguments
+onto the stack.  (These are the costs of the 3AR-1* and 3AS-1* instructions.)
+A 2-dimensional array takes 6 units more.
+
+The functions 3copy-array-contents* and 3copy-array-portion*
+optimize their array accessing to remove overhead from the inner loop.
+3copy-array-contents* of an 3art-q* array has a startup overhead of
+8 units, not including pushing the arguments, then costs just over 2
+units per array element.
+
+The 3cons* function takes 7 units if garbage collection is turned off.
+3(list a b c d)* takes 24 units, which includes 4 units for getting the
+local variables 3a*, 3b*, 3c*, and 3d*.

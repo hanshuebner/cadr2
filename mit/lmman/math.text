@@ -1,4 +1,4 @@
-c dlw 10/8/80  -*- Mode: Bolio -*-
+.c dlw 10/8/80  -*- Mode: Bolio -*-
 
 .chapter The MATH Package
 
@@ -39,6 +39,14 @@ Returns the determinant of 2matrix*.  2matrix* must be a two-dimensional
 square matrix.
 .end_defun
 
+The next two functions are used to solve sets of simultaneous linear
+equations.  3decompose* takes a matrix holding the coefficients of the
+equations and produces the LU decomposition; this decomposition can then
+be passed to 3solve* along with a vector of solutions to the equations
+to get the values of the variables.  If you want to solve the same
+equations for many different sets of solutions, you only need to call
+3decompose* once.
+
 .defun math:decompose a &optional lu ps
 Compute the LU decomposition of matrix 2a*.  If 2lu* is supplied,
 stores the result into it and returns it; otherwise it creates an array
@@ -53,3 +61,11 @@ the LU decomposition and the permutation array.
 .end_defun
 
 .defun solve lu ps b &optional x
+This function takes the LU decomposition and associated permutation
+array produced by 3decompose*, and solves the set of simultaneous
+equations defined by the original matrix 2a* for the solutions
+in the solution vector 2b*.  If 2x* is supplied, the solutions
+are stored into it and it is returned; otherwise, an array is
+created to hold the solutions and it is returned.  2b* must
+be a one-dimensional array.
+.end_defun
