@@ -60,7 +60,7 @@ otherwise, an array is created to hold it.  This function returns two values:
 the LU decomposition and the permutation array.
 .end_defun
 
-.defun solve lu ps b &optional x
+.defun math:solve lu ps b &optional x
 This function takes the LU decomposition and associated permutation
 array produced by 3decompose*, and solves the set of simultaneous
 equations defined by the original matrix 2a* for the solutions
@@ -68,4 +68,19 @@ in the solution vector 2b*.  If 2x* is supplied, the solutions
 are stored into it and it is returned; otherwise, an array is
 created to hold the solutions and it is returned.  2b* must
 be a one-dimensional array.
+.end_defun
+
+.defun math:list-2d-array array
+Returns a list of lists containing the values in 2array*, which must
+be a two-dimensional array.  There is one element for each row; each
+element is a list of the values in that row.
+.end_defun
+
+.defun math:fill-2d-array array list
+This is the opposite of 3list-2d-array*.  2list* should be a list of
+lists, with each element being a list corresponding to a row.
+2array*'s elements are stored from the list.  As with 3fillarray*
+(see (fillarray-fun)), if 2list* is not long enough,
+3fill-2d-array* "wraps around".  The lists which are elements of
+2list* also work this way.
 .end_defun

@@ -314,106 +314,7 @@ instruction is next.  This is just like the 3CAR* instruction except
 that it takes the 3cdr*; this instruction pushes the value of 3(cdr y)*
 onto the stack.  The next one pops that value off into the variable 3z*.
 
-There are just two more instructions left.  These two instructions will
-be our first example of how function calling is compiled.  It is the
-only really tricky thing in the instruction set.  Here is how it works
-in our example:
-
-.lisp
-26 CALL D-RETURN FEF|6        ;#'FOO
-27 MOVE D-LAST ARG|0          ;Y
-.end_lisp
-
-The form being compiled here is 3(foo y)*.  This means we are applying
-the function which is in the function cell of the symbol 3foo*, and
-passing it one argument, the value of 3y*.  The way function calling
-works is in the following three steps.  First of all, there is a 3CALL*
-instruction that specifies the function object being applied to
-arguments.  This creates a new stack frame on the stack, and stores the
-function object there.  Secondly, all the arguments being passed except
-the last one are pushed onto the stack.  Thirdly and lastly, the last
-argument is sent to a special destination, called 3D-LAST*,
-meaning "this is the last argument".  Storing to this destination is
-what actually calls the function, 2not* the 3CALL* instruction itself.
-
-There are two things you might wonder about this.  First of all, when
-the function returns, what happens to the returned value?  Well, this is
-what we use the destination field of the 3CALL* instruction for.  The
-destination of the 3CALL* is not stored into at the time the 3CALL*
-instruction is executed; instead, it is saved on the stack (into the
-stack frame created by the 3CALL* instruction, along with the function
-object).  Then, when the function actually returns, its result is stored
-into that destination.
-
-The other question is what happens when there isn't any last argument;
-that is, when there is a call with no arguments at all?  This is handled
-by a special instruction called 3CALL0*.  The address of 3CALL0*
-addresses the function object to be called; the call takes place
-immediately, and the result is stored into the destination specified by
-the destination field of the 3CALL0* instruction.
-
-So, let's look at the two-instruction sequence above.  The first
-instruction is a 3CALL*; the function object it specifies is at 3FEF|6*,
-which the comment tells us is the contents of the function cell of 3foo*
-(the FEF contains an invisible pointer to that function cell).  The
-destination field of the 3CALL* is 3D-RETURN*, but we aren't going to
-store into it yet; we will save it away in the stack frame and use it
-later.  So the function doesn't return at this point, even though it
-says 3D-RETURN* in the instruction; this is the tricky part.
-
-Next we have to push all the arguments except the last one.  Well,
-there's only one argument, so nothing needs to be done here.  Finally,
-we move the last argument (that is, the only argument: the value of 3y*)
-to 3D-LAST*, using the 3MOVE* instruction.  Moving to 3D-LAST* is what
-actually invokes the function, so at this point the function 3foo* is
-invoked.  When it returns, its result is sent to the destination stored
-in the stack frame: 3D-RETURN*.  Therefore, the value returned by the
-call to 3foo* will be returned as the value of the function 3bar*.  Sure
-enough, this is what the original Lisp code says to do.
-
-When the compiler pushes arguments to a function call, it sometimes does
-it by sending the values to a destination called 3D-NEXT* (meaning the
-"next" argument).  This is exactly the same as 3D-PDL*; the only reasons
-for the difference are very historical.  They mean the same thing.
-
-Here is another example to illustrate function calling.  This Lisp
-function calls one function on the results of another function.
-
-.lisp
-(defun a (x y)
-  (b (c x y) y))
-.end_lisp
-
-The disassembled code looks like this:
-
-.lisp
-22 CALL D-RETURN FEF|6        ;#'B
-23 CALL D-PDL FEF|7           ;#'C
-24 MOVE D-PDL ARG|0           ;X
-25 MOVE D-LAST ARG|1          ;Y
-26 MOVE D-LAST ARG|1          ;Y
-.end_lisp
-
-The first instruction starts off the call to the function 3b*.  The
-destination field is saved for later: when this function returns, we
-will return its result as 3a*'s result.  Next, the call to 3c* is
-started.  Its destination field, too, is saved for later; when 3c*
-returns, its result should be pushed onto the stack, so that it will be
-the next argument to 3b*.  Next, the first and second arguments to
-3c* are passed; the second one is sent to 3D-LAST* and so the
-function 3c* is called.  Its result, as we said, will be pushed onto
-the stack, and thus become the first argument to 3b*.  Finally, the
-second argument to 3b* is passed, by storing in 3D-LAST*; 3b* gets
-called, and its result is sent to 3D-RETURN* and is returned from
-3a*.
-
-.section The Rest of the Instructions
-
-Now that we've gotten some of the feel for what is going on, I will
-start enumerating the instructions in the instruction set.  The
-instructions fall into four classes.  Class I instructions have both a
-destination and an address.  Class II instructions have an address, but
-no destination.  Class III instructions are the branch instructions,
+There are just two more inst                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                the branch instructions,
 which contain a branch address rather than a general base-and-offset
 address.  Class IV instructions have a destination, but no address;
 these are the miscellaneous instructions.
@@ -445,11 +346,7 @@ top element of the stack into the specified address, but doesn't pop it
 off the stack.
 
 Then there are seven Class II instructions to implement heavily-used
-'c
-'c Here and below we use font 6 rather than 3 for minus.  Maybe fix this
-'c font problem at some later time in Bolio itself.
-'c
-two-argument functions: 3+*, 6-*, 3**, 3/*, 3LOGAND*, 3LOGXOR*, and
+two-argument functions: 3+*, 3-*, 3**, 3/*, 3LOGAND*, 3LOGXOR*, and
 3LOGIOR*.  These instructions take their first argument from the top of
 the stack (popping them off) and their second argument from the
 specified address, and they push their result on the stack.  Thus the
@@ -473,7 +370,7 @@ The disassembled code looks like this:
 23 MOVE D-RETURN PDL-POP
 .end_lisp
 
-Instructions 20 and 21 use two of the new Class II instructions: the 6-*
+Instructions 20 and 21 use two of the new Class II instructions: the 3-*
 and 3LOGXOR* instructions.  Instructions 21 and 23 use the 3PDL-POP*
 address type, and instruction 20 uses the "constant" base register to
 get to a fixnum 32*.  Finally, instruction 22 uses the 3MOVEM*
@@ -965,11 +862,11 @@ Things are different in the Lisp machine.  The instruction set we have just seen
 is a high-level instruction set.  Rather than specifying each individual
 machine operation, the compiler calls for higher-level Lisp operations such
 as 3cdr* or 3memq*.  This means that some instructions take many times
-longer to execute than others.  Furthermore in the Lisp machine we do not
+longer to execute than others.  Furthermore, in the Lisp machine we do not
 use data-type declarations.  Instead the machine is designed so that all
-instructions can be 2generic*, that is, they determine the types of their
+instructions can be 2generic*; that is, they determine the types of their
 operands at run time.  This means that there are data dependencies that can
-have major effects on the speed of execution of an instruction.  For instance
+have major effects on the speed of execution of an instruction.  For instance,
 the 3+* instruction is quite fast if both operands turn out to be fixnums,
 but much slower if they are bignums.
 
@@ -983,21 +880,22 @@ In this section we give some estimates of the speed of various operations.
 There are also facilities for measuring the actual achieved speed of a
 program.  These will not be documented here as they are currently being changed.
 
-We will express all times in "basic units", the speed of execution of
-the simplest instruction, 3MOVE D-PDL ARG|0*.  This time is about
-two microseconds.  3MOVE* takes the same amount of time if the
-destination is 3D-IGNORE* or 3D-NEXT*, or if the address is a
-3LOCAL* or 3PDL-POP* rather than an 3ARG*.
+We will express all times in terms of the time to execute the simplest
+instruction, 3MOVE D-PDL ARG|0*.  This time is about two microseconds
+and will be called a "unit".
 
-A 3MOVE* that references a constant, via either the 3FEF* base register
-or the 3CONSTANT* base register, takes about two units.  A 3MOVE* that
-references a special variable by means of the 3FEF* base register and
-an invisible pointer, takes closer to three units.
+3MOVE* takes the same amount of time if the destination is
+3D-IGNORE* or 3D-NEXT*, or if the address is a 3LOCAL* or
+3PDL-POP* rather than an 3ARG*.  A 3MOVE* that references a
+constant, via either the 3FEF* base register or the 3CONSTANT* base
+register, takes about two units.  A 3MOVE* that references a special
+variable by means of the 3FEF* base register and an invisible pointer
+takes closer to three units.
 
 Use of a complex destination (3D-LAST*, 3D-RETURN*, or 3D-NEXT-LIST*)
 takes extra time because of the extra work it has to do; calling a function,
 returning from a function, or the bookkeeping associated with forming a list.
-The cost of function calling will be discussed a bit later.
+These costs will be discussed a bit later.
 
 The other Class I instructions take longer than 3MOVE*.  Each memory
 reference required by car/cdr operations costs about one unit.  Note
@@ -1009,7 +907,7 @@ since it actually calls the function.
 The Class II (no destination) instructions vary.  The 3MOVEM* and 3POP*
 operations take about one unit.  (Of course they take more if 3FEF* or
 3CONSTANT* addressing is used.)  The arithmetic and logical operations and
-the predicates take two units, except for multiplication and division
+the predicates take two units when applied to fixnums, except for multiplication and division
 which take five.  The 3SETE-1+* and 3SETE-1-* instructions take
 two units, the same time as a push followed by a pop; i.e. 3(setq x (1+ x))* takes
 the same amount of time as 3(setq x y)*.  The 3SET-NIL* and 3SET-ZERO*
@@ -1050,6 +948,10 @@ memory and avoid this overhead.  Thus small-flonum addition takes only about
 of the "extra-pdl-area" sort rather than the full Baker garbage collector
 sort; if you don't understand this don't worry about it for now.
 
+Floating-point subtraction, multiplication, and division take just about
+the same time as floating-point addition.  Floating-point execution times
+can be as many as 3 units longer depending on the arguments.
+
 The run time of a Class IV (or miscellaneous) instruction depends on the
 instruction and its arguments.  The simplest instructions, predicates
 such as 3atom* and 3numberp*, take 2 units.  This is basically the
@@ -1057,16 +959,20 @@ overhead for doing a Class IV instruction.  The cost of a more complex
 instruction can be estimated by looking at what it has to do.  You can
 get a reasonable estimate by charging one unit per memory reference, car
 operation, or cdr-coded cdr operation.  A non-cdr-coded cdr operation
-takes two units.  For instance, (memq 'nil '(a b c)) takes 13 units, of
+takes two units.  For instance, 3(memq 'nil '(a b c))* takes 13 units, of
 which 4 are pushing the arguments on the stack, 2 are Class IV
 instruction overhead, 6 are accounted for by cars and cdrs, and 1 is
 "left over".
 
 The cost of array accessing depends on the type of array and the number
-of dimensions.  3aref* of a 1-dimensional non-indirect array takes
-6 units and 3aset* takes 5 units, not counting pushing the arguments
-onto the stack.  (These are the costs of the 3AR-1* and 3AS-1* instructions.)
-A 2-dimensional array takes 6 units more.
+of dimensions.  3aref* of a 1-dimensional non-indirect 3art-q* array
+takes 6 units and 3aset* takes 5 units, not counting pushing the
+arguments onto the stack.  (These are the costs of the 3AR-1* and
+3AS-1* instructions.)  A 2-dimensional array takes 6 units more.
+3aref* of a numeric array takes the same amount of time as 3aref* of
+an 3art-q* array.  3aset* takes 1 unit longer.  3aref* of an
+3art-float* array takes 5 units longer than 3aref* of an 3art-q*
+array.  3aset* takes 3 units longer.
 
 The functions 3copy-array-contents* and 3copy-array-portion*
 optimize their array accessing to remove overhead from the inner loop.
