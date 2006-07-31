@@ -1,6 +1,57 @@
 (in-package :cl-user)
 
-(defvar *manual-files* #p"/home/hans/cadr2/mit/lmman/*.text")
+(use-package :cxml)
+
+;;; Paul Graham, On Lisp, p191
+(defmacro aif (test-form then-form &optional else-form)
+  `(let ((it ,test-form))
+    (if it ,then-form ,else-form)))
+
+;;; by analogy
+(defmacro awhen (test-form &rest then-forms)
+  `(let ((it ,test-form))
+    (when it ,@then-forms)))
+
+(defvar *manual-filenames* '(title
+                             intro
+                             fd-dtp
+                             fd-eva
+                             fd-con
+                             resour
+                             fd-sym
+                             fd-num
+                             fd-arr
+                             generic
+                             fd-str
+                             fd-fun
+                             fd-clo
+                             fd-sg
+                             fd-loc
+                             fd-sub
+                             areas
+                             compil
+                             macros
+                             looptm
+                             defstr
+                             flavor
+                             ios
+                             rdprt
+                             pathnm
+                             files
+                             chaos
+                             packd
+                             maksys
+                             patch
+                             proces
+                             errors
+                             code
+                             query
+                             init
+                             time
+                             fd-hac))
+
+(defvar *input-directory* #p"/home/hans/cadr2/lmman/orig6ed/")
+(defvar *output-directory* #p"/home/hans/cadr2/lmman/6ed-xml/")
 
 (defvar *unicode-cp0-chars* #(#\DOT_OPERATOR
                               #\DOWNWARDS_ARROW
@@ -35,21 +86,6 @@
                               #\IDENTICAL_TO
                               #\N-ARY_LOGICAL_OR))
 
-(defun find-fonts ()
-  (let ((result (make-hash-table)))
-    (dolist (pathname (directory *manual-files*))
-      (with-open-file (f pathname)
-        (format *debug-io* "~&Processing ~A" pathname)
-        (loop for line = (read-line f nil)
-              while line
-              do (loop with last-position = 0
-                       for ack-position = (position #\ack line :start last-position)
-                       while ack-position
-                       do (setf last-position (1+ ack-position))
-                       do (setf (gethash (aref line (1+ ack-position)) result) 1)))))
-    (loop for char being the hash-keys of result
-          collect char)))
-
 (defun unquote-char (char)
   (cond
     ((> 32 (char-code char))
@@ -67,17 +103,134 @@
                      (subseq line 0 dc1-position)
                      (string (unquote-char (aref line (1+ dc1-position))))
                      (unquote-line (subseq line (+ 2 dc1-position)))))))
-        
 
-(defun unquote ()
-  (dolist (input-pathname (directory *manual-files*))
-    (let ((output-pathname (merge-pathnames (make-pathname :name (format nil "~A-unicode" (pathname-name input-pathname)))
-                                            input-pathname)))
-      (with-open-file (input input-pathname)
-        (with-open-file (output output-pathname :direction :output :if-does-not-exist :create :if-exists :supersede
-                                :external-format (ext:make-encoding :charset 'charset:utf-8))
-          (format *debug-io* "~&Processing ~A" input-pathname)
-          (loop for line = (unquote-line (read-line input nil))
-                while line
-                do (princ line output)
-                do (terpri output)))))))
+(defvar *current-file* nil)
+(defvar *current-line-number* nil)
+(defvar *font-stack* nil)
+
+(defun file-warn (&rest args)
+  (format *debug-io* "~&~A:~A: " *current-file* *current-line-number*)
+  (apply #'format *debug-io* args))
+
+(defvar *font-names* '((#\1 . "standard")
+                       (#\2 . "arg")
+                       (#\3 . "obj")
+                       (#\5 . "sub-heading")
+                       (#\9 . "heading")
+                       (#\7 . "example")))
+
+(defun font-name (char)
+  (or (cdr (assoc char *font-names*))
+      (prog1
+          (string char)
+        (warn "unknown font ~A" char))))
+
+(defun ref-expand (line)
+  (aif (position #\Syn line)
+       (let* ((open-paren-pos (position #\( line :start it))
+              (close-paren-pos (position #\) line :start open-paren-pos)))
+         (text (subseq line 0 it))
+         (with-element "ref"
+           (attribute "id"  (subseq line (1+ open-paren-pos) close-paren-pos)))
+         (ref-expand (subseq line (1+ close-paren-pos))))
+       (text line)))
+
+(defun font-expand (line)
+  (with-output-to-string (output-stream)
+    (let ((position 0))
+      (labels
+          ((do-font-expand ()
+             (aif (and (< position (length line))
+                       (position #\Ack line :start position))
+               (let* ((ack-pos it)
+                      (font-char (aref line (1+ ack-pos))))
+                 (if ack-pos
+                     (progn
+                       (ref-expand (subseq line position ack-pos))
+                       (setf position (+ 2 ack-pos))
+                       (unless (eql #\* font-char)
+                         (with-element (font-name font-char)
+                           (do-font-expand))
+                         (do-font-expand)))
+                     (ref-expand (subseq line position))))
+               (ref-expand (subseq line position)))))
+        (do-font-expand)))))
+
+(defstruct document title chapters)
+(defstruct chapter name number introduction sections)
+(defstruct section name number contents)
+
+(defun read-chapter (filename)
+  )
+
+(defvar *unparsed-handlers* (make-hash-table))
+(defvar *parsed-handlers* (make-hash-table))
+
+(defmacro define-unparsed-bolio-handler (name (arg) &body body)
+  (setf (gethash name *unparsed-handlers*)
+        `(lambda (,arg) ,@body)))
+
+(defmacro define-bolio-handler (name (&rest args) &body body)
+  (setf (gethash name *parsed-handlers*)
+        `(lambda (,@args) ,@body)))
+
+(define-unparsed-bolio-handler chapter (title)
+  (setf (context-chapter-title *current-context*) title)
+  (element "chapter"
+           (attribute "title" title)
+           (continue-parsing)))
+
+(define-unparsed-bolio-handler section (title)
+  (setf (context-section-title *current-context*) title)
+  (element "section"
+           (attribute "title" title)
+           (continue-parsing :stop-before 'section)))
+
+(define-bolio-handler lisp ()
+  (element "lisp"
+           (continue-parsing :stop-after 'end_lisp)))
+
+(define-bolio-handler defun (name &rest args)
+  (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor))
+  (element "defun"
+           (dolist (arg args)
+             (element "arg" (text arg)))))
+
+(define-bolio-handler cindex (name)
+  (setf (chapter-index *current-chapter*) name))
+
+(define-bolio-handler setq (name value)
+  (setf (gethash name *bolio-variables*) (gethash value *bolio-variables*)))
+
+(defvar *bolio-input*)
+
+(defun continue-parsing (&key stop-before stop-after)
+  (loop for *current-line-number* from 1
+        for line = (read-line *bolio-input* nil)
+        while line
+        do (font-expand (unquote-line line))
+        do (cxml::write-rune-0 10 cxml::*sink*)))
+
+(defun process-bolio-file (name)
+  (let ((input-pathname (merge-pathnames *input-directory*
+                                         (make-pathname :name name :type "text")))
+        (output-pathname (merge-pathnames *output-directory*
+                                          (make-pathname :name name :type "xml"))))
+    (ensure-directories-exist output-pathname)
+    (format *debug-io* "~&Processing ~A => ~A" input-pathname output-pathname)
+    (setq *current-file* (namestring input-pathname))
+    (setq *font-stack* nil)
+    (with-open-file (*bolio-input* input-pathname)
+      (with-open-file (output output-pathname
+                              :direction :output
+                              :if-does-not-exist :create
+                              :if-exists :supersede
+                              :external-format (ext:make-encoding :charset 'charset:utf-8))
+        (with-xml-output (make-character-stream-sink output)
+          (continue-parsing))))
+    (when *font-stack*
+      (file-warn "imbalanced font specifications"))))
+
+(defun process-bolio-files ()
+  (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
+    (process-bolio-file name)))
