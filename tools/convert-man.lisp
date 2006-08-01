@@ -6,6 +6,8 @@
 
 (in-package :convert-man)
 
+(enable-interpol-syntax)
+
 (defvar *suppress-warnings* nil)
 (defvar *debug* nil)
 
@@ -53,7 +55,7 @@
                               #\N-ARY_LOGICAL_OR))
 
 (defun xml-newline ()
-  (cxml::write-rune-0 10 cxml::*sink*))
+  (cxml::%write-rune #/U+000A cxml::*sink*))
 
 (defun unquote-char (char)
   (cond
@@ -105,25 +107,25 @@
        (text line)))
 
 (defun font-expand (line)
-  (with-output-to-string (output-stream)
-    (let ((position 0))
-      (labels
-          ((do-font-expand ()
-             (aif (and (< position (length line))
-                       (position #\Ack line :start position))
-               (let* ((ack-pos it)
-                      (font-char (aref line (1+ ack-pos))))
-                 (if ack-pos
-                     (progn
-                       (ref-expand (subseq line position ack-pos))
-                       (setf position (+ 2 ack-pos))
-                       (unless (eql #\* font-char)
-                         (with-element (font-name font-char)
-                           (do-font-expand))
-                         (do-font-expand)))
-                     (ref-expand (subseq line position))))
-               (ref-expand (subseq line position)))))
-        (do-font-expand)))))
+  (let ((position 0))
+    (labels
+        ((do-font-expand ()
+           (let* ((ack-pos (and (< position (length line))
+                                (position #\Ack line :start position)))
+                  (font-char (and ack-pos (aref line (1+ ack-pos)))))
+             (if ack-pos
+                 (progn
+                   (ref-expand (subseq line position ack-pos))
+                   (setf position (+ 2 ack-pos))
+                   (if (eql #\* font-char)
+                       (sax:end-element cxml::*sink* nil nil (or (pop *font-stack*)
+                                                                 (file-warn "bad font nesting")))
+                       (progn
+                         (sax:start-element cxml::*sink* nil nil (font-name font-char) nil)
+                         (push (font-name font-char) *font-stack*)))
+                   (do-font-expand))
+                 (ref-expand (subseq line position))))))
+      (do-font-expand))))
 
 (defstruct document title chapters)
 (defstruct chapter name number introduction sections)
@@ -170,32 +172,21 @@
 
 (defun make-anchor (name)
   (with-element "a"
-    (text name)))
-
-(defmacro with-defun ((name args) &body body)
-  (let ((arg (gensym)))
-    `(progn
-      (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor ,name))
-      (with-element "defun"
-        (attribute "name" ,name)
-        (with-element "args"
-          (dolist (,arg ,args)
-            (with-element "arg"
-              (text ,arg))
-            (xml-newline)))
-        ,@body))))
+    (attribute "name" name)))
 
 (defun dbg (format &rest args)
   (when *debug*
     (apply #'format *debug-io* format args)
     (terpri *debug-io*)))
 
+#+(or)
 (define-bolio-handler defun (name &rest args)
   (with-defun (name args)
     (dbg "defun ~A" name)
     (continue-parsing :stop-after 'end_defun)
     (dbg "done with defun ~A" name)))
 
+#+(or)
 (define-bolio-handler defun1 (name &rest args)
   (with-defun (name args)
     (dbg "defun1 ~A" name)
@@ -212,7 +203,7 @@
   (with-element "exdent"
     (attribute "amount" amount)
     (with-element "caption"
-      (text caption))
+      (text (format nil "~{~A ~}" caption)))
     (continue-parsing :stop-any t)))
 
 (defvar *bolio-input-stream*)
@@ -231,6 +222,31 @@
   (if (atom thing)
       (list thing)
       thing))
+
+(defun handle-bolio-definition (line)
+  "Defining commands in bolio begin with .def - The command may be
+suffixed with _no_index if the definition should not be indexed, or
+with 1 if the definition is one of multiple definitions which are
+documented together in one text block.  These commands are handled
+seperately since they require a lot of special processing.
+The line given as argument is assumed to begin with .def"
+  (register-groups-bind
+   (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)" line)
+   (let ((end-symbol (intern (format nil "~:@(end_def~A~)" type))))
+     (when (equal type "un")
+       (setf type "fun"))
+     (with-element "define"
+       (attribute "type" type)
+       (attribute "name" name)
+       (when (equal modifier "_no_index")
+         (attribute "no-index" "1"))
+       (unless (equal "" args)
+         (with-element "args"
+           (dolist (arg (split #?r"\s+" args))
+             (with-element "arg"
+               (text arg)))))
+       (unless (equal "1" modifier)
+         (continue-parsing :stop-after end-symbol))))))
 
 (defun continue-parsing (&key stop-before stop-after stop-any)
   (let (last-line-position)
@@ -252,6 +268,8 @@
                ((eq command stop-after)
                 (dbg "stopped after ~A" stop-after)
                 (return-from continue-parsing))
+               ((equal "def" (subseq line 1 (min (length line) 4)))
+                (handle-bolio-definition line))
                (t
                 (aif (gethash command *unparsed-handlers*)
                      (funcall it arg-string)
@@ -286,7 +304,8 @@
       (with-open-file (output output-pathname
                               :direction :output
                               :if-does-not-exist :create
-                              :if-exists :supersede)
+                              :if-exists :supersede
+                              :external-format charset:utf-8)
         (with-xml-output (make-character-stream-sink output)
           (continue-parsing))))
     (when *font-stack*

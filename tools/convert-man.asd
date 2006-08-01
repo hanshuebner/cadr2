@@ -10,8 +10,8 @@
 (defsystem :convert-man
     :description "Convert CADR manual from Bolio format to XML"
 
-    :depends-on (:cxml)
+    :depends-on (:cxml :cl-ppcre :cl-interpol)
 
     :components ((:file "package")
                  (:file "utils" :depends-on ("package"))
-                 (:file "convert-man" :depends-on ("package"))))
+                 (:file "convert-man" :depends-on ("utils"))))
