@@ -1,3 +1,9 @@
+;; -*- Lisp -*-
+
+;; Bolio to XML converter, shoe horned to convert the 6th release Lisp
+;; Machine Manual to a modern format suitable to online browsing,
+;; printing and eventually editing.
+
 (in-package :cl-user)
 
 (use-package :cxml)
@@ -12,43 +18,12 @@
   `(let ((it ,test-form))
     (when it ,@then-forms)))
 
-(defvar *manual-filenames* '(title
-                             intro
-                             fd-dtp
-                             fd-eva
-                             fd-con
-                             resour
-                             fd-sym
-                             fd-num
-                             fd-arr
-                             generic
-                             fd-str
-                             fd-fun
-                             fd-clo
-                             fd-sg
-                             fd-loc
-                             fd-sub
-                             areas
-                             compil
-                             macros
-                             looptm
-                             defstr
-                             flavor
-                             ios
-                             rdprt
-                             pathnm
-                             files
-                             chaos
-                             packd
-                             maksys
-                             patch
-                             proces
-                             errors
-                             code
-                             query
-                             init
-                             time
-                             fd-hac))
+(defvar *manual-filenames* '(title intro fd-dtp fd-eva fd-con resour
+                             fd-sym fd-num fd-arr generic fd-str fd-fun
+                             fd-clo fd-sg fd-loc fd-sub areas compil
+                             macros looptm defstr flavor ios rdprt pathnm
+                             files chaos packd maksys patch proces errors
+                             code query init time fd-hac))
 
 (defvar *input-directory* #p"/home/hans/cadr2/lmman/orig6ed/")
 (defvar *output-directory* #p"/home/hans/cadr2/lmman/6ed-xml/")
@@ -165,51 +140,85 @@
 
 (defvar *unparsed-handlers* (make-hash-table))
 (defvar *parsed-handlers* (make-hash-table))
+(defvar *bolio-variables* (make-hash-table))
 
 (defmacro define-unparsed-bolio-handler (name (arg) &body body)
-  (setf (gethash name *unparsed-handlers*)
-        `(lambda (,arg) ,@body)))
+  `(setf (gethash ',name *unparsed-handlers*)
+    (lambda (,arg) ,@body)))
 
 (defmacro define-bolio-handler (name (&rest args) &body body)
-  (setf (gethash name *parsed-handlers*)
-        `(lambda (,@args) ,@body)))
+  `(setf (gethash ',name *parsed-handlers*)
+    (lambda (,@args) ,@body)))
 
 (define-unparsed-bolio-handler chapter (title)
-  (setf (context-chapter-title *current-context*) title)
-  (element "chapter"
-           (attribute "title" title)
-           (continue-parsing)))
+  #+(or) (setf (context-chapter-title *current-context*) title)
+  (with-element "chapter"
+    (attribute "title" title)
+    (continue-parsing)))
 
 (define-unparsed-bolio-handler section (title)
-  (setf (context-section-title *current-context*) title)
-  (element "section"
-           (attribute "title" title)
-           (continue-parsing :stop-before 'section)))
+  #+(or) (setf (context-section-title *current-context*) title)
+  (with-element "section"
+    (attribute "title" title)
+    (continue-parsing :stop-before 'section)))
+
+(define-unparsed-bolio-handler c (comment)
+  )
 
 (define-bolio-handler lisp ()
-  (element "lisp"
-           (continue-parsing :stop-after 'end_lisp)))
+  (with-element "lisp"
+    (continue-parsing :stop-after 'end_lisp)))
+
+(defun make-anchor (name)
+  (with-element "a"
+    (text name)))
 
 (define-bolio-handler defun (name &rest args)
-  (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor))
-  (element "defun"
-           (dolist (arg args)
-             (element "arg" (text arg)))))
+  (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor name))
+  (with-element "defun"
+    (dolist (arg args)
+      (with-element "arg"
+        (text arg)))))
 
-(define-bolio-handler cindex (name)
-  (setf (chapter-index *current-chapter*) name))
+(define-unparsed-bolio-handler cindex (name)
+  #+(or) (setf (chapter-index *current-chapter*) name))
 
 (define-bolio-handler setq (name value)
   (setf (gethash name *bolio-variables*) (gethash value *bolio-variables*)))
 
-(defvar *bolio-input*)
+(defvar *bolio-input-stream*)
+
+(defun parse-arguments (string)
+  (cond
+    ((zerop (length string))
+     nil)
+    ((not (position #\Space string))
+     (list string))
+    (t
+     (cons (subseq string 0 (position #\Space string))
+           (parse-arguments (subseq string (1+ (position #\Space string))))))))
 
 (defun continue-parsing (&key stop-before stop-after)
-  (loop for *current-line-number* from 1
-        for line = (read-line *bolio-input* nil)
-        while line
-        do (font-expand (unquote-line line))
-        do (cxml::write-rune-0 10 cxml::*sink*)))
+  (labels ((handle-bolio-command (line)
+             (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
+                                                                      (length line))))))
+                   (arg-string (aif (position #\Space line)
+                                    (subseq line (1+ it))
+                                    "")))
+               (aif (gethash command *unparsed-handlers*)
+                    (funcall it arg-string)
+                    (aif (gethash command *parsed-handlers*)
+                         (apply it (parse-arguments arg-string))
+                         (file-warn "unknown bolio command ~A" command))))))
+    (loop for *current-line-number* from 1
+          for line = (read-line *bolio-input-stream* nil)
+          while line
+          do (progn
+               (if (and (not (zerop (length line))) (eq #\. (aref line 0)))
+                   (handle-bolio-command line)
+                   (progn
+                     (font-expand (unquote-line line))
+                     (cxml::write-rune-0 10 cxml::*sink*)))))))
 
 (defun process-bolio-file (name)
   (let ((input-pathname (merge-pathnames *input-directory*
@@ -220,12 +229,11 @@
     (format *debug-io* "~&Processing ~A => ~A" input-pathname output-pathname)
     (setq *current-file* (namestring input-pathname))
     (setq *font-stack* nil)
-    (with-open-file (*bolio-input* input-pathname)
+    (with-open-file (*bolio-input-stream* input-pathname)
       (with-open-file (output output-pathname
                               :direction :output
                               :if-does-not-exist :create
-                              :if-exists :supersede
-                              :external-format (ext:make-encoding :charset 'charset:utf-8))
+                              :if-exists :supersede)
         (with-xml-output (make-character-stream-sink output)
           (continue-parsing))))
     (when *font-stack*
