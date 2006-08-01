@@ -4,19 +4,10 @@
 ;; Machine Manual to a modern format suitable to online browsing,
 ;; printing and eventually editing.
 
-(in-package :cl-user)
+(in-package :convert-man)
 
-(use-package :cxml)
-
-;;; Paul Graham, On Lisp, p191
-(defmacro aif (test-form then-form &optional else-form)
-  `(let ((it ,test-form))
-    (if it ,then-form ,else-form)))
-
-;;; by analogy
-(defmacro awhen (test-form &rest then-forms)
-  `(let ((it ,test-form))
-    (when it ,@then-forms)))
+(defvar *suppress-warnings* nil)
+(defvar *debug* nil)
 
 (defvar *manual-filenames* '(title intro fd-dtp fd-eva fd-con resour
                              fd-sym fd-num fd-arr generic fd-str fd-fun
@@ -60,6 +51,9 @@
                               #\GREATER-THAN_OR_EQUAL_TO
                               #\IDENTICAL_TO
                               #\N-ARY_LOGICAL_OR))
+
+(defun xml-newline ()
+  (cxml::write-rune-0 10 cxml::*sink*))
 
 (defun unquote-char (char)
   (cond
@@ -162,6 +156,11 @@
     (attribute "title" title)
     (continue-parsing :stop-before 'section)))
 
+(define-unparsed-bolio-handler subsection (title)
+  (with-element "subsection"
+    (attribute "title" title)
+    (continue-parsing :stop-before '(section subsection))))
+
 (define-unparsed-bolio-handler c (comment)
   )
 
@@ -173,18 +172,48 @@
   (with-element "a"
     (text name)))
 
+(defmacro with-defun ((name args) &body body)
+  (let ((arg (gensym)))
+    `(progn
+      (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor ,name))
+      (with-element "defun"
+        (attribute "name" ,name)
+        (with-element "args"
+          (dolist (,arg ,args)
+            (with-element "arg"
+              (text ,arg))
+            (xml-newline)))
+        ,@body))))
+
+(defun dbg (format &rest args)
+  (when *debug*
+    (apply #'format *debug-io* format args)
+    (terpri *debug-io*)))
+
 (define-bolio-handler defun (name &rest args)
-  (setf (gethash (format nil "~(~A~)-fun" name) *bolio-variables*) (make-anchor name))
-  (with-element "defun"
-    (dolist (arg args)
-      (with-element "arg"
-        (text arg)))))
+  (with-defun (name args)
+    (dbg "defun ~A" name)
+    (continue-parsing :stop-after 'end_defun)
+    (dbg "done with defun ~A" name)))
+
+(define-bolio-handler defun1 (name &rest args)
+  (with-defun (name args)
+    (dbg "defun1 ~A" name)
+    ; Nothing to do
+    ))
 
 (define-unparsed-bolio-handler cindex (name)
   #+(or) (setf (chapter-index *current-chapter*) name))
 
 (define-bolio-handler setq (name value)
   (setf (gethash name *bolio-variables*) (gethash value *bolio-variables*)))
+
+(define-bolio-handler exdent (amount &rest caption)
+  (with-element "exdent"
+    (attribute "amount" amount)
+    (with-element "caption"
+      (text caption))
+    (continue-parsing :stop-any t)))
 
 (defvar *bolio-input-stream*)
 
@@ -198,27 +227,51 @@
      (cons (subseq string 0 (position #\Space string))
            (parse-arguments (subseq string (1+ (position #\Space string))))))))
 
-(defun continue-parsing (&key stop-before stop-after)
-  (labels ((handle-bolio-command (line)
-             (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
-                                                                      (length line))))))
-                   (arg-string (aif (position #\Space line)
-                                    (subseq line (1+ it))
-                                    "")))
-               (aif (gethash command *unparsed-handlers*)
-                    (funcall it arg-string)
-                    (aif (gethash command *parsed-handlers*)
-                         (apply it (parse-arguments arg-string))
-                         (file-warn "unknown bolio command ~A" command))))))
-    (loop for *current-line-number* from 1
-          for line = (read-line *bolio-input-stream* nil)
-          while line
-          do (progn
-               (if (and (not (zerop (length line))) (eq #\. (aref line 0)))
-                   (handle-bolio-command line)
-                   (progn
-                     (font-expand (unquote-line line))
-                     (cxml::write-rune-0 10 cxml::*sink*)))))))
+(defun ensure-list (thing)
+  (if (atom thing)
+      (list thing)
+      thing))
+
+(defun continue-parsing (&key stop-before stop-after stop-any)
+  (let (last-line-position)
+    (labels
+        ((read-input-line ()
+           (setf last-line-position (file-position *bolio-input-stream*))
+           (read-line *bolio-input-stream* nil))
+         (handle-bolio-command (line)
+           (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
+                                                                    (length line))))))
+                 (arg-string (aif (position #\Space line)
+                                  (subseq line (1+ it))
+                                  "")))
+             (cond
+               ((find command (ensure-list stop-before))
+                (file-position *bolio-input-stream* last-line-position)
+                (dbg "stopped before ~A" stop-before)
+                (return-from continue-parsing))
+               ((eq command stop-after)
+                (dbg "stopped after ~A" stop-after)
+                (return-from continue-parsing))
+               (t
+                (aif (gethash command *unparsed-handlers*)
+                     (funcall it arg-string)
+                     (aif (gethash command *parsed-handlers*)
+                          (apply it (parse-arguments arg-string))
+                          (unless *suppress-warnings*
+                            (file-warn "unknown bolio command ~A" command)))))))))
+      (loop for *current-line-number* from 1
+            for line = (read-input-line)
+            while line
+            do (progn
+                 (cond
+                   ((and (not (zerop (length line))) (eq #\. (aref line 0)))
+                    (when stop-any
+                      (file-position *bolio-input-stream* last-line-position)
+                      (return-from continue-parsing))
+                    (handle-bolio-command line))
+                   (t
+                    (font-expand (unquote-line line))
+                    (xml-newline))))))))
 
 (defun process-bolio-file (name)
   (let ((input-pathname (merge-pathnames *input-directory*
@@ -242,3 +295,7 @@
 (defun process-bolio-files ()
   (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
     (process-bolio-file name)))
+
+(defun show-bolio-variables ()
+  (loop for key being the hash-keys of *bolio-variables*
+        do (format *debug-io* "~A => ~A~%" key (gethash key *bolio-variables*))))
