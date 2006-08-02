@@ -23,7 +23,7 @@
 (defvar *manual-filenames* '(title intro fd-dtp fd-flo fd-eva fd-con fd-sym
                              fd-num fd-arr generic fd-str fd-fun fd-clo
                              fd-sg fd-loc fd-sub areas compil macros looptm
-                             defstr flavor ios rdprt pathnm files chaos
+                             defstr flavor ios rdprt fd-fio pathnm files chaos
                              packd maksys proces errors code query init
                              time fd-hac))
 
@@ -111,11 +111,11 @@
 (defun lookup-ref (key)
   (gethash key *global-directory*))
 
-(defun enter-ref (key filename)
+(defun enter-ref (key value)
   (when (and (lookup-ref key)
-             (not (equal filename (lookup-ref key))))
-    (warn "symbol ~A defined in multiple files (~A and ~A)" key filename (lookup-ref key)))
-  (setf (gethash key *global-directory*) *current-file-name*))
+             (not (equal value (lookup-ref key))))
+    (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
+  (setf (gethash key *global-directory*) value))
 
 (defun ref-expand (line)
   (aif (position #\Syn line)
@@ -213,8 +213,12 @@
 
 (define-bolio-handler setq (name value)
   (case (intern (string-upcase value))
-    (chapter-number *chapter-number*)
-    (css-number     *section-number*)
+    (chapter-number
+     (make-anchor name)
+     (enter-ref name *chapter-number*))
+    (css-number
+     (make-anchor name)
+     (enter-ref name *section-number*))
     ((page section-page)
      (make-anchor name)
      (enter-ref name *current-file-name*))
@@ -268,8 +272,10 @@ The line given as argument is assumed to begin with .def"
          (with-element "args"
            (dolist (arg (split #?r"\s+" args))
              (with-element "arg"
-               (text arg)))))
+               (text arg))))
+         (xml-newline))
        (unless (equal "1" modifier)
+         (xml-newline)
          (with-element "description"
            (continue-parsing :stop-after end-symbol)))))))
 
@@ -285,6 +291,10 @@ The line given as argument is assumed to begin with .def"
                  (arg-string (aif (position #\Space line)
                                   (subseq line (1+ it))
                                   "")))
+             (when (and stop-after
+                        (scan "^END" (symbol-name command))
+                        (not (eq command stop-after)))
+               (file-warn "expected ~A but saw ~A" stop-after command))
              (cond
                ((find command (ensure-list stop-before))
                 (file-position *bolio-input-stream* last-line-position)
