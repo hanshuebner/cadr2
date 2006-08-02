@@ -93,6 +93,17 @@
   (format *debug-io* "~&~A:~A: " *current-file* *current-line-number*)
   (apply #'format *debug-io* args))
 
+(let (last-file seq)
+  (defun generate-anchor-tag ()
+    (unless (equal last-file *current-file-name*)
+      (setf seq 0))
+    (format nil "_~A" (incf seq))))
+
+(defun make-anchor (&optional (name (generate-anchor-tag)))
+  (with-element "a"
+    (attribute "name" name))
+  name)
+
 (defvar *font-names* '((#\1 . "standard")
                        (#\2 . "arg")
                        (#\3 . "obj")
@@ -159,7 +170,6 @@
 (defvar *section-number* 0)
 (defvar *subsection-number* 0)
 
-
 (defmacro define-unparsed-bolio-handler (name (arg) &body body)
   `(setf (gethash ',name *unparsed-handlers*)
     (lambda (,arg) ,@body)))
@@ -195,13 +205,58 @@
 (define-unparsed-bolio-handler c (comment)
   )
 
+(define-bolio-handler table (&rest args)
+  (with-element "table"
+    (with-element "tbody"
+      (continue-parsing :stop-after 'end_table))))
+
+(defun handle-item (string)
+  (with-element "tr"
+    (with-element "td"
+      (text string))
+    (with-element "td"
+      (continue-parsing :stop-before '(end_table item vitem)))))
+
+(define-unparsed-bolio-handler item (string)
+  (handle-item string))
+
+(define-unparsed-bolio-handler vitem (string)
+  (handle-item string))
+
+(define-unparsed-bolio-handler kitem (string)
+  (handle-item string))
+
+(define-unparsed-bolio-handler xitem (string)
+  (handle-item string))
+
+(defun make-index-entry (index title)
+  (xml-newline)
+  (with-element "index-entry"
+    (attribute "name" index)
+    (attribute "title" title))
+  (xml-newline))
+
+(define-unparsed-bolio-handler cindex (title)
+  (make-index-entry "concepts" title))
+
+(define-unparsed-bolio-handler kindex (title)
+  (make-index-entry "keywords" title))
+
+(define-unparsed-bolio-handler vindex (title)
+  (make-index-entry "variables" title))
+
+(define-unparsed-bolio-handler findex (title)
+  (make-index-entry "functions" title))
+
+(define-unparsed-bolio-handler path_index (title)
+  (make-index-entry "loop-path" title))
+
+(define-unparsed-bolio-handler path_preposition_index (title)
+  (make-index-entry "loop-path-preposition" title))
+
 (define-bolio-handler lisp ()
   (with-element "lisp"
     (continue-parsing :stop-after 'end_lisp)))
-
-(defun make-anchor (name)
-  (with-element "a"
-    (attribute "name" name)))
 
 (defun dbg (format &rest args)
   (when *debug*
@@ -283,6 +338,7 @@ The line given as argument is assumed to begin with .def"
   (let (last-line-position)
     (labels
         ((read-input-line ()
+           (incf *current-line-number*)
            (setf last-line-position (file-position *bolio-input-stream*))
            (read-line *bolio-input-stream* nil))
          (handle-bolio-command (line)
@@ -297,6 +353,7 @@ The line given as argument is assumed to begin with .def"
                (file-warn "expected ~A but saw ~A" stop-after command))
              (cond
                ((find command (ensure-list stop-before))
+                (decf *current-line-number*)
                 (file-position *bolio-input-stream* last-line-position)
                 (dbg "stopped before ~A" stop-before)
                 (return-from continue-parsing))
@@ -312,13 +369,13 @@ The line given as argument is assumed to begin with .def"
                           (apply it (parse-arguments arg-string))
                           (unless *suppress-warnings*
                             (file-warn "unknown bolio command ~A" command)))))))))
-      (loop for *current-line-number* from 1
-            for line = (read-input-line)
+      (loop for line = (read-input-line)
             while line
             do (progn
                  (cond
                    ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
                     (when stop-any
+                      (decf *current-line-number*)
                       (file-position *bolio-input-stream* last-line-position)
                       (return-from continue-parsing))
                     (handle-bolio-command line))
@@ -336,6 +393,7 @@ The line given as argument is assumed to begin with .def"
     (setq *current-file* (namestring input-pathname))
     (setq *current-file-name* name)
     (setq *font-stack* nil)
+    (setq *current-line-number* 0)
     (with-open-file (*bolio-input-stream* input-pathname)
       (with-open-file (output output-pathname
                               :direction :output
