@@ -15,7 +15,7 @@
 
 .if_lmman_chapter_else_noop The LOOP Iteration Macro
 
-.loop_chapter Introduction
+.chapter Introduction
 .c For the sake of the Lispm Manual:
 .setq loop-chapter chapter-number
 .mindex loop
@@ -138,7 +138,7 @@ macro, it must be a symbol, while in the Common Lisp 3loop* it is
 useless to use a symbol there.  Therefore, if the first argument of
 a 3loop* form is not a symbol, it is treated as a Common Lisp 3loop*.
 
-.loop_chapter Clauses
+.chapter Clauses
 
 	Internally, 3loop* constructs a 3prog* which includes
 variable bindings, pre-iteration (initialization) code,
@@ -165,7 +165,7 @@ comparison.
 
 	Bindings and iteration variable steppings may be performed
 either sequentially or in
-'loop_topic sequential vs parallel binding and initialization
+'topic sequential vs parallel binding and initialization
 parallel.  This affects how the stepping of one iteration variable
 may depend on the value of another.  The syntax for distinguishing
 the two will be described with the corresponding clauses.  When a set
@@ -175,7 +175,7 @@ bindings will be performed inside of that binding environment.
 When the same variables are stepped, all the new values are computed
 and then the variables are set.
 
-.loop_section Iteration-Driving Clauses
+.section Iteration-Driving Clauses
 
 	These clauses all create a 2variable of iteration*, which
 is bound locally to the loop and takes on a new value on each
@@ -243,7 +243,7 @@ showing parallel stepping could have been written as
 .end_lisp
 
 	The order of evaluation in iteration-driving clauses is as follows:
-'loop_topic order of evaluation in iteration clauses
+'topic order of evaluation in iteration clauses
 those expressions that are only evaluated once are evaluated in order
 at the beginning of the form, during the variable-binding phase, while
 those expressions that are evaluated each time around the loop are
@@ -253,7 +253,7 @@ evaluated in order in the body.
 3repeat*:
 .table 3 250 500
 .item repeat 2expression*
-.loop_keyword_index repeat
+.kindex repeat
 Evaluates 2expression* (during the variable binding phase),
 and causes the 3loop* to iterate that many times.
 2expression* is expected to evaluate to an integer.  If
@@ -263,7 +263,7 @@ will not be executed.
 
 	All remaining iteration-driving clauses are subdispatches of
 the keyword 3for*, which is synonomous with 3as*.
-'loop_keyword_index for as
+'kindex for as
 In all of them a 2variable of iteration* is specified.  Note that,
 in general, if an iteration-driving clause implicitly supplies an
 endtest, the value of this iteration variable is undefined as the loop is exited
@@ -280,7 +280,7 @@ parts are enclosed in curly brackets.
 
 .item for 2var* in 2expr1* {by 2expr2*}
 .c .item for 2var* {2data-type*} in 2expr1* {by 2expr2*}
-.loop_keyword_index for
+.kindex for
 Iterates over each of the elements in the list 2expr1*.  If
 the 3by* subclause is present, 2expr2* is evaluated once
 on entry to the loop
@@ -289,7 +289,7 @@ instead of 3cdr*.
 
 .item for 2var* on 2expr1* {by 2expr2*}
 .c .item for 2var* {2data-type*} on 2expr1* {by 2expr2*}
-.loop_keyword_index for
+.kindex for
 Like the previous 3for* format, except that 2var* is
 set to successive sublists of the list instead of successive elements.
 Note that
@@ -302,12 +302,12 @@ implement both this and the preceding clause.
 
 .item for 2var* = 2expr*
 .c .item for 2var* {2data-type*} = 2expr*
-.loop_keyword_index for
+.kindex for
 On each iteration, 2expr* is evaluated and 2var* is set to the result.
 
 .item for 2var* = 2expr1* then 2expr2*
 .c .item for 2var* {2data-type*} = 2expr1* then 2expr2*
-.loop_keyword_index for
+.kindex for
 2var* is bound to 2expr1* when the loop is entered, and set to
 2expr2* (re-evaluated) at all but the first iteration.  Since
 2expr1* is evaluated during the binding phase, it cannot reference
@@ -315,7 +315,7 @@ other iteration variables set before it;  for that, use the following:
 
 .item for 2var* first 2expr1* then 2expr2*
 .c .item for 2var* {2data-type*} first 2expr1* then 2expr2*
-.loop_keyword_index for
+.kindex for
 Sets 2var* to 2expr1* on the first iteration, and to
 2expr2* (re-evaluated) on each succeeding iteration.  The
 evaluation of both expressions is performed 2inside* of the
@@ -331,7 +331,7 @@ some other iteration variable, allowing such constructs as
 
 .item for 2var* from 2expr1* {to 2expr2*} {by 2expr3*}
 .c .item for 2var* {2data-type*} from 2expr1* {to 2expr2*} {by 2expr3*}
-.loop_keyword_index for
+.kindex for
 'setq loop-arithmetic-stepping page
 This performs numeric iteration.  2var* is initialized to
 2expr1*, and on each succeeding iteration is incremented by
@@ -359,7 +359,7 @@ increasing.
 .item1 for 2var* being {each|the} 2path* ...
 .c .item for 2var* {2data-type*} being 2expr* and its 2path* ...
 .c .item1 for 2var* {2data-type*} being {each|the} 2path* ...
-.loop_keyword_index for
+.kindex for
 Provides a user-definable iteration facility.  2path* names
 the manner in which the iteration is to be performed.  The ellipsis
 indicates where various path dependent preposition/expression pairs
@@ -367,10 +367,10 @@ may appear.  See the section on Iteration Paths
 ((iteration-path-page)) for complete documentation.
 .end_table
 
-.loop_section Bindings
+.section Bindings
 .setq with-clause page
-.loop_keyword_index with
-'loop_topic variable bindings
+.kindex with
+'topic variable bindings
 	The 3with* keyword may be used to establish initial
 bindings, that is, variables that are local to the loop but are only
 set once, rather than on each iteration.  The 3with* clause looks like:
@@ -455,7 +455,7 @@ section (loop-destructuring-section).
 .c this is necessary, the 3nodeclare* clause may be used:
 .c .table 3 250 500
 .c .item nodeclare 2variable-list*
-.c 'loop_keyword_index nodeclare
+.c 'loop_kindex nodeclare
 .c The variables in 2variable-list* are noted by 3loop* as not
 .c requiring local type declarations.  Consider the following:
 .c .lisp
@@ -480,11 +480,11 @@ section (loop-destructuring-section).
 .c to not take effect, and may not be diagnosed.
 .c .end_table
 
-.loop_section Entrance and Exit
+.section Entrance and Exit
 
 .table 3 250 500
 .item initially 2expression*
-.loop_keyword_index initially
+.kindex initially
 Puts 2expression* into the 2prologue* of the iteration.  It
 will be evaluated before any other initialization code except for
 initial bindings.  For the sake of good style, the 3initially*
@@ -492,7 +492,7 @@ clause should therefore be placed after any 3with* clauses but
 before the main body of the loop.
 
 .item finally 2expression*
-.loop_keyword_index finally
+.kindex finally
 .setq loop-finally-clause page
 Puts 2expression* into the 2epilogue* of the loop, which is
 evaluated when the iteration terminates (other than by an explicit
@@ -511,18 +511,18 @@ to return values in a non-standard way:
 .end_lisp
 .end_table
 
-.loop_section Side Effects
+.section Side Effects
 .setq side-effects-section css-number
 .table 3 250 500
 .item do 2expression*
 .item1 doing 2expression*
-.loop_keyword_index do doing
+.kindex do doing
 2expression* is evaluated each time through the loop, as shown in
 the 3print-elements-of-list* example on
 (print-elements-of-list-example).
 .end_table
 
-.loop_section Values
+.section Values
 .setq values-section css-number
 	The following clauses accumulate a return value for the
 iteration in some manner.  The general form is
@@ -572,7 +572,7 @@ new uninterned symbol would be created by each use of 7#:*.)
 
 .item collect 2expr* {into 2var*}
 .item1 collecting ...
-.loop_keyword_index collect collecting
+.kindex collect collecting
 .setq collect-clause page
 Causes the values of 2expr* on each iteration to be collected
 into a list.
@@ -581,7 +581,7 @@ into a list.
 .item1 nconcing ...
 .item1 append ...
 .item1 appending ...
-.loop_keyword_index nconc nconcing append appending
+.kindex nconc nconcing append appending
 Like 3collect*, but the results are 3nconc*'ed or
 3append*'ed together as appropriate.
 .lisp
@@ -593,14 +593,14 @@ Like 3collect*, but the results are 3nconc*'ed or
 .item count 2expr* {into 2var*}
 .c .item count 2expr* {into 2var*} {2data-type*}
 .item1 counting ...
-.loop_keyword_index count counting
+.kindex count counting
 If 2expr* evaluates non-3nil*, a counter is incremented.
 .c The 2data-type* defaults to 3fixnum*.
 
 .item sum 2expr* {into 2var*}
 .c .item sum 2expr* {2data-type*} {into 2var*}
 .item1 summing ...
-.loop_keyword_index sum summing
+.kindex sum summing
 Evaluates 2expr* on each iteration and accumulates the sum of all
 the values.
 .c 2data-type* defaults to
@@ -611,7 +611,7 @@ the values.
 .item maximize 2expr* {into 2var*}
 .c .item maximize 2expr* {2data-type*} {into 2var*}
 .item1 minimize ...
-.loop_keyword_index maximize minimize
+.kindex maximize minimize
 Computes the maximum (or minimum) of 2expr* over all
 iterations.
 .c 2data-type* defaults to 3number*.
@@ -631,7 +631,7 @@ meaningless.
 .end_table
 
 	Not only may there be multiple accumulations in a
-'loop_topic multiple accumulations
+'topic multiple accumulations
 3loop*, but a single accumulation may come from multiple
 places 2within the same 3loop* form*.  Obviously, the types of
 the collection must be compatible.  3collect*, 3nconc*, and
@@ -654,8 +654,8 @@ The following computes the average of the entries in the list
 .end_lisp
 .end_group
 
-.loop_section Endtests
-.loop_topic terminating the iteration
+.section Endtests
+.topic terminating the iteration
 	The following clauses may be used to provide additional
 control over when the iteration gets terminated, possibly causing
 exit code (due to 3finally*) to be performed and possibly returning
@@ -663,14 +663,14 @@ a value (e.g., from 3collect*).
 
 .table 3 250 500
 .item while 2expr*
-.loop_keyword_index while
+.kindex while
 If 2expr* evaluates to 3nil*, the loop is exited, performing
 exit code (if any) and returning any accumulated value.  The
 test is placed in the body of the loop where it is written.  It may
 appear between sequential 3for* clauses.
 
 .item until 2expr*
-.loop_keyword_index until
+.kindex until
 Identical to 3while (not 2expr*)*.
 .end_table
 
@@ -704,14 +704,14 @@ This particular example would be better written as 3until (= x 4)*
 in place of the 3do* clause.
 .end_defmac
 
-.loop_section Aggregated Boolean Tests
+.section Aggregated Boolean Tests
 .setq aggregated-boolean-tests-section css-number
 	All of these clauses perform some test and may immediately
 terminate the iteration depending on the result of that test.
 
 .table 3 250 500
 .item always 2expr*
-.loop_keyword_index always
+.kindex always
 Causes the loop to return 3t* if 2expr* 3always* evaluates
 non-3null*.  If 2expr* evaluates to 3nil* the loop
 immediately returns 3nil*, without running the epilogue code (if
@@ -720,19 +720,19 @@ will be returned when the loop finishes, after the epilogue code has
 been run.
 
 .item never 2expr*
-.loop_keyword_index never
+.kindex never
 Causes the loop to return 3t* if 2expr* 3never* evaluates
 non-3null*.  This is equivalent to 3always (not 2expr*)*.
 
 .item thereis 2expr*
-.loop_keyword_index thereis
+.kindex thereis
 If 2expr* evaluates non-3nil*, then the iteration is
 terminated, and that value is returned without running the epilogue
 code.
 .end_table
 
-.loop_section Conditionalization
-.loop_topic conditionalizing clause(s)
+.section Conditionalization
+.topic conditionalizing clause(s)
 	These clauses may be used to ``conditionalize'' the following
 clause.  They may precede any of the side-effecting or value-producing
 clauses, such as 3do*, 3collect*, 3always*, or
@@ -741,7 +741,7 @@ clauses, such as 3do*, 3collect*, 3always*, or
 .table 3 250 500
 .item when 2expr*
 .item1 if 2expr*
-.loop_keyword_index when if
+.kindex when if
 .space 0
 .c Make sure this starts it on a new line....
 .c .break doesn't do it.
@@ -750,7 +750,7 @@ If 2expr* evaluates to 3nil*, the following clause will be
 skipped, otherwise not.
 
 .item unless 2expr*
-.loop_keyword_index unless
+.kindex unless
 This is equivalent to 3when (not 2expr*))*.
 .end_table
 
@@ -854,11 +854,11 @@ substituted for 3it* will be that of the last test performed.
 The 3it* keyword is not recognized in an 3else*-phrase.
 .end_group
 
-.loop_section Miscellaneous Other Clauses
+.section Miscellaneous Other Clauses
 
 .table 3 250 500
 .item named 2name*
-.loop_keyword_index named
+.kindex named
 Defines a 3block* named 2name* around the code for the 3loop*,
 so that one may use 3return-from* to return explicitly out of
 this particular 3loop*.  This is obsolete now that 3block*
@@ -870,7 +870,7 @@ so the function 3return* can always be used to exit the innermost
 3loop* (assuming no other construct generating a 3block* 3nil* intervenes).
 
 .item return 2expression*
-.loop_keyword_index return
+.kindex return
 Immediately returns the value of 2expression* as the value of the
 loop, without running the epilogue code.  This is most useful with
 some sort of conditionalization, as discussed in the previous
@@ -892,7 +892,7 @@ finishes normally, one may place a call to the 3return* function in the
 epilogue (with the 3finally* clause, (loop-finally-clause)).
 .end_table
 
-.loop_chapter Loop Synonyms
+.chapter Loop Synonyms
 
 .defmac define-loop-macro keyword
 May be used to make 2keyword*, a 3loop* keyword (such as
@@ -964,7 +964,7 @@ needlessly uses up a function name.
 .c the 3nodeclare* clause, which is described on
 .c (loop-nodeclare-clause).
 
-.loop_chapter Destructuring
+.chapter Destructuring
 .setq loop-destructuring-section css-number
 .setq loop-destructuring-page page
 	2Destructuring* provides one with the ability to
@@ -1049,7 +1049,7 @@ of the symbol, the property name, and the value of that property.
 .c little if any efficiency loss if this is not done.
 .c .end_defvar
 
-.loop_chapter The Iteration Framework
+.chapter The Iteration Framework
 .setq loop-iteration-framework-section css-number
 .setq loop-iteration-framework-page page
 	This section describes the way 3loop* constructs
@@ -1138,7 +1138,7 @@ is incorrect, but
 is safe because the endtest is explicitly dissociated from the
 stepping.
 
-.loop_chapter Iteration Paths
+.chapter Iteration Paths
 .setq iteration-path-page page
 	Iteration paths provide a mechanism for user extension of
 iteration-driving clauses.  The interface is constrained so that the
@@ -1197,7 +1197,7 @@ such low-level matters, it is occasionally useful to have a handle on
 such things.  3loop* provides an additional syntax with which one
 may provide a variable name to be used as an ``internal'' variable by an
 iteration path, with the 3using* ``prepositional phrase''.
-'loop_path_preposition_index using
+'path_preposition_index using
 The 3using* phrase is placed with the other phrases associated
 with the path, and contains any number of keyword/variable-name pairs:
 .lisp
@@ -1216,7 +1216,7 @@ a variable using that keyword.
 	By special dispensation, if a 2path* is not recognized,
 then the 3default-loop-path* path will be invoked upon a syntactic
 transformation of the original input. Essentially, the 3loop* fragment
-'loop_path_preposition_index in
+'path_preposition_index in
 .lisp
 for 2var* being 2frob*
 .end_lisp
@@ -1253,16 +1253,16 @@ syntax for some feature they provide.
 .c first format; this behavior is defined by the default loop path
 .c function which Brand X defines, not by 3loop*.
 
-.loop_section Pre-Defined Paths
+.section Pre-Defined Paths
 .setq predefined-paths-section css-number
 	3loop* comes with two pre-defined iteration path
 functions;  one implements a 3mapatoms*-like iteration path
 facility and the other is used for defining iteration paths for
 stepping through sequences.
 
-.loop_subsection The Interned-Symbols Path
-.loop_path_index interned-symbols
-'loop_path_preposition_index in
+.subsection The Interned-Symbols Path
+.path_index interned-symbols
+'path_preposition_index in
 	The 3interned-symbols* iteration path is like a
 3mapatoms* for 3loop*.
 .lisp
@@ -1304,10 +1304,10 @@ that it will be transparent to changes to the implementation of
 packages.  In the Maclisp implementation, the obarray 2must* be an
 array pointer, 2not* a symbol with an 3array* property.
 
-.loop_subsection The Hash-Elements Path
-.loop_path_index hash-elements
-'loop_path_preposition_index of
-'loop_path_preposition_index with-key
+.subsection The Hash-Elements Path
+.path_index hash-elements
+'path_preposition_index of
+'path_preposition_index with-key
 	The 3hash-elements* path provides an effect like that of
 the function 3maphash*.  It can find all the occupied entries in a hash table.
 .lisp
@@ -1322,7 +1322,7 @@ entries as well, write
 .end_lisp
 and then 3keysym*'s value each will be the hash key that corresponds to 2value*.
 
-.loop_subsection Sequence Iteration
+.subsection Sequence Iteration
 .setq loop-sequence-section css-number
 .setq loop-sequence-page page
 	One very common form of iteration is done over the elements
@@ -1347,14 +1347,14 @@ Lisp systems; on the Lisp Machine they might as well be omitted.
    The Zetalisp implementation of 3loop* utilizes the
 Zetalisp array manipulation primitives to define both
 3array-element* and 3array-elements* as iteration paths:
-'loop_path_index array-elements
+'path_index array-elements
 .nofill
 7(define-loop-sequence-path (array-element array-elements)
     aref array-active-length)*
 .fill
 .unbreak
 Then, the 3loop* clause
-'loop_path_preposition_index of
+'path_preposition_index of
 .lisp
 for 2var* being the array-elements of 2array*
 .end_lisp
@@ -1398,9 +1398,9 @@ variable to be used as the index variable, by use of the 3index*
 keyword with the 3using* prepositional phrase, as described (with
 an example) on (loop-using-crock).
 
-.loop_insert_for_NIL "lsbdoc;()path >"
+.insert_for_NIL "lsbdoc;()path >"
 
-.loop_section Defining Paths
+.section Defining Paths
 
 	This section and the next may not be of interest to those
 not interested in defining their own iteration paths.
@@ -1420,7 +1420,7 @@ This defines 2path-function* to be the handler for the path(s)
 symbols.  Such a handler should follow the conventions described
 below.  The 2datum-i* are optional;  they are passed in to
 2path-function* as a list.
-.end_defun
+.end_defmac
 
 The handler will be called with the following arguments:
 .table 2 250 500
@@ -1512,7 +1512,7 @@ The 3assoc* variant of 3si:loop-tequal*.
 	If an iteration path function desires to make an internal
 variable accessible to the user, it should call the following function
 instead of 3gensym*:
-'loop_path_preposition_index using
+'path_preposition_index using
 .defun si:loop-named-variable keyword
 This should only be called from within an iteration path function.  If
 2keyword* has been specified in a 3using* phrase for this
@@ -1525,7 +1525,7 @@ for which the path function does not call 3si:loop-named-variable*,
 3loop* will inform the user of his error.
 .end_defun
 
-.loop_subsection Path Definition Example
+.subsection Path Definition Example
 	Here is an example function that defines the
 3string-characters* iteration path.  This path steps a variable
 through all of the characters of a string.  It accepts the format
@@ -1602,7 +1602,7 @@ have no dependencies on any other (user) iteration variables.  Using
 the pseudo-steps generally results in some efficiency gains.
 	If one desired the index variable in the above definition to
 be user-accessible through the 3using* phrase feature with the
-'loop_path_preposition_index using
+'path_preposition_index using
 3index* keyword, the function would need to be changed in two
 ways.  First, 3index-var* should be bound to
 3(si:loop-named-variable 'index)* instead of 3(gensym)*.

@@ -114,7 +114,7 @@ In the ``if-then-else'' form, it looks like
 If there are more than three subforms, 3if* assumes you want more than
 one 2else-form*; if the predicate returns 3nil*, they are evaluated
 sequentially and the result of the last one is returned.
-.end_defmac
+.end_defspec
 
 .defmac when condition body...
 If 2condition* evaluates to something non-3nil*, the 2body* is
@@ -1202,7 +1202,7 @@ the error check isn't done.  Example:
 .end_lisp
 returns a list of 3f* of each element of 3y*, and 3:positive*, if they are all
 positive, otherwise the first negative member of 3y*, and 3:negative*.
-.end_defun
+.end_defspec
 
 .defmac catch-continuation tag throw-cont non-throw-cont body...
 .defmac1 catch-continuation-if cond-form tag throw-cont non-throw-cont body...
@@ -1232,7 +1232,7 @@ In the general case, consing is necessary to record the multiple values,
 but if a continuation is an explicit 3#'(lambda ...)* with a
 fixed number of arguments, or if a continuation is 3nil*, it is open
 coded and the consing is avoided.
-.end_defspec
+.end_defmac
 
 .defspec throw tag values-form
 3throw* is the primitive for exiting from a surrounding 3catch*.

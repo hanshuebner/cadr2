@@ -964,7 +964,7 @@ of 3chaos:my-address*.
 .defconst chaos:maximum-routing-cost
 The maximum cost that a route can be in the routing table.  Subnets with
 a cost greater than this do not appear in the Peek Chaosnet display
-.end_deconst
+.end_defconst
 
 .defconst chaos:routing-table-cost
 This is an 3art-16b* array which contains for each subnet the cost for

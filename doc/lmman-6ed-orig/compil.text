@@ -388,7 +388,7 @@ setting or return the location.
 
 Subforms of 2form*, such as arguments, are still optimized or open
 coded, unless additional 3dont-optimize*'s appear around them.
-.end_defun
+.end_defspec
 
 .section Compile-Time Properties of Symbols
 
@@ -858,7 +858,7 @@ Example:
 (compiler:defcompiler-synonym plus +)
 .end_lisp
 is how the compiler is told how to compile 3plus*.
-.end_defun
+.end_defmac
 
 .section Maclisp Compatibility
 

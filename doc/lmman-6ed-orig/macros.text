@@ -1843,7 +1843,7 @@ old value of this place, and any additional arguments such as 3delta*
 in the case of 3incf*, are combined using the 2combiner-function*
 (in this case, 3+*) to get the new value which is stored back in the
 place.
-.end_defmac
+.end_defun
 
 .defmac deflocf
 Defines how to perform 3locf* on a generalized variable.
