@@ -1,0 +1,85 @@
+div.sidebar {
+  float: right;
+  min-width: 15%;
+  padding: 0pt 5pt 5pt 5pt;
+  font-family: helvetica;
+}
+
+div.sidebar-title {
+  font-weight: bold;
+  background-color: #9c0000;
+  border: solid #9c0000;
+  border-top-width: 1px;
+  border-bottom-width: 0px;
+  border-left-width: 4px;
+  border-right-width: 0px;
+  margin: 0em 2pt 1px 2em;
+}
+
+div.sidebar-title a {
+  color: #ffffff;
+}
+
+div.sidebar-main {
+  background-color: #eeeeee;
+  border: solid #9c0000;
+  border-top-width: 0px;
+  border-bottom-width: 0px;
+  border-left-width: 4px;
+  border-right-width: 0px;
+  margin: 0em 2pt 1em 2em;
+  padding-top: 2px;
+  padding-left: 2px;
+}
+
+div.sidebar ul.main {
+  padding: 0pt 0pt 0pt 1em;
+  margin: 0 0 1em;
+}
+
+div.sidebar ul.sub {
+  list-style-type: square;
+  padding: 0pt 0pt 0pt 1em;
+  margin: 0 0 1em;
+}
+
+div.sidebar ul.hack {
+  padding: 0 0 0 0;
+  margin: 0 0 1em;
+  list-style-type: none;
+}
+
+body {
+  color: #000000;
+  background-color: #ffffff;
+  margin-right: 0pt;
+  margin-bottom: 10%;
+  margin-left: 40px;
+  padding-left: 30px;
+  font-family: helvetica;
+  background-image: url(bg.png);
+  background-position: top left;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+h1,h2,h3 {
+  margin-left: -30px;
+}
+
+pre {
+  background-color: #eeeeee;
+  border: solid 1px #d0d0d0;
+  padding: 1em;
+  margin-right: 10%;
+}
+
+.def {
+  background-color: #ddddff;
+  font-weight: bold;
+}
+
+.nomargin {
+  margin-bottom: 0;
+  margin-top: 0;
+}
