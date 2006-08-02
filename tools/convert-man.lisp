@@ -8,18 +8,24 @@
 
 (enable-interpol-syntax)
 
+;; Debugging
+
 (defvar *suppress-warnings* nil)
 (defvar *debug* nil)
 
-(defvar *manual-filenames* '(title intro fd-dtp fd-eva fd-con resour
-                             fd-sym fd-num fd-arr generic fd-str fd-fun
-                             fd-clo fd-sg fd-loc fd-sub areas compil
-                             macros looptm defstr flavor ios rdprt pathnm
-                             files chaos packd maksys patch proces errors
-                             code query init time fd-hac))
+;; Configuration
 
 (defvar *input-directory* #p"/home/hans/cadr2/lmman/orig6ed/")
 (defvar *output-directory* #p"/home/hans/cadr2/lmman/6ed-xml/")
+
+;; Document constants
+
+(defvar *manual-filenames* '(title intro fd-dtp fd-flo fd-eva fd-con fd-sym
+                             fd-num fd-arr generic fd-str fd-fun fd-clo
+                             fd-sg fd-loc fd-sub areas compil macros looptm
+                             defstr flavor ios rdprt pathnm files chaos
+                             packd maksys proces errors code query init
+                             time fd-hac))
 
 (defvar *unicode-cp0-chars* #(#\DOT_OPERATOR
                               #\DOWNWARDS_ARROW
@@ -54,6 +60,14 @@
                               #\IDENTICAL_TO
                               #\N-ARY_LOGICAL_OR))
 
+;; Context
+
+(defvar *current-file* nil)
+(defvar *current-file-name* nil)
+(defvar *current-line-number* nil)
+(defvar *font-stack* nil)
+(defvar *unresolved-references* nil)
+
 (defun xml-newline ()
   (cxml::%write-rune #/U+000A cxml::*sink*))
 
@@ -75,10 +89,6 @@
                      (string (unquote-char (aref line (1+ dc1-position))))
                      (unquote-line (subseq line (+ 2 dc1-position)))))))
 
-(defvar *current-file* nil)
-(defvar *current-line-number* nil)
-(defvar *font-stack* nil)
-
 (defun file-warn (&rest args)
   (format *debug-io* "~&~A:~A: " *current-file* *current-line-number*)
   (apply #'format *debug-io* args))
@@ -96,13 +106,28 @@
           (string char)
         (warn "unknown font ~A" char))))
 
+(defvar *global-directory* (make-hash-table :test #'equal))
+
+(defun lookup-ref (key)
+  (gethash key *global-directory*))
+
+(defun enter-ref (key filename)
+  (when (and (lookup-ref key)
+             (not (equal filename (lookup-ref key))))
+    (warn "symbol ~A defined in multiple files (~A and ~A)" key filename (lookup-ref key)))
+  (setf (gethash key *global-directory*) *current-file-name*))
+
 (defun ref-expand (line)
   (aif (position #\Syn line)
        (let* ((open-paren-pos (position #\( line :start it))
-              (close-paren-pos (position #\) line :start open-paren-pos)))
+              (close-paren-pos (position #\) line :start open-paren-pos))
+              (key (subseq line (1+ open-paren-pos) close-paren-pos)))
          (text (subseq line 0 it))
          (with-element "ref"
-           (attribute "id"  (subseq line (1+ open-paren-pos) close-paren-pos)))
+           (aif (lookup-ref key)
+                (attribute "file" it)
+                (pushnew key *unresolved-references*))
+           (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
        (text line)))
 
@@ -127,16 +152,13 @@
                  (ref-expand (subseq line position))))))
       (do-font-expand))))
 
-(defstruct document title chapters)
-(defstruct chapter name number introduction sections)
-(defstruct section name number contents)
-
-(defun read-chapter (filename)
-  )
-
 (defvar *unparsed-handlers* (make-hash-table))
 (defvar *parsed-handlers* (make-hash-table))
 (defvar *bolio-variables* (make-hash-table))
+(defvar *chapter-number* 0)
+(defvar *section-number* 0)
+(defvar *subsection-number* 0)
+
 
 (defmacro define-unparsed-bolio-handler (name (arg) &body body)
   `(setf (gethash ',name *unparsed-handlers*)
@@ -147,7 +169,9 @@
     (lambda (,@args) ,@body)))
 
 (define-unparsed-bolio-handler chapter (title)
-  #+(or) (setf (context-chapter-title *current-context*) title)
+  (incf *chapter-number*)
+  (setf *section-number* 0)
+  (setf *subsection-number* 0)
   (with-element "chapter"
     (attribute "title" title)
     (continue-parsing)))
@@ -159,6 +183,11 @@
     (continue-parsing :stop-before 'section)))
 
 (define-unparsed-bolio-handler subsection (title)
+  (with-element "subsection"
+    (attribute "title" title)
+    (continue-parsing :stop-before '(section subsection))))
+
+(define-unparsed-bolio-handler loop_subsection (title)
   (with-element "subsection"
     (attribute "title" title)
     (continue-parsing :stop-before '(section subsection))))
@@ -179,25 +208,18 @@
     (apply #'format *debug-io* format args)
     (terpri *debug-io*)))
 
-#+(or)
-(define-bolio-handler defun (name &rest args)
-  (with-defun (name args)
-    (dbg "defun ~A" name)
-    (continue-parsing :stop-after 'end_defun)
-    (dbg "done with defun ~A" name)))
-
-#+(or)
-(define-bolio-handler defun1 (name &rest args)
-  (with-defun (name args)
-    (dbg "defun1 ~A" name)
-    ; Nothing to do
-    ))
-
 (define-unparsed-bolio-handler cindex (name)
   #+(or) (setf (chapter-index *current-chapter*) name))
 
 (define-bolio-handler setq (name value)
-  (setf (gethash name *bolio-variables*) (gethash value *bolio-variables*)))
+  (case (intern (string-upcase value))
+    (chapter-number *chapter-number*)
+    (css-number     *section-number*)
+    ((page section-page)
+     (make-anchor name)
+     (enter-ref name *current-file-name*))
+    (t
+     (file-warn "don't know how to enter ~A as reference" value))))
 
 (define-bolio-handler exdent (amount &rest caption)
   (with-element "exdent"
@@ -235,6 +257,8 @@ The line given as argument is assumed to begin with .def"
    (let ((end-symbol (intern (format nil "~:@(end_def~A~)" type))))
      (when (equal type "un")
        (setf type "fun"))
+     (let ((ref-key (format nil "~A-~A" name (if (find type '("spec" "mac") :test #'equal) "fun" type))))
+       (enter-ref ref-key *current-file-name*))
      (with-element "define"
        (attribute "type" type)
        (attribute "name" name)
@@ -246,7 +270,8 @@ The line given as argument is assumed to begin with .def"
              (with-element "arg"
                (text arg)))))
        (unless (equal "1" modifier)
-         (continue-parsing :stop-after end-symbol))))))
+         (with-element "description"
+           (continue-parsing :stop-after end-symbol)))))))
 
 (defun continue-parsing (&key stop-before stop-after stop-any)
   (let (last-line-position)
@@ -282,7 +307,7 @@ The line given as argument is assumed to begin with .def"
             while line
             do (progn
                  (cond
-                   ((and (not (zerop (length line))) (eq #\. (aref line 0)))
+                   ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
                     (when stop-any
                       (file-position *bolio-input-stream* last-line-position)
                       (return-from continue-parsing))
@@ -299,6 +324,7 @@ The line given as argument is assumed to begin with .def"
     (ensure-directories-exist output-pathname)
     (format *debug-io* "~&Processing ~A => ~A" input-pathname output-pathname)
     (setq *current-file* (namestring input-pathname))
+    (setq *current-file-name* name)
     (setq *font-stack* nil)
     (with-open-file (*bolio-input-stream* input-pathname)
       (with-open-file (output output-pathname
@@ -312,8 +338,14 @@ The line given as argument is assumed to begin with .def"
       (file-warn "imbalanced font specifications"))))
 
 (defun process-bolio-files ()
+  (setq *chapter-number* 0)
+  (setq *section-number* 0)
+  (setq *subsection-number* 0)
+  (setq *unresolved-references* nil)
   (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
-    (process-bolio-file name)))
+    (process-bolio-file name))
+  (when *unresolved-references*
+    (format *debug-io* "~&~A unresolved references" (length *unresolved-references*))))
 
 (defun show-bolio-variables ()
   (loop for key being the hash-keys of *bolio-variables*
