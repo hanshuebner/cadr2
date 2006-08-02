@@ -1,0 +1,1228 @@
+ 3-Dec-82 22:48:30-EST,420;000000000001
+Date: Friday, 3 December 1982, 22:45-EST
+From: Howard D. Trachtman <Hdt at MIT-OZ>
+To: BUG-Lmman at MIT-OZ
+
+In Remote-File 19.1, LMFILE-Remote 21.2, MIT-Specific 14.0, System 89.48,
+ZMail 47.13, microcode 183, ., on Lisp Machine Twenty-four:
+
+In case this hasn't been pointed out already,  page 534 where it
+describes si:lisp-top-level1, it should say that it wants to be
+passed a value for terminal-io....   
+ 3-Dec-82 22:48:31-EST,420;000000000001
+Date: Friday, 3 December 1982, 22:45-EST
+From: Howard D. Trachtman <Hdt at MIT-OZ>
+To: BUG-Lmman at MIT-OZ
+
+In Remote-File 19.1, LMFILE-Remote 21.2, MIT-Specific 14.0, System 89.48,
+ZMail 47.13, microcode 183, ., on Lisp Machine Twenty-four:
+
+In case this hasn't been pointed out already,  page 534 where it
+describes si:lisp-top-level1, it should say that it wants to be
+passed a value for terminal-io....   
+ 3-Dec-82 22:53:33-EST,370;000000000001
+Date: Friday, 3 December 1982, 22:51-EST
+From: Howard D. Trachtman <Hdt at MIT-OZ>
+To: rms at MIT-OZ
+Cc: bug-lmman at MIT-OZ
+
+Sorry about the duplicate message...
+
+I started the bug message by typing (bug) to the
+lisp listener.  After typing the #\end key, I was
+left in the *mail-1-* buffer, but with no
+indication of whether the message was sent
+or not...
+31-Jan-83 00:43:29-EST,531;000000000001
+Mail-From: CENT created at 31-Jan-83 00:41:32
+Date: Monday, 31 January 1983  00:41-EST
+Sender: CENT @ MIT-OZ
+From: CENT @ MIT-MC
+To:   bug-lmman @ MIT-OZ
+Subject:files archived (thank you)
+
+(dumper was supposed to send you this itself. apparently its mail
+file creating mechanism doesn't know it has to put headers on msgs.)
+----------
+L.DOC
+
+Archived files
+ The following files have been archived:
+
+SRC:<L.DOC>BUG.LISPM11.1 File archived, contents deleted
+SRC:<L.DOC>BUG.LISPM12.1 File archived, contents deleted
+31-Jan-83 02:52:25-EST,1070;000000000001
+Date: Monday, 31 January 1983, 00:51-EST
+From: Howard Daniel Trachtman <Hdt at MIT-OZ>
+Subject: Lisp Machine Manual
+To: liz.umcp-cs at UDel-Relay, bug-lmman%mit-oz at mit-mc
+Cc: Howard Trachtman <Hdt%oz at mit-ml>
+
+    Date: 12 Jan 83 16:52:51 EST  (Wed)
+    From: Liz Allen <liz.umcp-cs@UDel-Relay>
+    To:   bug-lman@mit-ai
+    Re:   Lisp Machine Manual
+    Return-Path: <liz.umcp-cs@UDel-Relay>
+    Via:  UMCP-CS; 20 Jan 83 1:20-EST
+
+    I'd like to get a copy of it.  I ordered one a while back, but there
+    were no copies of it available at the time.  Could you tell me what
+    address I should write to and how much it costs?
+
+    Thanks.
+
+				    Liz Allen
+				    Univ of Maryland
+				    Dept of Computer Science
+				    College Park MD 20742
+
+Richard M. Stallman <Rms%oz@mc> has just finished rewriting the manual, and
+it should be ready this week.  The correct address to write to for a manual 
+is the   MIT-AI Lab Publications Office
+         8th Floor, NE43
+         545 Technology Square
+         Cambridge, MA  02139-1986
+ 5-Feb-83 19:29:50-EST,1223;000000000001
+Date: 5 February 1983 19:27 EST
+From: Kent M. Pitman <KMP @ MIT-MC>
+Subject:  Purple LispM manual, p343
+To: BUG-LMMAN @ MIT-OZ
+
+It would be nice if the documentation on page 343 of the purple manual 
+(section 21.5.4 Standard Streams) mentioned exactly what the minimum
+set of capabilities required by each of these streams is. eg, it says
+that -IO vars should be bidirectional. There are bidirectional streams
+which don't support CURSORPOS, right? The error handler isn't even happy 
+with windows that are interactive sometimes. I've seen it complain about
+window being too small to debug in. I would like to know what the minimum
+size of a window that will make the debugger happy is. What about these
+-OUTPUT vars? Can they be file streams or will they need CURSORPOS ability?
+Graphics? STANDARD-OUTPUT has different requirements on it than
+TRACE-OUTPUT or ERROR-OUTPUT, I suspect. Making as much information 
+as possible explicit here instead of these vague phrases would help me
+be able to trust my code a lot more when I try to bind these variables.
+There is no way with existing documentation to know if you've adequately
+debugged the capabilities of the stream you bind these variables to.
+-kmp
+ 8-Feb-83 22:36:36-EST,859;000000000001
+Mail-From: HDT created at  8-Feb-83 22:34:36
+Date: 8 February 1983  22:34-EST (Tuesday)
+Sender: HDT @ MIT-OZ
+From: Howard D. Trachtman <HDT @ MIT-MC>
+To:   bug-lmman @ MIT-OZ
+Subject: [pace: I have no password on mit-ccc]
+
+Date: Tuesday, 8 February 1983  08:01-EST
+From: pace at mit-ccc
+To:   Hdt@mit-oz, bug-file@mit-oz, bugs@mit-ccc
+Re:   I have no password on mit-ccc
+
+Do you log in as 
+	(login 'hdt  ...)
+If so, then it remembers you user name in upper case.  The unix file server,
+at least at this time, does not lowercase the incoming user name.
+
+If you find yourself logged in with an uppercase login name, and want to 
+use a unix file server, then when it prints 'type password or username space
+password', then type 'hdt ', and it will send the new user name, and a null
+password.
+
+Pace
+
+This should be doucmented somewhere.
+19-Feb-83 18:16:11-EST,244;000000000001
+Date: Saturday, 19 February 1983, 18:11-EST
+From: Cliff Lasser <CAL at MIT-OZ>
+To: bug-lmman at MIT-OZ
+
+One of the new green manuals was missing pages 509-58?.  Could not find any
+other bad ones, but i'm letting you know about it anyway.
+21-Feb-83 06:50:56-EST,2029;000000000001
+Return-Path: <Margolin.Multics@MIT-MULTICS.ARPA>
+Date:  21 February 1983 06:34 est
+From:  Barry Margolin at MIT-MULTICS
+Subject:  Bugs in Greenual
+To:  bug-lmman at MIT-OZ
+
+In Greenual (Stallmanual?), Fifth Edition, System 92...
+
+I would first like to say that I am quite impressed with this manual;
+the new material is quite good, and many areas in which the user was
+previously left to his wits are now well explained.  Now for the bad
+news...
+
+On page 126, in the first sentence of the description of the :AREA
+keyword, it says "in which area ... the list should be created."  It
+should say "... the array should be created." Note: this bug also exists
+in the Fourth Edition (Grey/Bluenual).
+
+On page 504, in the description of QSEND, it should mention the fact
+that typing c-sh-C (or something like that) in the prompt for the
+message will put you into Converse (unless that only happens in Brand S
+- I can never keep this stuff straight).
+
+As a suggestion for the future (it's too late now), perhaps revisions of
+the manual could contain change bars, so that we can easily scan the new
+material.
+
+Also, it would be nice if there were some easy way for me to tell that a
+particular function only exists in the MIT system (at the time of the
+writing).  Perhaps some notation like an asterisk or dagger before the
+function definition.  I know it isn't your job to keep track of their
+software (or vice-versa), but since there does seem to be a benefit to
+keeping the two systems close it would be nice if we could tell where
+they diverge (you could even consider it as advertising your special
+features).
+
+Back to real bugs...
+
+On pages 404 and 405 there are several places in the text where the
+names of the operations on si:buffered-output-stream are misnamed (they
+say "input" when they should say "output").  The ones I notice at the
+moment are in the last sentence of page 404, and in the last sentence of
+the description of the si:buffered-stream flavor near the bottom of 405.
+21-Feb-83 11:35:12-EST,378;000000000001
+Return-Path: <Margolin.Multics@MIT-MULTICS.ARPA>
+Date:  21 February 1983 11:24 est
+From:  Barry Margolin at MIT-MULTICS
+Subject:  bug in Green Chineual
+To:  bug-lmman at MIT-OZ
+
+On page 570 of the Green Chineual (Fifth Dimension) the second to last
+paragraph seems to describe the :proceed operation with argument
+"types".  This should be the :proceed-types operation.
+21-Feb-83 12:00:10-EST,419;000000000001
+Return-Path: <Margolin.Multics@MIT-MULTICS.ARPA>
+Date:  21 February 1983 11:55 est
+From:  Barry Margolin at MIT-MULTICS
+Subject:  no arrow
+To:  bug-lmman at MIT-OZ
+
+In the Green Chineual, at the bottom of page 579 it says "... it prompts
+with an arrow:".  The colon indicates to me that there should be an
+example of the prompt given, but there is none; the next paragraph
+starts at the top of the next page.
+21-Feb-83 12:00:18-EST,325;000000000001
+Return-Path: <Margolin.Multics@MIT-MULTICS.ARPA>
+Date:  21 February 1983 11:58 est
+From:  Barry Margolin at MIT-MULTICS
+Subject:  more missing arrows
+To:  bug-lmman at MIT-OZ
+
+In the Greenual, in the middle of page 580, it says "the prompt will be
+/"  /"."  There should be a pair of arrows between the doublequotes.
+ 3-Mar-83 17:19:08-EST,374;000000000001
+Return-path: <s.barmar@MIT-EECS>
+Date: Thursday, 3 March 1983, 17:13-EST
+From: Margolin@Multics
+Sender: s.barmar at MIT-EECS
+Subject: #|...|# documentation
+To: BUG-LMMAN@MIT-OZ
+
+In LMMAN in Experimental MIT-Specific 18.1, Experimental System 93.22,
+Experimental ZMail 49.9, microcode 226, gc@2, on Arthur Dent:
+
+The Lisp Machine Manual does not document #|...|#.
+ 7-Mar-83 23:20:40-EST,515;000000000001
+Return-path: <dove@MIT-DSPG>
+Date: Monday, 7 March 1983, 23:20-EST
+From: Webster Dove <dove at MIT-DSPG>
+To: BUG-LMMAN at MIT-OZ
+
+In LMMAN in Experimental MIT-Specific 18.1, Experimental System 93.22,
+Experimental ZMail 49.9, microcode 226, gc@2, on Ford Prefect:
+
+In the green book, page 303 bottom.
+
+:conc-name
+	"The argument should be a symbol; its print-name is used as the
+	prefix."
+
+I was able to use (:conc-name "foo-") so unless strings are now symbols,
+the above is incomplete documentation.24-Mar-83 20:55:22-EST,502;000000000001
+Return-path: <JINX@MIT-OZ>
+Mail-From: JINX created at 24-Mar-83 20:52:49
+Date: 24 Mar 1983 2052-EST
+From: Bill Rozas <JINX@MIT-OZ>
+Subject: Ceiling when called with one argument
+To: bug-lmman-mit@MIT-OZ
+cc: JINX@MIT-OZ
+
+	According to the manual both floor and ceiling do the same
+thing when called on one argument.  I believe that what it should say
+is "With one argument, ceiling's first value is the smallest integer
+greater than or equal to the argument" by analogy to floor.
+
+-------
+29-Mar-83 17:04:34-EST,1823;000000000001
+Return-path: <Straz@MIT-OZ>
+Date: Tuesday, 29 March 1983, 16:59-EST
+From: Steve Strassmann <Straz@MIT-OZ>
+Subject: user-option lossage in the window system
+To: BUG-LMMAN@MIT-OZ
+CC: RMS@MIT-OZ
+
+In LMMAN in MIT-Specific 18.1, System 93.30, ZMail 49.10, microcode 226,
+gc@2, on Lisp Machine Nine:
+
+While on band 93.30 on CADR-9 3:30pm Tuesday 29 March
+
+I've a few questions about the user option facility (section 15.3.1 in WINDOC):
+
+I tried to eval the following buffer:
+
+        (define-user-option-alist 'al 'defal)
+;                                      ^supposedly the constructor
+
+;       (defal mommy Grunhilda :choose (Grunhilda Gertrude Giselle))
+;        ^this never gets defined... barfs on defal
+
+        (defvar-user-option shoe-size 11.5 "The shoe size" al )
+;       ^ This seems to work fine
+ 
+        (defvar-user-option my-left-eye "open" "Eye status" al
+			    ("open" "closed" "winking") :choose)
+
+;       This seems to work fine, except that it ought to print "My Left Eye:"
+;       not "MY-LEFT-EYE". Also the order of the arguments is not as specified
+;       in the documentation: <args><keyword> wins where the documents say
+;       <keyword><name><args> wins.
+
+
+The document string (e.g."Eye Status") for defvar-user-option  doesn't seem to show
+up as the prompt for that item, nor as the whoiline documentation. What good is it?
+
+DEFINE-USER-OPTION is referred to but never specified in the documentation.
+
+I also noted bunches of typo's. (e.g. "option option" in sect. 15.3.1) If you'd like
+to hear about them, tell me what the best method of reporting them is.
+(By section? By page number? By hardcopy with red ink?)
+
+
+Is there any way to make the little words "top" and "bottom" go away for small
+choose-variables-values menus that don't scroll anyway?30-Mar-83 14:24:54-EST,1088;000000000001
+Return-path: <Moon@SCRC-TENEX>
+Received: from SCRC-BULLDOG by SCRC-TENEX with CHAOS; Wed 30-Mar-83 14:17:54-EST
+Date: Wednesday, 30 March 1983, 14:15-EST
+From: David A. Moon <Moon@SCRC-TENEX>
+Subject: user-option lossage in the window system
+To: Steve Strassmann <Straz@MIT-OZ>
+Cc: BUG-LMMAN@MIT-OZ, RMS@MIT-OZ
+In-reply-to: The message of 29 Mar 83 16:59-EST from Steve Strassmann <Straz at MIT-OZ>
+
+    Date: Tuesday, 29 March 1983, 16:59-EST
+    From: Steve Strassmann <Straz@MIT-OZ>
+
+    While on band 93.30 on CADR-9 3:30pm Tuesday 29 March
+
+    I've a few questions about the user option facility (section 15.3.1 in WINDOC):
+
+    I tried to eval the following buffer:
+
+	    (define-user-option-alist 'al 'defal)
+    ;                                      ^supposedly the constructor
+Like most things whose names start with "def", define-user-option-alist
+is a special form.  Don't quote the arguments unless you really want
+the name of your constructor to be (QUOTE DEFAL).
+
+The rest of your message applies only to RMS software so I won't try to answer it.
+ 6-Apr-83 00:30:02-EST,180;000000000001
+Return-path: <CAL@MIT-OZ>
+Date: Wednesday, 6 April 1983, 00:30-EST
+From: Cliff Lasser <CAL@MIT-OZ>
+To: bug-lmman@MIT-OZ
+
+Cerror on page 562 is missing an argument: Signal-name11-Apr-83 14:34:58-EST,966;000000000001
+Return-path: <dove@MIT-DSPG>
+Date: Monday, 11 April 1983, 12:33-EST
+From: Webster Dove <dove at MIT-DSPG>
+To: BUG-LMMAN at MIT-OZ
+
+In LMMAN in MIT-Specific 18.1, System 93.41, ZMail 49.18, microcode 226,
+gc@2, on Ford Prefect:
+
+Perhaps I was supposed to know these two things:
+
+1)  Trying to use the init option tv:font-map made me discover, that
+init options want to be specified as thought they were global
+(i.e. ":font-map") and not as the window docs would have me believe
+(i.e. "tv:font-map")  it kept saying that tv:font-map was not a legal
+init option.
+
+2)  When I did get it to work, and used
+(default-init-plist :font-map '(fonts:cptfont fonts:tr10)) the lispm
+tried to log into oz from the system menu command create-window.  This
+was inconvenient because oz was down and the system menu looped forever
+trying to log into it.  I finally killed system menu through peek.  Why
+was it logging into oz for a font that was already loaded?
+16-Apr-83 20:04:07-EST,1265;000000000001
+Return-path: <Straz@MIT-OZ>
+Date: Saturday, 16 April 1983, 20:02-EST
+From: Steve Strassmann <Straz@MIT-OZ>
+To: BUG-LISPM@MIT-OZ, BUG-LMMAN@MIT-OZ
+
+In MIT-Specific 18.1, System 93.32, ZMail 49.13, microcode 226, gc@2,
+on Lisp Machine Nine:
+
+
+The mouse blip for mouse-twice seems to be the same as the blip for
+ctrl-mouse-once. This may be useful for some folks, but I think it's a bug.
+Is there any plan to correct this?
+
+How do I convert the encoded click (e.g. the (cadr mouse-blip)) into asking it explicitly
+about state like l,m,r and once, twice, thrice? 
+
+
+Manual stuff:
+The window system manual (section 12.2.1) documentation of tv:mouse-button-encode
+refers to a bit mask of "old-buttons" and "new-buttons" but it's unclear what
+form they ought to take, or what they represent.
+
+The title of section 12.6 (my copy as of 27-feb-83) is spelled "parmaters".
+Section 3.2.3: Descendants is spelled descentents
+Section 3.3: "...this is usually arrange by using tv:alias-for-inferiors-mixin..."
+             arrange ought to be arranged.
+Section 2.4: in tv:sheet-force-access, the "dont-prepare-flag" variable is undocumented.
+Section 9.6: "operatiosn"
+Section 15.3.1: the function "define-user-option" is referred to but not documented. 8-May-83 22:47:11-EDT,1282;000000000001
+Return-path: <Mly@MIT-OZ>
+Date: Sunday, 8 May 1983, 22:46-EDT
+From: Richard Mlynarik <Mly@MIT-OZ>
+Subject: sublis documentation/implementation inconsistency
+To: BUG-LISPM@MIT-OZ, bug-lmman@MIT-OZ
+
+In Bad MIT-Specific 19.1, Inconsistently updated System 94.16,
+Experimental ZMail 50.2, microcode 238, ZM GC@0,
+on Lisp Machine Eighteen:
+
+In qfnctns, sublis is defined as follows:
+
+  (DEFUN SUBLIS (ALIST FORM &AUX CAR CDR)
+    "Makes multiple replacements in FORM, copying structure as needed.
+  ALIST	specifies the replacements.
+  It associates symbols with what to replace them with."
+    (COND ((SYMBOLP FORM)  -------------------------------------------- 
+  	   (COND ((SETQ CAR (ASSQ FORM ALIST))				|
+		  (CDR CAR))						|
+		 (T FORM)))						|
+	  ((CONSP FORM)							|
+	   (SETQ CAR (SUBLIS ALIST (CAR FORM))				|
+		 CDR (SUBLIS ALIST (CDR FORM)))				|
+	   (COND ((AND (EQ (CAR FORM) CAR)				|
+		       (EQ (CDR FORM) CDR))				|
+		  FORM)							|
+		 (T (CONS CAR CDR))))					|
+	  (T FORM)))							|
+									|
+The definition in the manual uses ATOM rather than symbolp here -------- 
+
+[I had a lot of fun typing that]
+
+  The net result is that sublis doesn't work where it seems it should,
+like with fixnums (which was how it was discovered)
+ 9-May-83 08:21:40-EDT,456;000000000001
+Return-path: <Moon@SCRC-TENEX>
+Received: from SCRC-EUPHRATES by SCRC-TENEX with CHAOS; Mon 9-May-83 08:17:08-EDT
+Date: Monday, 9 May 1983, 08:17-EDT
+From: David A. Moon <Moon@SCRC-TENEX>
+Subject: sublis documentation/implementation inconsistency
+To: Richard Mlynarik <Mly@MIT-OZ>
+Cc: BUG-LISPM@MIT-OZ, bug-lmman@MIT-OZ
+In-reply-to: The message of 8 May 83 22:46-EDT from Richard Mlynarik <Mly at MIT-OZ>
+
+This is fixed in the Common Lisp version
+22-May-83 12:29:07-EDT,256;000000000001
+Return-path: <DJC@MIT-OZ>
+Mail-From: DJC created at 22-May-83 12:25:01
+Date: 22 May 1983 1225-EDT
+From: Dan Carnese <DJC@MIT-OZ>
+Subject: whoppers
+To: bug-lmman@MIT-OZ
+
+Is there a reason why whoppers aren't documented in the green manual?
+-------
+22-May-83 13:04:05-EDT,866;000000000001
+Return-path: <Mailer@MIT-OZ>
+Date:  22 May 1983 13:01 edt
+From:  Barry Margolin at MIT-MULTICS
+Subject:  Re: whoppers
+To:  "djc@oz" at MIT-MC
+cc:  "bug-lmman@oz" at MIT-MC
+In-Reply-To:  Message of 22 May 1983 12:25 edt from Dan Carnese
+
+    Date:  22 May 1983 1225-EDT
+    From:  Dan Carnese <DJC@MIT-OZ>
+    Subject:  whoppers
+
+    Is there a reason why whoppers aren't documented in the green manual?
+    -------
+
+
+Look under :around method combination.  The Greenual describes the
+MIT/LMI system, and whoppers are a part of the Symbolics system.
+:around methods are pretty much the same thing as whoppers; I think that
+Stallman didn't think that they were different enough from methods to
+warrant a whole new name, so he implemented them this way.  I think that
+he also defined a defwhopper macro for compatibility with Symbolics
+software.
+ 8-Jun-83 02:10:56-EDT,1177;000000000001
+Return-path: <Straz@MIT-OZ>
+Date: Wednesday, 8 June 1983, 02:10-EDT
+From: Steve Strassmann <Straz@MIT-OZ>
+Re: Windoc manual suggestion
+To: rms@MIT-OZ, bug-lmman@MIT-OZ
+
+
+
+Much as I'm grateful for the revelations of the manual, I think a few more
+illustrative examples would make it much more useful. For example, it has taken
+me a good deal of exploration to realize that 
+
+(defmethod (music-pane :handle-mouse) ()
+  (tv:mouse-set-blinker-definition
+      ':character-blinker 0. 0. t ':set-character #/ fonts:music-cursor-font)
+  (tv:mouse-default-handler self ()))
+
+was (elegantly) the right thing. I had almost the right behavior by creating
+a new instance of a new blinker flavor, and having my controlling process try to
+ask continuously when the mouse was on the music-pane...  ad nauseum.
+
+The constraint-frame chapter fortunately has nice examples, but the myriad choice
+menus, command menus, and scrolling stuff ought to have a few more.
+
+By the way, I have a reasonably clean version of a bucky-bit window based
+on the bucky-pane in Daedalus which you may want to add to the standard window
+system. It's in oz:ps:<straz.music>bucky.lisp.
+
+ 8-Jun-83 03:10:59-EDT,489;000000000001
+Return-path: <HIC@SCRC-TENEX>
+Date:  8 Jun 1983 0307-EDT
+From: Howard I. Cannon <HIC@SCRC-TENEX>
+Subject: Re: Windoc manual suggestion
+To: Straz@MIT-OZ
+cc: rms@MIT-OZ, bug-lmman@MIT-OZ
+In-Reply-To: The message of Wednesday, 8 June 1983, 02:10-EDT from Steve Strassmann <Straz@MIT-OZ>
+
+Actually, the right way to handle your blinker hacking is to put
+the tv;mouse-set-blinker-definition in the :MOUSE-STANDARD-BLINKER
+method.  This message is sent at appropriate times.
+-------
+ 8-Jun-83 06:51:54-EDT,986;000000000001
+Return-path: <Straz@MIT-OZ>
+Date: Wednesday, 8 June 1983, 06:51-EDT
+From: Steve Strassmann <Straz@MIT-OZ>
+To: HIC@MIT-OZ
+Cc: rms@MIT-OZ, bug-lmman@MIT-OZ
+
+
+	From: Howard I. Cannon <HIC@SCRC-TENEX>
+	To: Straz@MIT-OZ
+	cc: rms@MIT-OZ, bug-lmman@MIT-OZ
+
+	Actually, the right way to handle your blinker hacking is to put
+	the tv;mouse-set-blinker-definition in the :MOUSE-STANDARD-BLINKER
+	method.  This message is sent at appropriate times.
+
+Ok, well I tried it like this:
+
+(defmethod (music-pane :mouse-standard-blinker) ()
+  (tv:mouse-set-blinker-definition
+      ':character 0. 0. t ':set-character 25.))
+
+and it seems that it's never called. The mouse stays the same as the window it was
+over most recently (in my case, an "X" from a command menu pane).
+
+Also, why on earth did you implement ':rectangle-blinker as a character that looks like
+a box? You can't send it any rectangle messages! The MIT window system has it implemented
+as a rectangular blinker.
+ 8-Jun-83 07:21:55-EDT,3846;000000000001
+Return-path: <Straz@MIT-OZ>
+Date: Wednesday, 8 June 1983, 07:18-EDT
+From: Steve Strassmann <Straz@MIT-OZ>
+To: BUG-LISPM@MIT-OZ, bug-lmman@MIT-OZ
+
+In MIT-Specific 19.3, Experimental System 94.22, Experimental ZMail 50.6,
+microcode 238, ZM GC@0, on Lisp Machine Nine:
+
+
+The window manual has a typo which documents the tv:scroll-stuff-on-and-off-mixin
+It's really tv:scroll-stuff-on-off-mixin. 
+
+Anyways, it caused this when I tried to resume by offering to replace it
+with the correct flavor-name.
+
+>>ERROR: Invalid proceed-type :NEW-ARGUMENT returned by handler for #EH:WRONG-TYPE-ARGUMENT-ERROR PROPERTY-LIST (DESCRIPTION NIL OLD-VALUE TV:SCROLL-STUFF-ON-AND-OFF-MIXIN ...) CONDITION-NAMES (EH:WRONG-TYPE-ARGUMENT-ERROR ERROR CONDITION SYS:WRONG-TYPE-ARGUMENT) FORMAT-STRING "The argument ~2G~A was ~1G~S, which is not ~3G~A." FORMAT-ARGS (NIL TV:SCROLL-STUFF-ON-AND-OFF-MIXIN SI:FLAVOR-NAME "a defined flavor").
+Backtrace from the debugger:
+
+SI:MAP-OVER-COMPONENT-FLAVORS (P.C. = 63)
+
+ Arg 0 (RECURSION-STATE): 1.
+ Arg 1 (ERROR-P): T
+ Arg 2 (RETURN-FIRST-NON-NIL): NIL
+ Arg 3 (FUNCTION): #<DTP-FEF-POINTER (:INTERNAL SI:COMPOSE-FLAVOR-INCLUSION-1 0.) 1663676>
+ Arg 4 (FLAVOR-NAME): TV:SCROLL-STUFF-ON-AND-OFF-MIXIN
+ Arg 5 (STATE): (TV:PANE-MIXIN TV:STREAM-MIXIN TV:LIST-TYI-MIXIN TV:ANY-TYI-MIXIN ...)
+ Rest arg (ARGS): NIL
+Local 1 (FL): NIL
+Local 2: NIL
+Local 3 (COMPONENT-FLAVOR): NIL
+
+
+SI:MAP-OVER-COMPONENT-FLAVORS (P.C. = 133)
+
+ Arg 0 (RECURSION-STATE): 1.
+ Arg 1 (ERROR-P): T
+ Arg 2 (RETURN-FIRST-NON-NIL): NIL
+ Arg 3 (FUNCTION): #<DTP-FEF-POINTER (:INTERNAL SI:COMPOSE-FLAVOR-INCLUSION-1 0.) 1663676>
+ Arg 4 (FLAVOR-NAME): MUSIC-PANE
+ Arg 5 (STATE): (TV:PANE-MIXIN TV:STREAM-MIXIN TV:LIST-TYI-MIXIN TV:ANY-TYI-MIXIN ...)
+ Rest arg (ARGS): NIL
+Local 1 (FL): #<FLAVOR MUSIC-PANE 30377644>
+Local 2: (TV:SCROLL-STUFF-ON-AND-OFF-MIXIN TV:DONT-SELECT-WITH-MOUSE-MIXIN TV:LIST-MOUSE-BUTTONS-MIXIN TV:TRUNCATING-WINDOW)
+Local 3 (COMPONENT-FLAVOR): TV:SCROLL-STUFF-ON-AND-OFF-MIXIN
+
+
+Additional information supplied with call:
+ Expecting 2 values
+
+SI:COMPOSE-FLAVOR-INCLUSION-1 (P.C. = 41)
+
+ Arg 0 (FLAVOR): MUSIC-PANE
+ Arg 1 (OTHER-COMPONENTS): NIL
+ Arg 2 (ERROR-P): T
+Local 0 (FLS): NIL
+Local 1 (ADDITIONS): NIL
+Local 2 (L): NIL
+Local 3: NIL
+Local 4 (FL): NIL
+Local 5: NIL
+Local 6: NIL
+
+
+SI:COMPOSE-FLAVOR-INCLUSION (P.C. = 40)
+
+ Arg 0 (FLAVOR): MUSIC-PANE
+ Arg 1 (ERROR-P): T
+Local 0 (FLS): NIL
+Local 1 (ADDITIONS): NIL
+Local 2 (L): NIL
+Local 3 (MORE-FLS): NIL
+Local 4: NIL
+Local 5 (F): NIL
+Local 6 (LL): NIL
+Local 7 (FLAVOR): NIL
+Local 8: NIL
+
+
+SI:COMPOSE-FLAVOR-COMBINATION (P.C. = 231)
+
+ Arg 0 (FL): #<FLAVOR MUSIC-PANE 30377644>
+   --Defaulted args:--
+ Arg 1 (ERROR-P): T
+Local 0 (FLS): NIL
+Local 1 (VARS): NIL
+Local 2 (ORDS): NIL
+Local 3 (REQS): NIL
+Local 4 (SPECS): NIL
+Local 5 (SIZE): NIL
+Local 6 (SOME-COMPONENT-UNDEFINED): NIL
+Local 7 (PERM-AREA): 31.
+Local 8 (VAN): NIL
+Local 9 (FLAV): NIL
+Local 10: NIL
+Local 11 (F): NIL
+Local 12: NIL
+Local 13 (V): NIL
+Local 14 (FF): NIL
+Local 15 (ORD): NIL
+Local 16 (L1): NIL
+Local 17 (L2): NIL
+
+
+Remainder of stack:
+
+INSTANTIATE-FLAVOR (P.C. = 142)
+TV:MAKE-WINDOW (P.C. = 122)
+(:METHOD TV:BASIC-CONSTRAINT-FRAME :CREATE-PANE) (P.C. = 34)
+TV:CONSTRAINT-FRAME-WINDOWS (P.C. = 45)
+TV:CONSTRAINT-FRAME-PROCESS-CONSTRAINTS (P.C. = 62)
+(:METHOD TV:BASIC-CONSTRAINT-FRAME :AFTER :INIT) (P.C. = 43)
+(:METHOD TV:BORDERED-CONSTRAINT-FRAME :COMBINED :INIT) (P.C. = 144)
+TV:MAKE-WINDOW (P.C. = 151)
+SI:*EVAL (P.C. = 1234)
+SETQ (P.C. = 54)
+...
+LOAD (P.C. = 300)
+SI:*EVAL (P.C. = 1234)
+SI:READFILE-INTERNAL (P.C. = 176)
+LOAD (P.C. = 300)
+LOGIN (P.C. = 223)
+SI:*EVAL (P.C. = 1234)
+SI:EVAL-ABORT-TRIVIAL-ERRORS (P.C. = 44)
+SI:LISP-TOP-LEVEL1 (P.C. = 254)
+SI:LISP-TOP-LEVEL (P.C. = 35)
+23-Jun-83 04:39:09-EDT,475;000000000001
+Return-path: <CENT@MIT-ML>
+Date: 23 June 1983 04:39 EDT
+From: Pandora B. Berman <CENT @ MIT-ML>
+Subject: archived files
+To: bug-lmman @ MIT-OZ
+
+(is this the right set of people to pass this notification to?)
+----------
+Date: 23-Jun-83 03:35:30
+From: Dumper <DUMPER@MIT-OZ>
+Reply-to: File-Retrieve <FILE-R@MIT-OZ>
+To: BUG-BACKUPERS
+Subject: Archived files
+
+    The following files have been archived:
+
+SRC:<L.DOC>BUG.LISPM17.1 File archived, contents deleted
+ 3-Jul-83 11:39:27-EDT,406;000000000001
+Return-path: <Bagley@MIT-OZ>
+Date: Sunday, 3 July 1983, 11:32-EDT
+From: Steven C. Bagley <Bagley@MIT-OZ>
+Subject: :init message not in index
+To: BUG-LMMAN@MIT-OZ
+
+In lmman in Release 4.3, site configuration 42, on Lisp Machine Robot-1:
+
+The description of the function make-instance mentions the :init
+message.  However, this message is not listed in the message index at
+the end of the manual.
+18-Jul-83 21:12:52-EDT,1232;000000000001
+Return-path: <JES@MIT-XX>
+Date: 18 Jul 1983 1612-EDT
+From: Joseph E. Stoy <JES@MIT-XX>
+Subject: Flag-bits
+To: bug-lmman@MIT-OZ
+cc: JES@MIT-XX
+
+Please can someone amplify to me the meaning of the remark
+in SRC:<L.MAN>FD-SUB.TEXT.6  24-JAN-83 Section 14.11 on Page
+210 of the Lisp Machine Manual (I hope that includes the
+version of the reference you prefer) about
+	%%q-flag-bit
+"It may soon be reallocated to other purposes."
+
+We have a large program that has been using that as a flag
+(marking some elements of an array, of which the elements are 
+all other arrays).  We have fallen over in a heap because you
+seem to have withdrawn the %p-store-flagbit series of subprimitives:
+the question is, are we safe simply to change to using the %%q-
+variables and to continue to use the flagbit for now, or should
+we quickly change to another way of doing things.  And what would
+be the recommended efficient alternative way of marking certain
+elements?  (Incidentally, certain arrays are marked to indicate that 
+they are shared and must therefore be copied on first access by
+any routine which might alter them.)
+
+Please forward this message if I've sent it to the wrong place.
+
+Thanks.
+
+joe stoy
+-------
+19-Jul-83 01:18:13-EDT,2709;000000000001
+Return-path: <Moon@SCRC-TENEX>
+Received: from SCRC-COLLIE by SCRC-TENEX with CHAOS; Tue 19-Jul-83 01:11:10-EDT
+Date: Tuesday, 19 July 1983, 01:09-EDT
+From: David A. Moon <Moon@SCRC-TENEX>
+Subject: Flag-bits
+To: Joseph E. Stoy <JES@MIT-XX>
+Cc: bug-lmman@MIT-OZ
+In-reply-to: The message of 18 Jul 83 16:12-EDT from Joseph E. Stoy <JES at MIT-XX>
+
+    Date: 18 Jul 1983 1612-EDT
+    From: Joseph E. Stoy <JES@MIT-XX>
+    Please can someone amplify to me the meaning of the remark
+    in SRC:<L.MAN>FD-SUB.TEXT.6  24-JAN-83 Section 14.11 on Page
+    210 of the Lisp Machine Manual (I hope that includes the
+    version of the reference you prefer) about
+	    %%q-flag-bit
+    "It may soon be reallocated to other purposes."
+
+    We have a large program that has been using that as a flag
+    (marking some elements of an array, of which the elements are 
+    all other arrays).  We have fallen over in a heap because you
+    seem to have withdrawn the %p-store-flagbit series of subprimitives:
+    the question is, are we safe simply to change to using the %%q-
+    variables and to continue to use the flagbit for now, or should
+    we quickly change to another way of doing things.  And what would
+    be the recommended efficient alternative way of marking certain
+    elements?  (Incidentally, certain arrays are marked to indicate that 
+    they are shared and must therefore be copied on first access by
+    any routine which might alter them.)
+
+    Please forward this message if I've sent it to the wrong place.
+
+Well, it's highly unclear what you're really talking about, since
+you didn't give any context.  BUG-LISPM would be the correct place
+to send bugs in the Lisp Machine software (as opposed to bugs in
+the manual).
+
+I can take a wild guess at what you might be talking about and send
+the following answer, which may be completely irrelevant to what you're
+really talking about:
+
+Yes, there are no flag bits on the 3600.  Unfortunately the document
+that tells you things like this was accidentally not distributed, so
+you had to find it out the hard way.
+
+I suggest that you make a parallel array of type ART-1B (1's and 0's) or
+SYS:ART-BOOLEAN (T's and NIL's).  I think you'll find that accessing this
+array is faster than checking the flag bits, and the 3% extra
+storage occupied is trivial.  You can store the flag array in one of
+the elements of the array-leader of the main array so that you can find
+it easily.
+
+Incidentally the green Lisp Machine Manual, which you seem to be referring to,
+is specific to RMS's system 86,91,94, etc. series and does not apply to
+the 3600.  You will find many discrepancies.  Try a gray or blue manual.
+29-Jul-83 18:35:11-EDT,678;000000000001
+Return-path: <dove@MIT-DSPG>
+Date: Friday, 29 July 1983, 18:34-EDT
+From: Webster Dove <dove at MIT-DSPG>
+Subject: 
+To: BUG-LMMAN at MIT-OZ
+
+In LMMAN in MIT-Specific 19.4, System 94.26, ZMail 50.10, microcode 239,
+on Arthur Dent:
+
+If I have a file to compile which uses functions that will be defined in
+a later file, there appears to be no way to tell the compiler to ignore
+the fact that those functions are not yet defined.  Specifically,
+(*expr foo) and (*expr 'foo) at the beginning of the file seem to have
+no effect on the function not defined message.  Is there supposed to be
+a way to do this, if so, I couldn't find it in the manual.  If not I'm
+annoyed.29-Jul-83 18:48:38-EDT,584;000000000001
+Return-path: <dove@MIT-DSPG>
+Date: Friday, 29 July 1983, 18:42-EDT
+From: Webster Dove <dove at MIT-DSPG>
+Subject: 
+To: BUG-LMMAN at MIT-OZ
+
+In LMMAN in MIT-Specific 19.4, System 94.26, ZMail 50.10, microcode 239,
+on Arthur Dent:
+
+Sorry, before sending the last message, I hadn't read the fine print on
+the previous page about enclosing (*expr foo) inside (declare).  Perhaps
+a free standing (*expr) should return a message, so I would have known
+that I was using it improperly.
+
+If (declare (*expr foo)) is out of date (only for maclisp), what is one
+supposed to use?
+27-Sep-83 19:34:18-EDT,1030;000000000001
+Date: Tuesday, 27 September 1983, 14:59-PDT
+From: Ken Olum <KDO at SRI-KL>
+Subject: [Kanef at FLAIR-20: Window System Manual, Section 5.5.1]
+To: bug-lmman at MIT-MC
+
+Mail-From: KANEF created at 26-Sep-83 00:57:07
+Date: Mon 26 Sep 83 00:57:07-PDT
+From: Bob Kanefsky <Kanef at FLAIR-20>
+Subject: Window System Manual, Section 5.5.1
+To: Bug-LMMAN at FLAIR-20
+
+I believe there is a minor mistake in Section 5.5.1, Synchronously
+Intercepted Characters (page 60, edition 1.1).
+
+The manual says that tv:kbd-intercept-abort and tv:kbd-intercept-abort-all
+"implement the standard meanings of the Abort and Control-Abort keys."
+If the functions do what it sounds like they do, tv:kbd-intercept-abort
+implements Abort and Control-Abort, while tv:kbd-intercept-abort-all
+implements Meta-Abort and Control-Meta-Abort.
+
+Similarly, the functions described below as both implementing Break and
+Control-Break sound as though the first implements Break and c-Break,
+the second m-Break and c-m-Break.
+
+					--Kanef
+-------
+27-Sep-83 19:34:51-EDT,662;000000000001
+Date: Tuesday, 27 September 1983, 14:59-PDT
+From: Ken Olum <KDO at SRI-KL>
+Subject: [Kanef at FLAIR-20: Window System Manual 1.1, p. 61]
+To: bug-lmman at MIT-MC
+
+Mail-From: KANEF created at 26-Sep-83 01:01:22
+Date: Mon 26 Sep 83 01:01:22-PDT
+From: Bob Kanefsky <Kanef at FLAIR-20>
+Subject: Window System Manual 1.1, p. 61
+To: Bug-LMMAN at FLAIR-20
+
+One other slight problem right after the one described in my last
+message:  there's a forward reference to tv:kbd-tyi-hook, but the
+definition of tv:kbd-tyi-hook appears only a few lines below the
+reference.  As a result, the second line of page 61 ends with "see
+page 61"!
+					--Kanef
+-------
+26-Oct-83 22:48:50-EDT,599;000000000001
+Date: Monday, 24 October 1983, 19:06-PST
+From: Bob Kanefsky <Kanef at SRI-KL>
+Subject: Window System Manual bug
+To: Bug-LMman at MIT-ML
+Fcc: 20:PS:<KANEF>SAVED.MESSAGES
+
+The Window System Manual (edition 1.1, Aug 1983) lists
+:string-out-centered-explicit and :string-out-x-y-centered-explicit as
+operations on windows (section 6.8, p. 80, SRC:<L.WIND>OUTPUT.TEXT.26).
+
+The actual names of these operations on flavor tv:window seem to be
+:display-centered-string and :display-x-y-centered-string, at least in
+the system we're running (Symbolics System, Release 4.4).
+
+					--Kanef
+
+
+27-Oct-83 00:47:26-EDT,1312;000000000001
+Received: from SCRC-EUPHRATES by SCRC-TENEX with CHAOS; Thu 27-Oct-83 00:42:49-EDT
+Date: Thursday, 27 October 1983, 00:44-EDT
+From: David A. Moon <Moon@SCRC-TENEX>
+Subject: Window System Manual bug
+To: Bob Kanefsky <Kanef@SRI-KL>
+Cc: Bug-LMman@MIT-ML
+In-reply-to: The message of 24 Oct 83 23:06-EDT from Bob Kanefsky <Kanef at SRI-KL>
+
+    Date: Monday, 24 October 1983, 19:06-PST
+    From: Bob Kanefsky <Kanef at SRI-KL>
+    The Window System Manual (edition 1.1, Aug 1983) lists
+    :string-out-centered-explicit and :string-out-x-y-centered-explicit as
+    operations on windows (section 6.8, p. 80, SRC:<L.WIND>OUTPUT.TEXT.26).
+
+    The actual names of these operations on flavor tv:window seem to be
+    :display-centered-string and :display-x-y-centered-string, at least in
+    the system we're running (Symbolics System, Release 4.4).
+
+The only document with that name and date that I know of is something
+Richard Stallman at MIT wrote.  It documents his private version of the
+Lisp machine software, so it's not surprising that it doesn't agree with
+the Symbolics software.  I would be very careful about relying on
+anything you find in that document.  I realize it's a real problem that
+Symbolics has not supplied adequate window system documentation.  This
+is being worked on.
+27-Oct-83 20:04:43-EDT,385;000000000001
+Mail-From: RMS created at 27-Oct-83 20:04:40
+Date: Thu 27 Oct 83 20:04:40-EDT
+From: RMS@MIT-OZ
+Subject: Window system manual
+To: bug-lmman@MIT-OZ, Kanef@SRI-KL.ARPA
+
+The window system manual documents the MIT version of the Lisp machine
+system, which is also used by LMI and its customers.  Moon refers to
+it as my private version, but this is just wishful thinking.
+-------
+27-Aug-84 09:49:16-EDT,1231;000000000001
+Received: from SCC-WAIKATO by MIT-OZ via Chaosnet; 27 Aug 84 09:49-EDT
+Received: from SCRC-CHICOPEE by WAIKATO via CHAOS with CHAOS-MAIL id 48161; Mon 27-Aug-84 09:49:29-EDT
+Date: Monday, 27 August 1984, 09:49-EDT
+From: Daniel L. Weinreb <DLW at SCRC-TENEX>
+Subject: yucky sexuality in manual
+To: DRogers at MIT-OZ
+cc: Moon at SCRC-TENEX, bug-lmman at MIT-OZ, mly at MIT-OZ,
+    rms at MIT-OZ
+In-Reply-To: <840826173600.9.MOON@EUPHRATES.SCRC.Symbolics>
+Message-ID: <840827094928.3.DLW@CHICOPEE.SCRC.Symbolics>
+
+I second Moon's comments, and have only one point to add.
+
+The Lisp Machine Manual goes to great pains to try to avoid using
+third-person pronouns altogether.  I felt that "he or she" was annoying
+and distracting, but wanted to avoid gender bias in my writing.  I
+largely achieved this by using the second person.  Please run your tool
+again and count the number of uses of the word "you".  I also found that
+I liked the tone of the second-person style; I feel it increases
+readability.  In any case, I would only resort to using "he" when there
+was no reasonable way to construct the sentence using the second person.
+
+In any case, that's all history, since I'm not doing documentation any more.
+26-Sep-84 16:43:23-EDT,814;000000000001
+Received: from MIT-MC by MIT-OZ via Chaosnet; 26 Sep 84 16:43-EDT
+Date: Wed 26 Sep 84 16:41:53-EDT
+From: ID.LEE@MIT-XX.ARPA
+Subject: Parallel I/O interface behind the Symbolics 3600 console
+To: bug-lmman@MIT-MC.ARPA
+cc: robot.clee%MIT-OZ@MIT-XX.ARPA
+
+Well, guys, this is no bug report.  I just want to borrow your
+expertise on the LISP machine, in particular the Symbolics 3600.  I
+have found no documentation on the parallel I/O port behind the
+console.  Can anyone help me out on that?  I would appreciate it
+if I can get a response as soon as possible.  Also I am interested in
+the benchmark of the 3600, i.e. the number of instructions can be
+executed in a second.  Any idea?  Any suggestions on how to do
+interface with the 3600?
+
+Thanks for the answers and suggestions.
+
+Chih Lee
+-------
+30-Sep-84 23:53:31-EDT,1765;000000000001
+Received: from MIT-MC by MIT-OZ via Chaosnet; 30 Sep 84 23:53-EDT
+Received: from SCRC-EUPHRATES by SCRC-STONY-BROOK via CHAOS with CHAOS-MAIL id 100612; Sun 30-Sep-84 22:02:42-EDT
+Date: Sun, 30 Sep 84 22:01 EDT
+From: "David A. Moon" <Moon@SCRC-RIVERSIDE.ARPA>
+Subject: Parallel I/O interface behind the Symbolics 3600 console
+To: ID.LEE@MIT-XX.ARPA
+cc: bug-lmman@MIT-MC.ARPA, robot.clee%MIT-OZ@MIT-XX.ARPA
+In-Reply-To: The message of 26 Sep 84 16:41-EDT from ID.LEE at MIT-XX
+Message-ID: <840930220147.1.MOON@EUPHRATES.SCRC.Symbolics>
+
+    Date: Wed 26 Sep 84 16:41:53-EDT
+    From: ID.LEE@MIT-XX.ARPA
+
+    Well, guys, this is no bug report.  I just want to borrow your
+    expertise on the LISP machine, in particular the Symbolics 3600.  I
+    have found no documentation on the parallel I/O port behind the
+    console.
+
+There is none.  Some of the older consoles have a connector labelled that,
+but there isn't anything connected to it.
+
+    Can anyone help me out on that?  I would appreciate it
+    if I can get a response as soon as possible.  Also I am interested in
+    the benchmark of the 3600, i.e. the number of instructions can be
+    executed in a second.
+
+It depends on what kind of instructions they are, of course.  I believe
+Dick Gabriel (RPG @ SU-AI) will soon be publishing a study of performance
+of various Lisp implementations, including benchmark results, an analysis
+of what they mean, and a discussion of how much and how little can be learned
+from benchmarks.
+
+    Any suggestions on how to do interface with the 3600?
+
+I don't know what this means, but why don't you ask whoever sold you the 3600,
+or is trying to, and they will probably put you in touch with somebody who
+can answer your questions.
+31-Oct-84 11:31:53-EST,830;000000000001
+Received: from MIT-MC by MIT-OZ via Chaosnet; 31 Oct 84 11:31-EST
+Received: from ucbjade.CC.Berkeley.ARPA (ucbjade.ARPA) by UCB-VAX.ARPA (4.24/4.31)
+	id AA09844; Wed, 31 Oct 84 08:31:53 pst
+Received: from UCBVAX.ARPA
+	by ucbjade.CC.Berkeley.ARPA (4.17/4.26)
+	id AA01782; Wed, 31 Oct 84 08:32:30 pst
+Message-Id: <8410311632.AA01782@ucbjade.CC.Berkeley.ARPA>
+Date: Wed, 31 Oct 1984  11:28:50 EST
+From: HONORS2%UCONNVM.BITNET@Berkeley
+To: bug-lmman%mit-oz@mit-mc.ARPA
+
+Dear Sirs,
+  I would like to obtain as much information as possible
+on the selection, care, and feeding of Lisp Machines so
+we'll be informed consumers when the time comes (hopefully
+soon!) to purchase some. Do you have any suggestions? The
+myriad of 'chines seems frightening! Thanks.
+Sande Wallfesh
+(wallfesh%carcvax.csnet@csnet-relay.arpa)
+
+ 2-Nov-84 11:32:08-EST,242;000000000001
+Received: from MIT-MC by MIT-OZ via Chaosnet; 2 Nov 84 11:32-EST
+Date: Friday, 2 November 1984, 11:32-EST
+From: David Chapman <Zvona at MIT-OZ>
+To: bug-lmman at MIT-OZ
+
+In the Magnum Opus:
+
+:error-reporter seems not to be documented.
+ 2-Nov-84 12:55:50-EST,298;000000000001
+Received: from MIT-MC by MIT-OZ via Chaosnet; 2 Nov 84 12:55-EST
+Date: Friday, 2 November 1984, 12:56-EST
+From: David Chapman <Zvona at MIT-OZ>
+To: Bug-Lmman at MIT-OZ
+
+In PRIM p. 91:
+
+``...allows you to define your won p.r. for his named structures.''
+
+A failure of agreement of person.
+16-Nov-84 05:55:34-EST,339;000000000001
+Mail-From: X.HDT created at 16-Nov-84 05:55:28
+Date: Fri 16 Nov 84 05:55-EST
+From: Howard D. Trachtman <X.HDT@MIT-OZ>
+Subject: make-site
+To: bug-lmman@MIT-OZ
+CC: bug-lispm-mit@MIT-OZ
+
+(make-system 'site 'compile) as in the orangeual
+doesn't always work depending on the pkg you are in
+(make-system 'site ':compile) must be used.
+ 3-Apr-85 19:26:22-EST,1120;000000000000
+Received: from MIT-MC by MIT-OZ via Chaosnet; 3 Apr 85 19:26-EST
+Received: from MIT-HTVAX by MIT-MC via Chaosnet; 3 APR 85  19:25:26 EST
+Received: by MIT-HTVAX.ARPA (4.12/4.7) 
+	id AA16758; Wed, 3 Apr 85 19:16:28 est
+Date: Wed, 3 Apr 85 19:16:28 est
+From: Raul Valdes-Perez <valdes@mit-htvax>
+To: BUG-LMMAN@MIT-MC
+Subject: comments on LMMAN
+
+	My comments are in reference to section 17.8 of the sixth edition
+of the Lisp Machine Manual:  Putting Data in QFASL Files.  I have been
+trying to save a complex structure (created using defstruct) in a QFASL
+file.  The function "sys:dump-forms-to-file" barfs on my case, complaining
+of "circularities or self-references".  I have tried using the three
+functions on the following page 318, but none of them seem defined in
+Release 6.
+
+	Also, do you know exactly why the first-mentioned function above
+barfs?  I tried defining small circular and self-referential structures,
+and "sys:dump-forms-to-file" saved them correctly and succesfully.  Does
+it have anything to do with the size and/or number of the loops?
+
+Thanks.
+
+Raul Valdes-Perez (valdes@ht)
+ 3-Apr-85 21:18:59-EST,1843;000000000000
+Received: from MIT-MC by MIT-OZ via Chaosnet; 3 Apr 85 21:18-EST
+Received: from SCRC-QUABBIN by MIT-MC via Chaosnet; 3 APR 85  21:18:45 EST
+Received: from SCRC-EUPHRATES by SCRC-QUABBIN via CHAOS with CHAOS-MAIL id 150283; Wed 3-Apr-85 21:15:13-EST
+Date: Wed, 3 Apr 85 21:18 EST
+From: David A. Moon <Moon@SCRC-STONY-BROOK.ARPA>
+Subject: comments on LMMAN
+To: Raul Valdes-Perez <valdes@MIT-HTVAX.ARPA>
+cc: BUG-LMMAN@MIT-MC.ARPA
+In-Reply-To: The message of 3 Apr 85 19:16-EST from Raul Valdes-Perez <valdes at HTVAX>
+Message-ID: <850403211829.1.MOON@EUPHRATES.SCRC.Symbolics.COM>
+
+    Date: Wed, 3 Apr 85 19:16:28 est
+    From: Raul Valdes-Perez <valdes@mit-htvax>
+
+	    My comments are in reference to section 17.8 of the sixth edition
+    of the Lisp Machine Manual:  Putting Data in QFASL Files.  I have been
+    trying to save a complex structure (created using defstruct) in a QFASL
+    file.  The function "sys:dump-forms-to-file" barfs on my case, complaining
+    of "circularities or self-references".  I have tried using the three
+    functions on the following page 318, but none of them seem defined in
+    Release 6.
+
+The MIT Lisp Machine Manual does not apply to the Symbolics software.
+
+	    Also, do you know exactly why the first-mentioned function above
+    barfs?  I tried defining small circular and self-referential structures,
+    and "sys:dump-forms-to-file" saved them correctly and succesfully.  Does
+    it have anything to do with the size and/or number of the loops?
+
+It probably has to do with whether your circularities are in the car or the
+cdr, or in array elements.  Which things will dump and which won't has to do
+with the internal format of binary files.  In Release 6 it should produce that
+message in every case that doesn't work (rather than, say, writing a garbage
+file).
+ 8-Apr-85 18:41:25-EST,448;000000000000
+Received: from MIT-MC by MIT-OZ via Chaosnet; 8 Apr 85 18:41-EST
+Received: from SU-AI.ARPA by MIT-MC.ARPA;  8 APR 85 17:55:24 EST
+Date: 08 Apr 85  1454 PST
+From: Frank Yellin <FY@SU-AI.ARPA>
+Subject: buying lisp machine manuals   
+To:   bug-lmman%oz@MIT-MC.ARPA   
+
+
+(If I'm sending this message to the wrong person, please forward it
+ appropriately).
+
+How can I buy a copy of the most recent (1983?) Lisp Machine manual?
+
+-- Frank
+
+ 8-Apr-85 21:28:16-EST,977;000000000000
+Received: from SCRC-STONY-BROOK by MIT-OZ via Chaosnet; 8 Apr 85 21:19-EST
+Received: from SCRC-EUPHRATES by SCRC-STONY-BROOK via CHAOS with CHAOS-MAIL id 211261; Mon 8-Apr-85 20:39:04-EST
+Date: Mon, 8 Apr 85 21:17 EST
+From: David A. Moon <Moon@SCRC-STONY-BROOK.ARPA>
+Subject: buying lisp machine manuals   
+To: Frank Yellin <FY@SU-AI.ARPA>
+cc: bug-lmman%oz@MIT-MC.ARPA
+In-Reply-To: The message of 8 Apr 85 17:54-EST from Frank Yellin <FY at SU-AI>
+Message-ID: <850408211727.9.MOON@EUPHRATES.SCRC.Symbolics.COM>
+
+    Date: 08 Apr 85  1454 PST
+    From: Frank Yellin <FY@SU-AI.ARPA>
+
+    How can I buy a copy of the most recent (1983?) Lisp Machine manual?
+
+You can order whatever the latest version is from the MIT A.I. Lab documentation
+librarian.  Or you can contact whatever company sold you your Lisp machine and
+get their documentation, which will be less out of date.  If you're physically
+at Stanford, the hueristic programming project has some 3600s.
+ 8-Apr-85 21:32:27-EST,977;000000000000
+Received: from SCRC-STONY-BROOK by MIT-OZ via Chaosnet; 8 Apr 85 21:19-EST
+Received: from SCRC-EUPHRATES by SCRC-STONY-BROOK via CHAOS with CHAOS-MAIL id 211262; Mon 8-Apr-85 20:39:29-EST
+Date: Mon, 8 Apr 85 21:17 EST
+From: David A. Moon <Moon@SCRC-STONY-BROOK.ARPA>
+Subject: buying lisp machine manuals   
+To: Frank Yellin <FY@SU-AI.ARPA>
+cc: bug-lmman%oz@MIT-MC.ARPA
+In-Reply-To: The message of 8 Apr 85 17:54-EST from Frank Yellin <FY at SU-AI>
+Message-ID: <850408211756.0.MOON@EUPHRATES.SCRC.Symbolics.COM>
+
+    Date: 08 Apr 85  1454 PST
+    From: Frank Yellin <FY@SU-AI.ARPA>
+
+    How can I buy a copy of the most recent (1983?) Lisp Machine manual?
+
+You can order whatever the latest version is from the MIT A.I. Lab documentation
+librarian.  Or you can contact whatever company sold you your Lisp machine and
+get their documentation, which will be less out of date.  If you're physically
+at Stanford, the Heuristic Programming Project has some 3600s.
+15-May-85 13:43:56-EDT,689;000000000000
+Received: from MIT-MC by MIT-OZ via Chaosnet; 15 May 85 13:43-EDT
+Received: from USC-ISI.ARPA by MIT-MC.ARPA; 15 May 85 13:19:58 EST
+Date: 15 May 1985 13:19-EDT
+Sender: VERACSD@USC-ISI.ARPA
+Subject: Public Version of EMACS
+From: VERACSD@USC-ISI.ARPA
+To: bug-lmman@MIT-MC.ARPA
+Cc: veracsd@USC-ISI.ARPA
+Message-ID: <[USC-ISI.ARPA]15-May-85 13:19:15.VERACSD>
+
+RMS ==>
+
+I'm looking for a public version of EMACS, preferably one written
+in LISP.
+
+Ken Laws at SRI said that you have written a version in MockLisp,
+which  runs  on  Unix.   If  this  is  accurate I'm interested in
+MockLisp as well.
+
+Any help will be appreciated.
+
+                                        ck
+20-May-85 16:15:37-EDT,528;000000000000
+Received: from MIT-MC by MIT-OZ via Chaosnet; 20 May 85 16:15-EDT
+Received: from MIT-XX.ARPA by MIT-MC.ARPA; 20 May 85 16:16:45 EST
+Date: Mon 20 May 85 16:11:28-EDT
+From: Alexander Sen Yeh <AY@MIT-XX.ARPA>
+Subject: *throw/*catch vs. throw/catch in Orange-manual
+To: bug-lmman@MIT-MC.ARPA
+
+The arguments for *throw/*catch and throw/catch in the orange manual
+seem to be reversed when compared to the green manual, revised maclisp
+manual (tr-295) and how a CADR running system 99 seems to behave.
+
+--Alex Yeh
+-------
+28-Oct-85 21:30:48-EST,1092;000000000000
+Received: from MIT-MC.ARPA by MIT-OZ via Chaosnet; 28 Oct 85 21:30-EST
+Received: from MIT-LISPM-9 by MIT-MC.ARPA via Chaosnet; 28 OCT 85  21:21:08 EST
+Date: Monday, 28 October 1985, 21:21-EST
+From: Devon S. McCullough <Devon@MIT-MC>
+To: BUG-LMMAN@MIT-OZ
+
+In LMMAN in System 99.27, CADR 4.2, Experimental ZMail 54.4,
+MIT-Specific 23.0, Experimental Macsyma 6.1, microcode 320, GC@2,
+on Lisp Machine Nine:
+
+I assume this is a mailing list for bugs in the LispM manual?
+In the Orange DaygloUal, I found the following annoyance:
+
+Should either rename or fix the Functions chapter.  It doesn't talk
+about functions at all, only about some ways of manipulating function
+definitions, with no mention of FLET or LABELS or lambda binding which
+are instead described in the chapter on Evaluation.
+
+The concept index entry for FUNCTION should point to the Functions and
+Local Functions sections of the chapter on Evaluation.  Better yet,
+these sections should be duplicated or moved to the "Functions" chapter,
+or a bold-face pointer beneath the chapter title should do the trick.

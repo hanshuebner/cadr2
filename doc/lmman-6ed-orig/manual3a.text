@@ -1,0 +1,13 @@
+.c -*- Bolio -*-
+.c This is part 3 of the Lisp machine manual.
+.c for proper results, run part 1 through bolio, then part 2, then 3, then 4.
+.read-old-vars
+.restore-cumulative-state
+.insert ERRORS
+.insert CODE
+.insert QUERY
+.insert INIT
+.insert TIME
+.insert FD-HAC
+.save-vars-file
+.save-cumulative-state-novars

@@ -1,0 +1,155 @@
+.c This file is part of the Lisp Machine Manual.	-*-Bolio-*-
+
+.chapter Locatives
+'cindex locative
+.setq locative section-page
+.setq locative-chapter chapter-number
+
+	A 2locative* is a type of Lisp object used as a 2pointer*
+to a 2cell*.  Locatives are inherently a more low level construct
+than most Lisp objects; they require some knowledge of the nature of
+the Lisp implementation.
+
+.section Cells and Locatives
+'cindex cell
+
+	A 2cell* is a machine word that can hold a (pointer to a)
+Lisp object.  For example, a symbol has five cells: the print name cell,
+the value cell, the function cell, the property list cell, and the
+package cell.  The value cell holds (a pointer to) the binding of the
+symbol, and so on.  Also, an array leader of length 2n* has 2n*
+cells, and an 3art-q* array of 2n* elements has 2n* cells.
+(Numeric arrays do not have cells in this sense.)  A locative is
+an object that points to a cell; it lets you refer to a cell so that
+you can examine or alter its contents.
+
+.defun contents locative
+Returns the contents of the cell which the locative points to.
+This is actually the same as 3cdr*, for reasons explained below,
+but it is clearer to use 3contents* when the argument is normally
+a locative.
+
+To modify the contents of the cell, use 3setf* on 3contents*:
+.lisp
+(setf (contents loc) newvalue)
+.end_lisp
+.end_defun
+
+  The macro 3locf* (see (locf-fun)) can be used to convert a form
+that accesses a cell to one that creates a locative pointer to that
+cell: for example,
+.lisp
+(locf (fsymeval x))
+.end_lisp
+evaluates to a locative that points to the function cell of the value of
+3x*; that is to say, it points to the place where 3(fsymeval x)* is
+stored.
+
+3locf* is very convenient because it saves the writer and reader of
+a program from having to remember the names of many functions that would
+create locatives to cells found in different fashions.
+
+One thing you should know is that it is not possible to make a locative
+to an element of a numeric array.  For example,
+.lisp
+(setq foo (make-array 10 :type art-1b))
+(locf (aref foo 0))
+.end_lisp
+signals an error.  Locatives may only point at entire words of memory,
+which contain standard Lisp data.
+
+Because of cdr-coding (see (cdr-code)), a cons does not always
+contain an explicit cell which points to its cdr.  Therefore, it is
+impossible to obtain a locative which points to such a cell.  However,
+this is such a useful thing to do that 2the cons itself* is usually
+treated as if it were a locative pointing to a cell which holds the
+cons's cdr.  3(locf (cdr x))* returns the value of 3x*, and
+3(contents x)* returns the cdr when 2x* is a cons, so
+3(contents (locf (cdr x)))* is the same as 3(cdr x)*, as it should
+be.  Most functions that are normally given locatives also accept a cons
+and treat it as if it were a magic locative to the (nonexistent)
+cell containing the cdr of the cons.
+
+A cons always does contain a cell which points to the car, and
+3(locf (car x))* returns a locative whose pointer field is the
+same as that of 3x*'s value.
+
+.section Functions That Operate on Locatives
+
+.defun location-boundp locative
+Returns 3t* if the cell to which 2locative* points contains
+anything except a void marker.
+
+The void marker is a special data type, 3dtp-null*, which is stored
+in cells to say that their value is missing.  For example, an unbound
+variable actually has a void marker in its value cell, and
+3(location-boundp (locf x))* is equivalent to 3(variable-boundp x)*.
+.end_defun
+
+.defun location-makunbound locative &optional pointer
+Stores a void marker into the cell to which 2locative* points.
+This consists of data type field 3dtp-null* and a pointer copied
+from 2pointer*.
+
+The pointer field of the void marker is
+used to tell the error handler what variable was unbound.
+In the case of a symbol's value cell or function cell, it should
+point to the symbol header.  In the case of a flavor method, it should
+point to the beginning of the block of data that holds the definition,
+which is a word containing the method's function spec.
+
+If the second arg is not specified, then where the void marker
+points is not defined.
+.end_defun
+
+Other functions with which locatives are expected or useful include
+3get* (the locative points to the cell in which the plist is stored),
+3store-conditional* (the locative points to the cell to be tested and
+modified), and 3%bind* (the locative points to the cell to be bound).
+
+.section Mixing Locatives with Lists
+
+	Either of the functions 3car* and 3cdr* (see (car-fun)) may
+be given a locative, and will return the contents of the cell at which
+the locative points.  They are both equivalent to 3contents* when the
+argument is a locative.
+
+	Similarly, either of the functions 3rplaca* and 3rplacd* may
+be used to store an object into the cell at which a locative
+points.
+.lisp
+.exdent 96 For example,
+(rplaca locative y)
+.exdent 96 or
+(rplaca locative y)
+.exdent 96 is the same as
+(setf (contents locative) y)
+.end_lisp
+
+	If you are just using locatives, you should use 3contents*
+rather than 3car* or 3cdr*.  But you can also mix locatives and
+conses.  For example, the same variable may usefully sometimes have a
+locative as its value and sometimes a cons.  Then it is useful that
+3car* and 3cdr* work on locatives, and it also matters which one you
+use.  Pick the one that is right for the case of a cons.
+
+  For example, the following function conses up a list in the forward
+order by adding onto the end.  It needs to know where to put the pointer
+to the next cell.  Usually it goes in the previous cell's cdr, but
+the first cell gets put in the cell where the list is supposed to end
+up.  A locative is used as the pointer to this cell.  The first time
+through the loop, the 3rplacd* is equivalent to 3(setq res ...)*; on
+later times through the loop the 3rplacd* tacks an additional cons
+onto the end of the list.
+.lisp
+(defun simplified-version-of-mapcar (fcn lst)
+  (do ((lst lst (cdr lst))
+       (res nil)
+       (loc (locf res)))
+      ((null lst) res)
+    (setf (cdr loc)
+	  (setq loc (ncons (funcall fcn (car lst)))))))
+.end_lisp
+
+3cdr* is used here rather than 3contents* because the normal
+case is that the argument is a list.

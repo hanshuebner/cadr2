@@ -1,0 +1,1630 @@
+.c	Sunday  May 24,1981  2:34  FM+5D.15H.38M.2S.  -*- Bolio -*-
+
+.c The canonical source for this file is ML:LSBDOC;LOOPTM >.
+.c Secondary source is AI:LMMAN;.
+.c The file LOOPTM LISPM defines the bolio requests to make this file
+.c includable as a chapter in the Lisp Machine manual (or actually, as
+.c a chapter in any other manual);  the "chapters" become "sections",
+.c etc.  ML:LSBDOC;LOOPTM BOLIO sets things up for this to be a
+.c stand-alone document;  this is what you get if you BOLIO the file
+.c LOOPTM alone.
+.c Any changes made to this document should be described in mail to
+.c BUG-LOOP, so that they can be checked over;  LOOP is used by
+.c differring lisp implementations, the users of which often know
+.c little about the others.
+
+.if_lmman_chapter_else_noop The LOOP Iteration Macro
+
+.loop_chapter Introduction
+.c For the sake of the Lispm Manual:
+.setq loop-chapter chapter-number
+.mindex loop
+.cindex loop
+.setq loop-fun page
+.cindex iteration
+
+	3loop* is a Lisp macro that provides a programmable
+iteration facility.  The same 3loop* module operates compatibly in
+Zetalisp, Maclisp (PDP-10 and Multics), and NIL, and a
+moderately compatible package is under development for the MDL
+programming environment.  3loop* was inspired by the FOR
+facility of CLISP in InterLisp;  however, it is not compatible and
+differs in several details.
+
+	The general approach is that a form introduced by the word
+3loop* generates a single program loop, into which a large variety
+of features can be incorporated.  The loop consists of some
+initialization (2prologue*) code, a body that may be executed
+several times, and some exit (2epilogue*) code.  Variables may be
+declared local to the loop.  The special features of 3loop* are concerned with loop
+variables, deciding when to end the iteration, putting user-written
+code into the loop, returning a value from the construct, and
+iterating a variable through various real or virtual sets of values.
+	The 3loop* form consists of a series of clauses, each
+introduced by a ``keyword'' symbol.  These symbols are keywords from
+3loop*'s point of view; they are not keywords in the usual sense
+(symbols in the 3keyword* package).  3loop* ignores the package
+when it compares a symbol against the known keywords.
+
+Forms appearing in or implied by the
+clauses of a 3loop* form are classed as those to be executed as
+initialization code, body code, and/or exit code;  within each part of
+the template filled in by 3loop*, they are executed strictly in
+the order implied by the original composition.  Thus, just as in
+ordinary Lisp code, side-effects may be used, and one piece of code
+may depend on following another for its proper operation.  This is the
+principal philosophic difference from InterLisp's FOR facility.
+	Note that 3loop* forms are intended to look like stylized
+English rather than Lisp code.  There is a notably low density of
+parentheses, and many of the keywords are accepted in several synonymous
+forms to allow writing of more euphonious and grammatical English.  Some
+find this notation verbose and distasteful, while others find it
+flexible and convenient.  The former are invited to stick to 3do*.
+
+	Here are some examples to illustrate the use of 3loop*.
+.space 1
+.group
+.lisp
+.setq print-elements-of-list-example page
+(defun print-elements-of-list (list-of-elements)
+    (loop for element in list-of-elements
+	  do (print element)))
+.end_lisp
+prints each element in its argument, which
+should be a list.  It returns 3nil*.
+.end_group
+.space 1
+.group
+.lisp
+(defun gather-alist-entries (list-of-pairs)
+    (loop for pair in list-of-pairs
+	  collect (car pair)))
+.end_lisp
+takes an association list and
+returns a list of the keys;  that is, 3(gather-alist-entries
+'((foo 1 2) (bar 259) (baz)))* returns 3(foo bar baz)*.
+.end_group
+.space 1
+.group
+.lisp
+(defun extract-interesting-numbers (start-value end-value)
+   (loop for number from start-value to end-value
+	 when (interesting-p number) collect number))
+.end_lisp
+takes two arguments, which should be
+integers, and returns a list of all the numbers in that range
+(inclusive) which satisfy the predicate 3interesting-p*.
+.end_group
+.space 1
+.group
+.lisp
+(defun find-maximum-element (an-array)
+   (loop for i from 0 below (array-dimension-n 1 an-array)
+	 maximize (aref an-array i)))
+.end_lisp
+returns the maximum of the elements
+of its argument, a one-dimensional array.
+.end_group
+.group
+.space 1
+.lisp
+(defun my-remove (object list)
+   (loop for element in list
+	 unless (equal object element) collect element))
+.end_lisp
+is like the standard function 3remove*, except
+that it copies the entire list.
+.end_group
+.space 1
+.group
+.lisp
+(defun find-frob (list)
+   (loop for element in list
+	 when (frobp element) return element
+	 finally (ferror nil "No frob found in the list ~S"
+			 list)))
+.end_lisp
+returns the first element of its list argument which
+satisfies the predicate 3frobp*.  If none is found, an error is
+signaled.
+.end_group
+
+Common Lisp defines 3loop* as equivalent to 3do-forever*: it is used
+with a body consisting only of forms to be evaluated until a nonlocal
+exit happens.  This is incompatible with the traditional 3loop* macro
+which this chapter is about.  However, it is possible to tell which
+meaning of 3loop* the programmer intended: in the traditional 3loop*
+macro, it must be a symbol, while in the Common Lisp 3loop* it is
+useless to use a symbol there.  Therefore, if the first argument of
+a 3loop* form is not a symbol, it is treated as a Common Lisp 3loop*.
+
+.loop_chapter Clauses
+
+	Internally, 3loop* constructs a 3prog* which includes
+variable bindings, pre-iteration (initialization) code,
+post-iteration (exit) code, the body of the iteration, and stepping
+of variables of iteration to their next values (which happens on
+every iteration after the body is executed).
+	A 2clause* consists of a keyword symbol and any Lisp
+forms and keywords that it deals with.  For example,
+.lisp
+(loop for x in l do (print x)),
+.end_lisp
+contains two clauses, 7for x in l* and 7do (print x)*.
+Certain of the parts of the clause will be described as being
+2expressions*, e.g. 3(print x)* in the above.  An expression can
+be a single Lisp form, or a series of forms implicitly collected with
+3progn*.  An expression is terminated by the next following atom,
+which is taken to be a keyword.  This syntax allows only the first
+form in an expression to be atomic, but makes misspelled keywords
+more easily detectable.
+	3loop* uses print-name equality to compare keywords so
+that 3loop* forms may be written without package prefixes;  in
+Lisp implementations that do not have packages, 3eq* is used for
+comparison.
+
+	Bindings and iteration variable steppings may be performed
+either sequentially or in
+'loop_topic sequential vs parallel binding and initialization
+parallel.  This affects how the stepping of one iteration variable
+may depend on the value of another.  The syntax for distinguishing
+the two will be described with the corresponding clauses.  When a set
+of variables are to be bound in parallel, all of the initial values
+are computed and then all the bindings are established.  Subsequent
+bindings will be performed inside of that binding environment.
+When the same variables are stepped, all the new values are computed
+and then the variables are set.
+
+.loop_section Iteration-Driving Clauses
+
+	These clauses all create a 2variable of iteration*, which
+is bound locally to the loop and takes on a new value on each
+successive iteration.  Note that if more than one iteration-driving
+clause is used in the same loop, several variables are created that
+all step together through their values;  when any of the iterations
+terminates, the entire loop terminates.  Nested iterations are not
+generated;  for those, you need a second 3loop* form in the body of
+the loop.  In order not to produce strange interactions, iteration-driving clauses are required to precede any clauses that produce
+body code:  that is, all except those that produce prologue or
+epilogue code (3initially* and 3finally*), bindings
+(3with*), the 3named* clause, and the iteration termination
+clauses (3while* and 3until*).
+
+	Clauses which drive the iteration may be arranged to perform
+their testing and stepping either in series or in parallel.  They are
+by default grouped in series, which allows the stepping computation of
+one clause to use the just-computed values of the iteration variables
+of previous clauses.  They may be made to step in parallel, as is
+the case with the 3do* special form, by ``joining'' the iteration
+clauses with the keyword 3and*.  The form this typically takes is
+something like
+.lisp
+(loop ... for x = (f) and for y = 2init* then (g x) ...)
+.end_lisp
+which sets 3x* to 3(f)* on every iteration, and binds 3y*
+to the value of 2init* for the first iteration, and on every
+iteration thereafter sets it to 3(g x)*, where 3x* still has
+the value from the 2previous* iteration.  Thus, if the calls to
+3f* and 3g* are not order-dependent, this would be best
+written as
+.lisp
+(loop ... for y = 2init* then (g x) for x = (f) ...)
+.end_lisp
+because, as a general rule, parallel stepping has more overhead than
+sequential stepping.  Similarly, the example
+.lisp
+(loop for sublist on some-list
+      and for previous = 'undefined then sublist
+      ...)
+.end_lisp
+which is equivalent to the 3do* construct
+.lisp
+(do ((sublist some-list (cdr sublist))
+     (previous 'undefined sublist))
+    ((null sublist) ...)
+  ...)
+.end_lisp
+in terms of stepping, would be better written as
+.lisp
+(loop for previous = 'undefined then sublist
+      for sublist on some-list
+      ...)
+.end_lisp
+
+	When iteration-driving clauses are joined with 3and*, if
+the token following the 3and* is not a keyword that introduces an
+iteration driving clause, it is assumed to be the same as the keyword
+that introduced the most recent clause;  thus, the above example
+showing parallel stepping could have been written as
+.lisp
+(loop for sublist on some-list
+      and previous = 'undefined then sublist
+      ...)
+.end_lisp
+
+	The order of evaluation in iteration-driving clauses is as follows:
+'loop_topic order of evaluation in iteration clauses
+those expressions that are only evaluated once are evaluated in order
+at the beginning of the form, during the variable-binding phase, while
+those expressions that are evaluated each time around the loop are
+evaluated in order in the body.
+
+	One common and simple iteration-driving clause is
+3repeat*:
+.table 3 250 500
+.item repeat 2expression*
+.loop_keyword_index repeat
+Evaluates 2expression* (during the variable binding phase),
+and causes the 3loop* to iterate that many times.
+2expression* is expected to evaluate to an integer.  If
+2expression* evaluates to a zero or negative result, the body code
+will not be executed.
+.end_table
+
+	All remaining iteration-driving clauses are subdispatches of
+the keyword 3for*, which is synonomous with 3as*.
+'loop_keyword_index for as
+In all of them a 2variable of iteration* is specified.  Note that,
+in general, if an iteration-driving clause implicitly supplies an
+endtest, the value of this iteration variable is undefined as the loop is exited
+(i.e., when the epilogue code is run).  This is
+discussed in more detail in section
+(loop-iteration-framework-section).
+
+	Here are all of the varieties of 3for* clauses.  Optional
+parts are enclosed in curly brackets.
+.c The 2data-type*s as used
+.c here are discussed fully in section (loop-data-type-section).
+
+.table 3 250 500
+
+.item for 2var* in 2expr1* {by 2expr2*}
+.c .item for 2var* {2data-type*} in 2expr1* {by 2expr2*}
+.loop_keyword_index for
+Iterates over each of the elements in the list 2expr1*.  If
+the 3by* subclause is present, 2expr2* is evaluated once
+on entry to the loop
+to supply the function to be used to fetch successive sublists,
+instead of 3cdr*.
+
+.item for 2var* on 2expr1* {by 2expr2*}
+.c .item for 2var* {2data-type*} on 2expr1* {by 2expr2*}
+.loop_keyword_index for
+Like the previous 3for* format, except that 2var* is
+set to successive sublists of the list instead of successive elements.
+Note that
+3loop* uses a 3null* rather than an 3atom* test to
+implement both this and the preceding clause.
+.c Note also that since 2var* will always be a list, it is
+.c not meaningful to specify a 2data-type* unless 2var* is
+.c a 2destructuring pattern*, as described in the section on
+.c 2destructuring*, (loop-destructuring-page).
+
+.item for 2var* = 2expr*
+.c .item for 2var* {2data-type*} = 2expr*
+.loop_keyword_index for
+On each iteration, 2expr* is evaluated and 2var* is set to the result.
+
+.item for 2var* = 2expr1* then 2expr2*
+.c .item for 2var* {2data-type*} = 2expr1* then 2expr2*
+.loop_keyword_index for
+2var* is bound to 2expr1* when the loop is entered, and set to
+2expr2* (re-evaluated) at all but the first iteration.  Since
+2expr1* is evaluated during the binding phase, it cannot reference
+other iteration variables set before it;  for that, use the following:
+
+.item for 2var* first 2expr1* then 2expr2*
+.c .item for 2var* {2data-type*} first 2expr1* then 2expr2*
+.loop_keyword_index for
+Sets 2var* to 2expr1* on the first iteration, and to
+2expr2* (re-evaluated) on each succeeding iteration.  The
+evaluation of both expressions is performed 2inside* of the
+3loop* binding environment, before the 3loop* body.  This
+allows the first value of 2var* to come from the first value of
+some other iteration variable, allowing such constructs as
+.lisp
+(loop for term in poly
+      for ans first (car term) 
+	      then (gcd ans (car term))
+      finally (return ans))
+.end_lisp
+
+.item for 2var* from 2expr1* {to 2expr2*} {by 2expr3*}
+.c .item for 2var* {2data-type*} from 2expr1* {to 2expr2*} {by 2expr3*}
+.loop_keyword_index for
+'setq loop-arithmetic-stepping page
+This performs numeric iteration.  2var* is initialized to
+2expr1*, and on each succeeding iteration is incremented by
+2expr3* (default 31*).  If the 3to* phrase is given, the
+iteration terminates when 2var* becomes greater than 2expr2*.
+Each of the expressions is evaluated only once, and the 3to* and
+3by* phrases may be written in either order.  Alternative keywords
+may be used in place of 3to*; this choice controls the direction
+of stepping and the step at which the loop terminates.
+3downto* instead of 3to* says that 2var* is decremented by
+the step value, and the endtest is adjusted accordingly.  If
+3below* is used instead of 3to*, or 3above* instead of
+3downto*, the iteration terminates before 2expr2* is
+reached, rather than after.  Note that the 3to* variant
+appropriate for the direction of stepping must be used for the endtest
+to be formed correctly;  i.e. the code will not work if 2expr3*
+is negative or zero.  If no limit-specifying clause is given, then the
+direction of the stepping may be specified as decreasing by
+using 3downfrom* instead of 3from*.  3upfrom* may also be
+used instead of 3from*;  it forces the stepping direction to be
+increasing.
+.c The 2data-type* defaults to 3fixnum*.
+
+.item for 2var* being 2expr* and its 2path* ...
+.item1 for 2var* being {each|the} 2path* ...
+.c .item for 2var* {2data-type*} being 2expr* and its 2path* ...
+.c .item1 for 2var* {2data-type*} being {each|the} 2path* ...
+.loop_keyword_index for
+Provides a user-definable iteration facility.  2path* names
+the manner in which the iteration is to be performed.  The ellipsis
+indicates where various path dependent preposition/expression pairs
+may appear.  See the section on Iteration Paths
+((iteration-path-page)) for complete documentation.
+.end_table
+
+.loop_section Bindings
+.setq with-clause page
+.loop_keyword_index with
+'loop_topic variable bindings
+	The 3with* keyword may be used to establish initial
+bindings, that is, variables that are local to the loop but are only
+set once, rather than on each iteration.  The 3with* clause looks like:
+.lisp
+3with 2var1* {= 2expr1*}
+     {and 2var2* {= 2expr2*}}...*
+.c 3with 2var1* {2data-type*} {= 2expr1*}
+.c      {and 2var2* {2data-type*} {= 2expr2*}}...*
+.end_lisp
+If no 2expr* is given, the variable is initialized to 3nil*.
+.c If no 2expr* is given, the variable is initialized to the
+.c appropriate value for its data type, usually 3nil*.
+	3with* bindings linked by 3and* are performed in
+parallel; those not linked are performed sequentially.  That is,
+.lisp
+(loop with a = (foo) and b = (bar) and c
+      ...)
+.end_lisp
+binds the variables like
+.lisp
+(let ((a (foo)) (b (bar)) c) ...)
+.end_lisp
+whereas
+.lisp
+(loop with a = (foo) with b = (bar a) with c ...)
+.end_lisp
+binds the variables like
+.lisp
+(let ((a (foo)))
+  (let ((b (bar)))
+    (let (c) ...)))
+.end_lisp
+All 2expr*'s in 3with* clauses are evaluated in the order they
+are written, in lambda expressions surrounding the generated
+3prog*.  The 3loop* expression
+.lisp
+(loop with a = 2xa* and b = 2xb*
+      with c = 2xc*
+      for d = 2xd* then (f d)
+	and e = 2xe* then (g e d)
+      for p in 2xp*
+      with q = 2xq*
+      ...)
+.end_lisp
+produces the following binding contour, where 3t1* is a
+3loop*-generated temporary:
+.lisp
+(let ((a xa) (b xb))
+  (let ((c xc))
+    (let ((d xd) (e xe))
+      (let ((p nil) (t1 xp))
+	(let ((q xq))
+	  ...)))))
+.end_lisp
+Because all expressions in 3with* clauses are evaluated during the
+variable binding phase, they are best placed near the front of the
+3loop* form for stylistic reasons.
+
+	For binding more than one variable with no particular
+initialization, one may use the construct
+.lisp
+3with 2variable-list* {and ...}*
+.c 3with 2variable-list* {2data-type-list*} {and ...}*
+.end_lisp
+as in
+.lisp
+with (i j k t1 t2) ...
+.c with (i j k t1 t2) (fixnum fixnum fixnum) ...
+.end_lisp
+.c A slightly shorter way of writing this is
+.c .lisp
+.c with (i j k) fixnum and (t1 t2) ...
+.c .end_lisp
+These are cases of 2destructuring* which 3loop* handles
+specially;  destructuring and data type keywords are discussed in
+section (loop-destructuring-section).
+.c and (loop-data-type-section).
+
+.c 	Occasionally there are various implementational reasons 
+.c 'setq loop-nodeclare-clause page
+.c for a variable 2not* to be given a local type declaration.  If
+.c this is necessary, the 3nodeclare* clause may be used:
+.c .table 3 250 500
+.c .item nodeclare 2variable-list*
+.c 'loop_keyword_index nodeclare
+.c The variables in 2variable-list* are noted by 3loop* as not
+.c requiring local type declarations.  Consider the following:
+.c .lisp
+.c (declare (special k) (fixnum k))
+.c (defun foo (l)
+.c     (loop for x in l as k fixnum = (f x) ...))
+.c .end_lisp
+.c If 3k* did not have the 3fixnum* data-type keyword given for
+.c it, then 3loop* would bind it to 3nil*, and some compilers
+.c would complain.  On the other hand, the 3fixnum* keyword also
+.c produces a local 3fixnum* declaration for 3k*;  since 3k*
+.c is special, some compilers will complain (or error out).  The solution
+.c is to do:
+.c .lisp
+.c (defun foo (l)
+.c     (loop nodeclare (k)
+.c 	  for x in l as k fixnum = (f x) ...))
+.c .end_lisp
+.c which tells 3loop* not to make that local declaration.  The
+.c 3nodeclare* clause must come 2before* any reference to the
+.c variables so noted.  Positioning it incorrectly will cause this clause
+.c to not take effect, and may not be diagnosed.
+.c .end_table
+
+.loop_section Entrance and Exit
+
+.table 3 250 500
+.item initially 2expression*
+.loop_keyword_index initially
+Puts 2expression* into the 2prologue* of the iteration.  It
+will be evaluated before any other initialization code except for
+initial bindings.  For the sake of good style, the 3initially*
+clause should therefore be placed after any 3with* clauses but
+before the main body of the loop.
+
+.item finally 2expression*
+.loop_keyword_index finally
+.setq loop-finally-clause page
+Puts 2expression* into the 2epilogue* of the loop, which is
+evaluated when the iteration terminates (other than by an explicit
+3return*).  For stylistic reasons, then, this clause should appear
+last in the loop body.  Note that certain clauses may generate code
+which terminates the iteration without running the epilogue code;
+this behavior is noted with those clauses.  Most notable of these are
+those described in the section (aggregated-boolean-tests-section),
+Aggregated Boolean Tests.  This clause may be used to cause the loop
+to return values in a non-standard way:
+.lisp
+(loop for n in l
+      sum n into the-sum
+      count t into the-count
+      finally (return (quotient the-sum the-count)))
+.end_lisp
+.end_table
+
+.loop_section Side Effects
+.setq side-effects-section css-number
+.table 3 250 500
+.item do 2expression*
+.item1 doing 2expression*
+.loop_keyword_index do doing
+2expression* is evaluated each time through the loop, as shown in
+the 3print-elements-of-list* example on
+(print-elements-of-list-example).
+.end_table
+
+.loop_section Values
+.setq values-section css-number
+	The following clauses accumulate a return value for the
+iteration in some manner.  The general form is
+.lisp
+32type-of-collection expr* {into 2var*}*
+.c 32type-of-collection expr* {2data-type*} {into 2var*}*
+.end_lisp
+where 2type-of-collection* is a 3loop* keyword, and 2expr*
+is the thing being accumulated somehow.  If no 3into* is
+specified, then the accumulation will be returned when the 3loop*
+terminates.  If there is an 3into*, then when the epilogue of the
+3loop* is reached, 2var* (a variable automatically bound
+locally in the loop) will have been set to the accumulated
+result and may be used by the epilogue code.  In this way, a user may
+accumulate and somehow pass back multiple values from a single
+3loop*, or use them during the loop.  It is safe to reference
+these variables during the loop, but they should not be modified
+until the epilogue code of the loop is reached.
+For example,
+.lisp
+(loop for x in list
+      collect (foo x) into foo-list
+      collect (bar x) into bar-list
+      collect (baz x) into baz-list
+    finally (return (list foo-list bar-list baz-list)))
+.end_lisp
+has the same effect as
+.lisp
+(do ((#:g0001 list (cdr #:g0001))
+     (x) (foo-list) (bar-list) (baz-list))
+    ((null #:g0001)
+     (list (nreverse foo-list)
+	   (nreverse bar-list)
+	   (nreverse baz-list)))
+   (setq x (car #:g0001))
+   (setq foo-list (cons (foo x) foo-list))
+   (setq bar-list (cons (bar x) bar-list))
+   (setq baz-list (cons (baz x) baz-list)))
+.end_lisp
+except that 3loop* arranges to form the lists in the correct
+order, obviating the 3nreverse*s at the end, and allowing the
+lists to be examined during the computation.  (This is how the
+expression would print; this text would not read in properly because a
+new uninterned symbol would be created by each use of 7#:*.)
+
+.table 3 250 500
+
+.item collect 2expr* {into 2var*}
+.item1 collecting ...
+.loop_keyword_index collect collecting
+.setq collect-clause page
+Causes the values of 2expr* on each iteration to be collected
+into a list.
+
+.item nconc 2expr* {into 2var*}
+.item1 nconcing ...
+.item1 append ...
+.item1 appending ...
+.loop_keyword_index nconc nconcing append appending
+Like 3collect*, but the results are 3nconc*'ed or
+3append*'ed together as appropriate.
+.lisp
+(loop for i from 1 to 3
+      nconc (list i (* i i)))
+  => (1 1 2 4 3 9)
+.end_lisp
+
+.item count 2expr* {into 2var*}
+.c .item count 2expr* {into 2var*} {2data-type*}
+.item1 counting ...
+.loop_keyword_index count counting
+If 2expr* evaluates non-3nil*, a counter is incremented.
+.c The 2data-type* defaults to 3fixnum*.
+
+.item sum 2expr* {into 2var*}
+.c .item sum 2expr* {2data-type*} {into 2var*}
+.item1 summing ...
+.loop_keyword_index sum summing
+Evaluates 2expr* on each iteration and accumulates the sum of all
+the values.
+.c 2data-type* defaults to
+.c 3number*, which for all practical purposes is 3notype*.  Note
+.c that specifying 2data-type* implies that 2both* the sum and
+.c the number being summed (the value of 2expr*) will be of that type.
+
+.item maximize 2expr* {into 2var*}
+.c .item maximize 2expr* {2data-type*} {into 2var*}
+.item1 minimize ...
+.loop_keyword_index maximize minimize
+Computes the maximum (or minimum) of 2expr* over all
+iterations.
+.c 2data-type* defaults to 3number*.
+Note that if
+the loop iterates zero times, or if conditionalization prevents the
+code of this clause from being executed, the result will be
+meaningless.
+.c If 3loop* can determine that the arithmetic being
+.c performed is not contagious (by virtue of 2data-type* being
+.c 3fixnum*, 3flonum*, or 3small-flonum*), then it may choose
+.c to code this by doing an arithmetic comparison rather than calling
+.c either 3max* or 3min*.
+.c As with the 3sum* clause,
+.c specifying 2data-type* implies that both the result of the
+.c 3max* or 3min* operation and the value being maximized or
+.c minimized will be of that type.
+.end_table
+
+	Not only may there be multiple accumulations in a
+'loop_topic multiple accumulations
+3loop*, but a single accumulation may come from multiple
+places 2within the same 3loop* form*.  Obviously, the types of
+the collection must be compatible.  3collect*, 3nconc*, and
+3append* may all be mixed, as may 3sum* and 3count*, and
+3maximize* and 3minimize*.  For example,
+.lisp
+(loop for x in '(a b c) for y in '((1 2) (3 4) (5 6))
+      collect x
+      append y)
+  => (a 1 2 b 3 4 c 5 6)
+.end_lisp
+.group
+The following computes the average of the entries in the list
+2list-of-frobs*:
+.lisp
+(loop for x in list-of-frobs
+      count t into count-var
+      sum x into sum-var
+    finally (return (cli:// sum-var count-var)))
+.end_lisp
+.end_group
+
+.loop_section Endtests
+.loop_topic terminating the iteration
+	The following clauses may be used to provide additional
+control over when the iteration gets terminated, possibly causing
+exit code (due to 3finally*) to be performed and possibly returning
+a value (e.g., from 3collect*).
+
+.table 3 250 500
+.item while 2expr*
+.loop_keyword_index while
+If 2expr* evaluates to 3nil*, the loop is exited, performing
+exit code (if any) and returning any accumulated value.  The
+test is placed in the body of the loop where it is written.  It may
+appear between sequential 3for* clauses.
+
+.item until 2expr*
+.loop_keyword_index until
+Identical to 3while (not 2expr*)*.
+.end_table
+
+	This may be needed, for example, to step through a strange
+data structure, as in
+.lisp
+(loop until (top-of-concept-tree? concept)
+      for concept = 2expr* then (superior-concept concept)
+      ...)
+.end_lisp
+Note that the placement of the 3until* clause before the 3for*
+clause is valid in this case because of the definition of this
+particular variant of 3for*, which 2binds* 3concept* to
+its first value rather than setting it from inside the 3loop*.
+
+	The following may also be of use in terminating the iteration:
+.defmac loop-finish
+3(loop-finish)* causes the iteration to terminate ``normally'', like
+implicit termination by an iteration-driving clause, or by the
+use of 3while* or 3until*--the epilogue code (if any) will be
+run, and any implicitly collected result will be returned as the value
+of the 3loop*.
+For example,
+.lisp
+(loop for x in '(1 2 3 4 5 6)
+      collect x
+      do (cond ((= x 4) (loop-finish))))
+ => (1 2 3 4)
+.end_lisp
+This particular example would be better written as 3until (= x 4)*
+in place of the 3do* clause.
+.end_defmac
+
+.loop_section Aggregated Boolean Tests
+.setq aggregated-boolean-tests-section css-number
+	All of these clauses perform some test and may immediately
+terminate the iteration depending on the result of that test.
+
+.table 3 250 500
+.item always 2expr*
+.loop_keyword_index always
+Causes the loop to return 3t* if 2expr* 3always* evaluates
+non-3null*.  If 2expr* evaluates to 3nil* the loop
+immediately returns 3nil*, without running the epilogue code (if
+any, as specified with the 3finally* clause);  otherwise, 3t*
+will be returned when the loop finishes, after the epilogue code has
+been run.
+
+.item never 2expr*
+.loop_keyword_index never
+Causes the loop to return 3t* if 2expr* 3never* evaluates
+non-3null*.  This is equivalent to 3always (not 2expr*)*.
+
+.item thereis 2expr*
+.loop_keyword_index thereis
+If 2expr* evaluates non-3nil*, then the iteration is
+terminated, and that value is returned without running the epilogue
+code.
+.end_table
+
+.loop_section Conditionalization
+.loop_topic conditionalizing clause(s)
+	These clauses may be used to ``conditionalize'' the following
+clause.  They may precede any of the side-effecting or value-producing
+clauses, such as 3do*, 3collect*, 3always*, or
+3return*.
+
+.table 3 250 500
+.item when 2expr*
+.item1 if 2expr*
+.loop_keyword_index when if
+.space 0
+.c Make sure this starts it on a new line....
+.c .break doesn't do it.
+.c Will a ".space 0" do it?
+If 2expr* evaluates to 3nil*, the following clause will be
+skipped, otherwise not.
+
+.item unless 2expr*
+.loop_keyword_index unless
+This is equivalent to 3when (not 2expr*))*.
+.end_table
+
+	Multiple conditionalization clauses may appear in sequence.
+If one test fails, then any following tests in the immediate sequence,
+as well as the clause being conditionalized, are skipped.
+
+	Multiple clauses may be conditionalized under the same test by
+joining them with 3and*, as in
+.lisp
+(loop for i from a to b
+      when (zerop (remainder i 3))
+        collect i and do (print i))
+.end_lisp
+which returns a list of all multiples of 33* from 3a* to
+3b* (inclusive) and prints them as they are being collected.
+
+	If-then-else conditionals may be written using the 3else* keyword, as in
+.lisp
+(loop for i from a to b
+      when (oddp i)
+        collect i into odd-numbers
+      else collect i into even-numbers)
+.end_lisp
+Multiple clauses may appear in an 3else*-phrase, using 3and* to join them
+in the same way as above.
+
+	Conditionals may be nested.  For example,
+.lisp
+(loop for i from a to b
+      when (zerop (remainder i 3))
+	do (print i)
+	and when (zerop (remainder i 2))
+	      collect i)
+.end_lisp
+returns a list of all multiples of 36* from 3a* to 3b*,
+and prints all multiples of 33* from 3a* to 3b*.
+
+	When 3else* is used with nested conditionals, the ``dangling else''
+ambiguity is resolved by matching the 3else* with the innermost 3when*
+not already matched with an 3else*.  Here is a complicated example.
+.lisp
+(loop for x in l
+      when (atom x)
+	when (memq x *distinguished-symbols*)
+	  do (process1 x)
+	else do (process2 x)
+      else when (memq (car x) *special-prefixes*)
+	     collect (process3 (car x) (cdr x))
+	     and do (memoize x)
+           else do (process4 x))
+.end_lisp
+
+	Useful with the conditionalization clauses is the 3return*
+clause, which causes an explicit return of its argument as
+the value of the iteration, bypassing any epilogue code.  That is,
+.lisp
+3when 2expr1* return 2expr2**
+.end_lisp
+is equivalent to
+.lisp
+3when 2expr1* do (return 2expr2*)*
+.end_lisp
+	Conditionalization of one of the ``aggregated boolean value''
+clauses simply causes the test that would cause the iteration to
+terminate early not to be performed unless the condition succeeds.
+For example,
+.lisp
+(loop for x in l
+      when (significant-p x)
+	do (print x) (princ "is significant.")
+	and thereis (extra-special-significant-p x))
+.end_lisp
+does not make the 3extra-special-significant-p* check unless the
+3significant-p* check succeeds.
+
+.group
+	The format of a conditionalized clause is typically something
+like
+.lisp
+3when 2expr1* 2keyword* 2expr2**
+.end_lisp
+If 2expr2* is the keyword 3it*, then a variable is generated to
+hold the value of 2expr1*, and that variable gets substituted for
+2expr2*.  Thus, the composition
+.lisp
+3when 2expr* return it*
+.end_lisp
+is equivalent to the clause
+.lisp
+3thereis 2expr**
+.end_lisp
+and one may collect all non-null values in an iteration by saying
+.lisp
+3when 2expression* collect it*
+.end_lisp
+If multiple clauses are joined with 3and*, the 3it* keyword
+may only be used in the first.  If multiple 3when*s,
+3unless*es, and/or 3if*s occur in sequence, the value
+substituted for 3it* will be that of the last test performed.
+The 3it* keyword is not recognized in an 3else*-phrase.
+.end_group
+
+.loop_section Miscellaneous Other Clauses
+
+.table 3 250 500
+.item named 2name*
+.loop_keyword_index named
+Defines a 3block* named 2name* around the code for the 3loop*,
+so that one may use 3return-from* to return explicitly out of
+this particular 3loop*.  This is obsolete now that 3block*
+exists; it is cleaner to write 3(3block* 2name* ...)*
+around the 3loop*.
+
+Note that every 3loop* generates a 3block* named 3nil*,
+so the function 3return* can always be used to exit the innermost
+3loop* (assuming no other construct generating a 3block* 3nil* intervenes).
+
+.item return 2expression*
+.loop_keyword_index return
+Immediately returns the value of 2expression* as the value of the
+loop, without running the epilogue code.  This is most useful with
+some sort of conditionalization, as discussed in the previous
+section.  Unlike most of the other clauses, 3return* is not
+considered to ``generate body code'', so it is allowed to occur between
+iteration clauses, as in
+.lisp
+(loop for entry in list
+      when (not (numberp entry))
+	return (ferror ...)
+      as frob = (times entry 2)
+      ...)
+.end_lisp
+Although 3ferror* is called only for effect, 3return* is used
+so that it can be called from that point in the 3loop*.
+
+If one instead desires the loop to have some return value when it
+finishes normally, one may place a call to the 3return* function in the
+epilogue (with the 3finally* clause, (loop-finally-clause)).
+.end_table
+
+.loop_chapter Loop Synonyms
+
+.defmac define-loop-macro keyword
+May be used to make 2keyword*, a 3loop* keyword (such as
+3for*), into a Lisp macro that may introduce a 3loop* form.
+For example, after evaluating
+.lisp
+(define-loop-macro for),
+.end_lisp
+one may now write an iteration as
+.lisp
+(for i from 1 below n do ...)
+.end_lisp
+.end_defmac
+	This facility exists primarily for diehard users of a
+predecessor of 3loop*.  Its unconstrained use is not recommended,
+as it tends to decrease the transportability of the code and
+needlessly uses up a function name.
+.c 
+.c .loop_chapter "Data Types"
+.c .setq loop-data-type-section css-number
+.c .setq loop-data-type-page page
+.c .loop_topic data type keywords
+.c 	In many of the clause descriptions, an optional 2data-type*
+.c is shown.  A 2data-type* in this sense is an atomic symbol, and is
+.c recognizable as such by 3loop*.  These are used for declaration
+.c and initialization purposes;  for example, in
+.c .lisp
+.c (loop for x in l
+.c       maximize x flonum into the-max
+.c       sum x flonum into the-sum
+.c       ...)
+.c .end_lisp
+.c the 3flonum* data-type keyword for the 3maximize* clause
+.c says that the result of the 3max* operation, and its "argument"
+.c (3x*), will both be flonums;  hence 3loop* may choose to code
+.c this operation specially since it knows there can be no contagious
+.c arithmetic.  The 3flonum* data-type keyword for the 3sum*
+.c clause behaves similarly, and in addition causes 3the-sum* to be
+.c correctly initialized to 30.0* rather than 30*.  The
+.c 3flonum* keywords will also cause the variables 3the-max* and
+.c 3the-sum* to be declared to be 3flonum*, in implementations
+.c where such a declaration exists.  In general, a numeric data-type more
+.c specific than 3number*, whether explicitly specified or defaulted,
+.c is considered by 3loop* to be license to generate code using
+.c type-specific arithmetic functions where reasonable.  The following
+.c data-type keywords are recognized by 3loop* (others may be
+.c defined;  for that, consult the source code):
+.c
+.c .table 3 250 750
+.c .item fixnum
+.c An implementation-dependent limited range integer.
+.c .item flonum
+.c An implementation-dependent limited precision floating point number.
+.c .item small-flonum
+.c This is recognized in the Zetalisp implementation only, where its
+.c only significance is for initialization purposes, since no such
+.c declaration exists.
+.c .item integer
+.c Any integer (no range restriction).
+.c .item number
+.c Any number.
+.c .item notype
+.c Unspecified type (i.e., anything else).
+.c .end_table
+.c 	Note that explicit specification of a non-numeric type for a
+.c numeric operation (such as the 3summing* clause) may cause a variable
+.c to be initialized to 3nil* when it should be 30*.
+.c 	If local data-type declarations must be inhibited, one can use
+.c the 3nodeclare* clause, which is described on
+.c (loop-nodeclare-clause).
+
+.loop_chapter Destructuring
+.setq loop-destructuring-section css-number
+.setq loop-destructuring-page page
+	2Destructuring* provides one with the ability to
+``simultaneously'' assign or bind multiple variables to components of
+some data structure.  Typically this is used with list structure.
+For example,
+.lisp
+(loop with (foo . bar) = '(a b c) ...)
+.end_lisp
+has the effect of binding 3foo* to 3a* and 3bar* to 3(b
+c)*.
+	3loop*'s destructuring support is intended to parallel and
+perhaps augment that provided by the host Lisp implementation, with a goal
+of minimally providing destructuring over list structure patterns.
+Thus, in Lisp implementations with no system destructuring support at
+all, one may still use list-structure patterns as 3loop* iteration
+variables and in 3with* bindings.
+.c In NIL, 3loop* also supports destructuring over vectors.
+	One may specify the data types of the components of a pattern
+by using a corresponding pattern of the data type keywords in place of
+a single data type keyword.  This syntax remains unambiguous because
+wherever a data type keyword is possible, a 3loop* keyword is
+the only other possibility.  Thus, if one wants to do
+.lisp
+(loop for x in l
+      as i = (car x)
+      and j = (cadr x)
+      and k = (cddr x)
+      ...)
+.c (loop for x in l
+.c       as i fixnum = (car x)
+.c       and j fixnum = (cadr x)
+.c       and k fixnum = (cddr x)
+.c       ...)
+.end_lisp
+and no reference to 3x* is needed, one may instead write
+.lisp
+(loop for (i j . k) in l ...)
+.c (loop for (i j . k) (fixnum fixnum . fixnum) in l ...)
+.end_lisp
+To allow some abbreviation of the data type pattern, an atomic
+component of the data type pattern is considered to state that all
+components of the corresponding part of the variable pattern are of
+that type.  That is, the previous form could be written as
+.lisp
+(loop for (i j . k) in l ...)
+.c (loop for (i j . k) fixnum in l ...)
+.end_lisp
+.c This generality allows binding of multiple typed variables in a
+.c reasonably concise manner, as in
+.c .lisp
+.c (loop with (a b c) and (i j k) ...)
+.c (loop with (a b c) and (i j k) fixnum ...)
+.c .end_lisp
+.c which binds 3a*, 3b*, and 3c* to 3nil* and 3i*,
+.c 3j*, and 3k* to 30* for use as temporaries during the
+.c iteration, and declares 3i*, 3j*, and 3k* to be fixnums
+.c for the benefit of the compiler.
+.group
+.lisp
+.space 1
+(defun map-over-properties (fn symbol)
+   (loop for (propname propval) on (plist symbol) by 'cddr
+	 do (funcall fn symbol propname propval)))
+.end_lisp
+maps 2fn* over the properties on 2symbol*, giving it arguments
+of the symbol, the property name, and the value of that property.
+.end_group
+.c 	In Lisp implementations where 3loop* performs its own
+.c destructuring, notably Multics Maclisp and Zetalisp, one can
+.c cause 3loop* to use already provided destructuring support
+.c instead:
+.c .defvar si:loop-use-system-destructuring?
+.c This variable exists 2only* in 3loop* implementations in Lisps
+.c that do not provide destructuring support in the default environment.
+.c It is by default 3nil*.  If changed, then 3loop* will behave
+.c as it does in Lisps that 2do* provide destructuring support:
+.c destructuring binding will be performed using 3let*, and
+.c destructuring assignment will be performed using 3desetq*.
+.c Presumably if one's personalized environment supplies these macros,
+.c then one should set this variable to 3t*;  however, there is
+.c little if any efficiency loss if this is not done.
+.c .end_defvar
+
+.loop_chapter The Iteration Framework
+.setq loop-iteration-framework-section css-number
+.setq loop-iteration-framework-page page
+	This section describes the way 3loop* constructs
+iterations.  It is necessary if you will be writing your own iteration
+paths, and may be useful in clarifying what 3loop* does with its
+input.
+	3loop* considers the act of 2stepping* to have four
+possible parts.  Each iteration-driving clause has some or all of these
+four parts, which are executed in this order:
+.table 2 200 450
+.item pre-step-endtest
+This is an endtest which determines if it is safe to step to the next
+value of the iteration variable.
+.item steps
+Variables that get stepped.  This is internally manipulated as a
+list of the form 3(2var1* 2val1* 2var2* 2val2*
+...)*;  all of those variables are stepped in parallel, meaning that
+all of the 2val*s are evaluated before any of the 2var*s are
+set.
+.item post-step-endtest
+Sometimes you can't see if you are done until you step to the next
+value;  that is, the endtest is a function of the stepped-to value.
+.item pseudo-steps
+Other things that need to be stepped.  This is typically used for
+internal variables that are more conveniently stepped here, or to
+set up iteration variables that are functions of some internal
+variable(s) actually driving the iteration.  This is a list
+like 2steps*, but the variables in it do not get stepped in
+parallel.
+.end_table
+	The above alone is actually insufficient in just about all
+the iteration-driving clauses that 3loop* handles.  What is missing
+is that in most cases the stepping and testing for the first time
+through the loop is different from that of all other times.  So, what
+3loop* deals with is two four-tuples as above;  one for the first
+iteration, and one for the rest.  The first may be thought of as
+describing code that immediately precedes the loop in the 3prog*,
+and the second following the body code--in fact, 3loop* does
+just this, but severely perturbs it in order to reduce code
+duplication.  Two lists of forms are constructed in parallel:  one is
+the first-iteration endtests and steps, the other the
+remaining-iterations endtests and steps.  These lists have dummy
+entries in them so that identical expressions will appear in the same
+position in both.  When 3loop* is done parsing all of the clauses,
+these lists get merged back together such that corresponding identical
+expressions in both lists are not duplicated unless they are ``simple''
+and it is worth doing.
+	Thus, one 2may* get some duplicated code if one has
+multiple iterations.  Alternatively, 3loop* may decide to use and
+test a flag variable that indicates whether one iteration has been
+performed.  In general, sequential iterations have less overhead than
+parallel iterations, both from the inherent overhead of stepping
+multiple variables in parallel, and from the standpoint of potential
+code duplication.
+	One other point that must be noted about parallel stepping is
+that although the user iteration variables are guaranteed to be
+stepped in parallel, the placement of the endtest for any particular
+iteration may be either before or after the stepping.  A notable case
+of this is
+.lisp
+(loop for i from 1 to 3 and dummy = (print 'foo)
+      collect i)
+  => (1 2 3)
+.end_lisp
+but prints 3foo* 2four* times.  Certain other constructs, such
+as 3for 2var* on*, may or may not do this depending on the
+particular construction.
+	This problem also means that it may not be safe to examine an
+iteration variable in the epilogue of the loop form.  As a general
+rule, if an iteration-driving clause implicitly supplies an endtest,
+then one cannot know the state of the iteration variable when the loop
+terminates.  Although one can guess on the basis of whether the
+iteration variable itself holds the data upon which the endtest is
+based, that guess 2may* be wrong.  Thus,
+.lisp
+(loop for subl on 2expr*
+      ...
+      finally (f subl))
+.end_lisp
+is incorrect, but
+.lisp
+(loop as frob = 2expr* while (g frob)
+      ...
+      finally (f frob))
+.end_lisp
+is safe because the endtest is explicitly dissociated from the
+stepping.
+
+.loop_chapter Iteration Paths
+.setq iteration-path-page page
+	Iteration paths provide a mechanism for user extension of
+iteration-driving clauses.  The interface is constrained so that the
+definition of a path need not depend on much of the internals of
+3loop*.  The typical form of an iteration path is
+.lisp
+for 2var* being {each|the} 2path* {2preposition1* 2expr1*}...
+.c for 2var* {2data-type*} being {each|the} 2path* {2preposition1* 2expr1*}...
+.end_lisp
+2path* is an atomic symbol which is defined as a 3loop* path
+function.
+.c The usage and defaulting of 2data-type* is up to the path function.
+Any number of preposition/expression pairs may be
+present; the prepositions allowable for any particular path are
+defined by that path.  For example,
+.lisp
+(loop for x being the array-elements of my-array from 1 to 10
+      ...)
+.end_lisp
+To enhance readability, paths are usually defined in both the
+singular and plural forms;  this particular example could have been
+written as
+.lisp
+(loop for x being each array-element of my-array from 1 to 10
+      ...)
+.end_lisp
+
+	Another format, which is not so generally applicable, is
+.lisp
+for 2var* being 2expr0* and its 2path* {2preposition1* 2expr1*}...
+.c for 2var* {2data-type*} being 2expr0* and its 2path* {2preposition1* 2expr1*}...
+.end_lisp
+In this format, 2var* takes on the value of 2expr0* the first
+time through the loop.  Support for this format is usually limited to
+paths for which the next value is obtained by operating on the previous value.
+Thus, we can hypothesize the 3cdrs* path, such that
+.lisp
+(loop for x being the cdrs of '(a b c . d) collect x)
+ => ((b c . d) (c . d) d)
+.end_lisp
+but
+.lisp
+(loop for x being '(a b c . d) and its cdrs collect x)
+ => ((a b c . d) (b c . d) (c . d) d)
+.end_lisp
+To satisfy the anthropomorphic among you, 3his*, 3her*, or
+3their* may be substituted for the 3its* keyword, as may
+3each*.  Egocentricity is not condoned.  Some example uses of
+iteration paths are shown in section (predefined-paths-section).
+
+	Very often, iteration paths step internal variables which the
+'setq loop-using-crock page
+user does not specify, such as an index into some data-structure.
+Although in most cases the user does not wish to be concerned with
+such low-level matters, it is occasionally useful to have a handle on
+such things.  3loop* provides an additional syntax with which one
+may provide a variable name to be used as an ``internal'' variable by an
+iteration path, with the 3using* ``prepositional phrase''.
+'loop_path_preposition_index using
+The 3using* phrase is placed with the other phrases associated
+with the path, and contains any number of keyword/variable-name pairs:
+.lisp
+(loop for x being the array-elements of a using (index i)
+      ...)
+.end_lisp
+which says that the variable 3i* should be used to hold the index
+of the array being stepped through.  The particular keywords which may
+be used are defined by the iteration path;  the 3index* keyword is
+recognized by all 3loop* sequence paths (section
+(loop-sequence-section)).  Note that any individual 3using*
+phrase applies to only one path;  it is parsed along with the
+``prepositional phrases''.  It is an error if the path does not call for
+a variable using that keyword.
+
+	By special dispensation, if a 2path* is not recognized,
+then the 3default-loop-path* path will be invoked upon a syntactic
+transformation of the original input. Essentially, the 3loop* fragment
+'loop_path_preposition_index in
+.lisp
+for 2var* being 2frob*
+.end_lisp
+is taken as if it were
+.lisp
+for 2var* being default-loop-path in 2frob*
+.end_lisp
+and
+.lisp
+for 2var* being 2expr* and its 2frob* ...
+.end_lisp
+is taken as if it were
+.lisp
+for 2var* being 2expr* and its default-loop-path in 2frob*
+.end_lisp
+Thus, this ``undefined path hook'' only works if the
+3default-loop-path* path is defined.  Obviously, the use of this
+``hook'' is competitive, since only one such hook may be in use, and the
+potential for syntactic ambiguity exists if 2frob* is the name of
+a defined iteration path.  This feature is not for casual use;  it is
+intended for use by large systems that wish to use a special
+syntax for some feature they provide.
+.c In Brand X, for example, the two formats
+.c .lisp
+.c for 2var* being each 2p* of 2expr*
+.c .end_lisp
+.c where 2p* is not a 3loop* path, and
+.c .lisp
+.c for 2var* being the property-values of 2expr* in '2p*
+.c .end_lisp
+.c are equivalent, having the effect of stepping 2x* through the
+.c 2p* property of 2expr* (Brand X manipulates "multiple
+.c valued" properties).  Note that 2p* is implicitly quoted by the
+.c first format; this behavior is defined by the default loop path
+.c function which Brand X defines, not by 3loop*.
+
+.loop_section Pre-Defined Paths
+.setq predefined-paths-section css-number
+	3loop* comes with two pre-defined iteration path
+functions;  one implements a 3mapatoms*-like iteration path
+facility and the other is used for defining iteration paths for
+stepping through sequences.
+
+.loop_subsection The Interned-Symbols Path
+.loop_path_index interned-symbols
+'loop_path_preposition_index in
+	The 3interned-symbols* iteration path is like a
+3mapatoms* for 3loop*.
+.lisp
+(loop for sym being interned-symbols ...)
+.end_lisp
+iterates over all of the symbols in the current package and its
+superiors.
+.c (or, in Maclisp, the current obarray).
+This is the same set
+of symbols over which 3mapatoms* iterates, although not
+necessarily in the same order.  The particular package to look in may
+be specified as in
+.lisp
+(loop for sym being the interned-symbols in 2package* ...)
+.end_lisp
+which is like giving a second argument to 3mapatoms*.
+
+You can restrict the iteration to the symbols directly present in
+the specified package, excluding inherited symbols, using the
+3local-interned-symbols* path:
+.lisp
+(loop for sym being the local-interned-symbols  {in 2package*}
+      ...)
+.end_lisp
+.space 1
+Example:
+.lisp
+(defun my-apropos (sub-string &optional (pkg package))
+    (loop for x being the interned-symbols in pkg
+	  when (string-search sub-string x)
+	    when (or (boundp x) (fboundp x) (plist x))
+	      do (print-interesting-info x)))
+.end_lisp
+In the Zetalisp and NIL implementations of 3loop*, a package
+specified with the 3in* preposition may be anything acceptable to
+the 3pkg-find-package* function.  The code generated by this path
+will contain calls to internal 3loop* functions, with the effect
+that it will be transparent to changes to the implementation of
+packages.  In the Maclisp implementation, the obarray 2must* be an
+array pointer, 2not* a symbol with an 3array* property.
+
+.loop_subsection The Hash-Elements Path
+.loop_path_index hash-elements
+'loop_path_preposition_index of
+'loop_path_preposition_index with-key
+	The 3hash-elements* path provides an effect like that of
+the function 3maphash*.  It can find all the occupied entries in a hash table.
+.lisp
+(loop for value being the hash-elements of 2hash-table* ...)
+.end_lisp
+iterates over all the occupied entries in 2hash-table*.  Each time,
+2value* is the value stored in the entry.  To examine the keys of the
+entries as well, write
+.lisp
+(loop for value being the hash-elements of 2hash-table*
+      with-key keysym ...)
+.end_lisp
+and then 3keysym*'s value each will be the hash key that corresponds to 2value*.
+
+.loop_subsection Sequence Iteration
+.setq loop-sequence-section css-number
+.setq loop-sequence-page page
+	One very common form of iteration is done over the elements
+of some object that is accessible by means of an integer index.
+3loop* defines an iteration path function for doing this in a
+general way and provides a simple interface to allow users to define
+iteration paths for various kinds of ``indexable'' data.
+
+.defmac define-loop-sequence-path path-name-or-names fetch-fun size-fun &optional sequence-type default-var-type
+2path-name-or-names* is either an atomic path name or list of path
+names.  2fetch-fun* is a function of two arguments, the sequence
+and the index of the item to be fetched.  (Indexing is assumed to be
+zero-origined.)  2size-fun* is a function of one argument, the
+sequence;  it should return the number of elements in the sequence.
+2sequence-type* is the name of the data-type of the sequence, and
+2default-var-type* the name of the data-type of the elements of
+the sequence.  These are applicable to use of 3loop* in other
+Lisp systems; on the Lisp Machine they might as well be omitted.
+.end_defmac
+
+.group
+   The Zetalisp implementation of 3loop* utilizes the
+Zetalisp array manipulation primitives to define both
+3array-element* and 3array-elements* as iteration paths:
+'loop_path_index array-elements
+.nofill
+7(define-loop-sequence-path (array-element array-elements)
+    aref array-active-length)*
+.fill
+.unbreak
+Then, the 3loop* clause
+'loop_path_preposition_index of
+.lisp
+for 2var* being the array-elements of 2array*
+.end_lisp
+will step 2var* over the elements of 2array*, starting from
+element 0.  The sequence path function also accepts 3in* as a
+synonym for 3of*.
+.end_group
+	The range and stepping of the iteration may be specified with
+the use of all of the same keywords which are accepted by the 3loop*
+arithmetic stepper (3for 2var* from ...*);  they are
+3by*, 3to*, 3downto*, 3from*, 3downfrom*,
+3below*, and 3above*, and are interpreted in the same manner.
+Thus,
+.lisp
+(loop for 2var* being the array-elements of 2array*
+	  from 1 by 2
+      ...)
+.end_lisp
+steps 2var* over all of the odd elements of 2array*, and
+.lisp
+(loop for 2var* being the array-elements of 2array*
+	  downto 0
+      ...)
+.end_lisp
+steps in reverse order.
+.space 1
+.lisp
+(define-loop-sequence-path (vector-elements vector-element)
+    vref vector-length notype notype)
+.end_lisp
+is how the 3vector-elements* iteration path can be defined in NIL
+(which it is).  One can then do such things as
+.lisp
+(defun cons-a-lot (item &restv other-items)
+    (and other-items
+	 (loop for x being the vector-elements of other-items
+	       collect (cons item x))))
+.end_lisp
+	All such sequence iteration paths allow one to specify the
+variable to be used as the index variable, by use of the 3index*
+keyword with the 3using* prepositional phrase, as described (with
+an example) on (loop-using-crock).
+
+.loop_insert_for_NIL "lsbdoc;()path >"
+
+.loop_section Defining Paths
+
+	This section and the next may not be of interest to those
+not interested in defining their own iteration paths.
+	 In addition to the code which defines the iteration (section
+(loop-iteration-framework-section)), a 3loop* iteration clause (e.g.
+a 3for* or 3as* clause) produces variables to be bound and
+pre-iteration (2prologue*) code.  This breakdown allows a
+user-interface to 3loop* which does not have to depend on or know
+about the internals of 3loop*.  To complete this separation, the
+iteration path mechanism parses the clause before giving it to the user
+function that will return those items.  A function to generate code for
+a path may be declared to 3loop* with the 3define-loop-path*
+function:
+.defmac define-loop-path pathname-or-names path-function list-of-allowable-prepositions &rest data
+This defines 2path-function* to be the handler for the path(s)
+2path-or-names*, which may be either a symbol or a list of
+symbols.  Such a handler should follow the conventions described
+below.  The 2datum-i* are optional;  they are passed in to
+2path-function* as a list.
+.end_defun
+
+The handler will be called with the following arguments:
+.table 2 250 500
+.item path-name
+The name of the path that caused the path function to be invoked.
+.item variable
+The ``iteration variable''.
+.item data-type
+The data type supplied with the iteration variable, or 3nil* if
+none was supplied.  This is a facility of the 3loop* intended for
+other Lisp systems in which declaring the type of a variable produces
+more efficient code.  It is not documented in this manual since it is
+never useful on the Lisp Machine.
+.item prepositional-phrases
+This is a list with entries of the form 2(preposition
+expression)*, in the order in which they were collected.  This may
+also include some supplied implicitly (e.g. an 3of* phrase when
+the iteration is inclusive, and an 3in* phrase for the
+3default-loop-path* path); the ordering will show the order of
+evaluation that should be followed for the expressions.
+.item inclusive?
+This is 3t* if 2variable* should have the starting point of
+the path as its value on the first iteration (by virtue of being
+specified with syntax like 3for 2var* being 2expr* and its
+2path**), 3nil* otherwise.  When 3t*, 2expr*
+will appear in 2prepositional-phrases* with the 3of*
+preposition;  for example, 3for x being foo and its cdrs* gets
+2prepositional-phrases* of 3((of foo))*.
+.item allowed-prepositions
+This is the list of allowable prepositions declared for the path
+that caused the path function to be invoked.  It and 2data*
+(immediately below) may be used by the path function such that a
+single function may handle similar paths.
+.item data
+This is the list of ``data'' declared for the path that caused the
+path function to be invoked.  It may, for instance, contain a
+canonicalized path, or a set of functions or flags to aid the
+path function in determining what to do.  In this way, the same
+path function may be able to handle different paths.
+.end_table
+	The handler should return a list of either six or ten
+elements:
+.table 2 250 500
+.item variable-bindings
+This is a list of variables that need to be bound.  The entries in it
+may be of the form 2variable* or (2variable* 2expression*).
+.c or (2variable* 2expression* 2data-type*).
+Note that it is
+the responsibility of the handler to make sure the iteration variable
+gets bound.  All of these variables will be bound in parallel;
+if initialization of one depends on others, it should be done with a
+3setq* in the 2prologue-forms*.  Returning only the variable
+without any initialization expression is not allowed if the variable
+is a destructuring pattern.
+.item prologue-forms
+This is a list of forms that should be included in the 3loop*
+prologue.
+.item the four items of the iteration specification
+These are the four items described in section
+(loop-iteration-framework-section),
+(loop-iteration-framework-page):  2pre-step-endtest*,
+2steps*, 2post-step-endtest*, and 2pseudo-steps*.
+.item another four items of iteration specification
+If these four items are given, they apply to the first iteration, and
+the previous four apply to all succeeding iterations;  otherwise, the
+previous four apply to 2all* iterations.
+.end_table
+
+	Here are the routines that are used by 3loop* to compare
+keywords for equality.  In all cases, a 2token* may be any Lisp
+object, but a 2keyword* is expected to be an atomic symbol.  In
+certain implementations these functions may be implemented as macros.
+
+.defun si:loop-tequal token keyword
+This is the 3loop* token comparison function.  2token* is any Lisp
+object;  2keyword* is the keyword it is to be compared
+against.  It returns 3t* if they represent the same token,
+comparing in a manner appropriate for the implementation.
+.end_defun
+
+.defun si:loop-tmember token keyword-list
+The 3member* variant of 3si:loop-tequal*.
+.end_defun
+
+.defun si:loop-tassoc token keyword-alist
+The 3assoc* variant of 3si:loop-tequal*.
+.end_defun
+
+	If an iteration path function desires to make an internal
+variable accessible to the user, it should call the following function
+instead of 3gensym*:
+'loop_path_preposition_index using
+.defun si:loop-named-variable keyword
+This should only be called from within an iteration path function.  If
+2keyword* has been specified in a 3using* phrase for this
+path, the corresponding variable is returned;  otherwise, 3gensym*
+is called and that new symbol returned.  Within a given path function,
+this routine should only be called once for any given keyword.
+
+If the user specifies a 3using* preposition containing any keywords
+for which the path function does not call 3si:loop-named-variable*,
+3loop* will inform the user of his error.
+.end_defun
+
+.loop_subsection Path Definition Example
+	Here is an example function that defines the
+3string-characters* iteration path.  This path steps a variable
+through all of the characters of a string.  It accepts the format
+.lisp
+(loop for 2var* being the string-characters of 2str* ...)
+.end_lisp
+.c I may regret this later:
+.page
+	The function is defined to handle the path by
+.lisp
+(define-loop-path string-characters string-chars-path (of))
+.exdent 96 Here is the function:
+(defun string-chars-path (path-name variable data-type
+			  prep-phrases inclusive?
+			  allowed-prepositions data
+			  &aux (bindings nil)
+			       (prologue nil)
+			       (string-var (gensym))
+			       (index-var (gensym))
+			       (size-var (gensym)))
+   allowed-prepositions data 1; unused variables*
+   data-type
+   1; To iterate over the characters of a string, we need*
+   1; to save the string, save the size of the string,*
+   1; step an index variable through that range, setting*
+   1; the user's variable to the character at that index.*
+.c    1; Default the data-type of the user's variable:*
+.c    (cond ((null data-type) (setq data-type 'fixnum)))
+   1; We support exactly one ``preposition'', which is required,*
+   1; so this check suffices:*
+   (cond ((null prep-phrases)
+	  (ferror nil "OF missing in ~S iteration path of ~S"
+		  path-name variable)))
+   1; We do not support ``inclusive'' iteration:*
+   (cond ((not (null inclusive?))
+	  (ferror nil
+	    "Inclusive stepping not supported in ~S path ~
+	     of ~S (prep phrases = ~:S)"
+	    path-name variable prep-phrases)))
+   1; Set up the bindings*
+   (setq bindings (list (list variable nil)
+			(list string-var (cadar prep-phrases))
+			(list index-var 0)
+			(list size-var 0)))
+   1; Now set the size variable*
+   (setq prologue (list `(setq ,size-var (string-length
+					    ,string-var))))
+   1; and return the appropriate stuff, explained below.*
+   (list bindings prologue
+	 `(= ,index-var ,size-var)
+	 nil nil
+	 (list variable `(aref ,string-var ,index-var)
+	       index-var `(1+ ,index-var))))
+.end_lisp
+
+	The first element of the returned list is the bindings.  The
+second is a list of forms to be placed in the 2prologue*.  The
+remaining elements specify how the iteration is to be performed.  This
+example is a particularly simple case, for two reasons:  the actual
+``variable of iteration'', 3index-var*, is purely internal
+(being 3gensym*med), and the stepping of it (31+*) is such
+that it may be performed safely without an endtest.  Thus
+3index-var* may be stepped immediately after the setting of the
+user's variable, causing the iteration specification for the first
+iteration to be identical to the iteration specification for all
+remaining iterations.  This is advantageous from the standpoint of the
+optimizations 3loop* is able to perform, although it is frequently
+not possible due to the semantics of the iteration (e.g., 3for
+2var* first 2expr1* then 2expr2**) or to subtleties of
+the stepping.  It is safe for this path to step the user's variable in
+the 2pseudo-steps* (the fourth item of an iteration specification)
+rather than the ``real'' steps (the second), because the step value can
+have no dependencies on any other (user) iteration variables.  Using
+the pseudo-steps generally results in some efficiency gains.
+	If one desired the index variable in the above definition to
+be user-accessible through the 3using* phrase feature with the
+'loop_path_preposition_index using
+3index* keyword, the function would need to be changed in two
+ways.  First, 3index-var* should be bound to
+3(si:loop-named-variable 'index)* instead of 3(gensym)*.
+Secondly, the efficiency hack of stepping the index variable ahead of
+the iteration variable must not be done.  This is effected by changing
+the last form to be
+.lisp
+(list bindings prologue
+      nil
+      (list index-var `(1+ ,index-var))
+      `(= ,index-var ,size-var)
+      (list variable `(aref ,string-var ,index-var))
+      nil
+      nil
+      `(= ,index-var ,size-var)
+      (list variable `(aref ,string-var ,index-var)))
+.end_lisp
+Note that although the second 3`(= ,index-var ,size-var)* could
+have been placed earlier (where the second 3nil* is), it is best
+for it to match up with the equivalent test in the first iteration
+specification grouping.
+
+.c Local Modes:
+.c Auto Fill Mode:1
+

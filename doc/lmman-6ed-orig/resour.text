@@ -1,0 +1,334 @@
+.c -*- Mode:Bolio -*-
+
+.section Resources
+.cindex resource
+.cindex allocation of storage
+.cindex storage allocation
+
+Storage allocation is handled differently by different computer
+systems.  In many languages, the programmer must spend a lot of time
+thinking about when variables and storage units are allocated and
+deallocated.  In Lisp, freeing of allocated storage is normally done
+automatically by the Lisp system; when an object is no longer
+accessible to the Lisp environment, the garbage collector reuses its
+storage for some other object.  This relieves the programmer of a
+great burden, and makes writing programs much easier.
+
+However, automatic freeing of storage incurs an expense: more computer
+resources must be devoted to the garbage collector.  If a program is
+designed to allocate temporary storage, which is then left as garbage,
+more of the computer must be devoted to the collection of garbage; this
+expense can be high.  In some cases, the programmer may decide that it
+is worth putting up with the inconvenience of having to free storage
+under program control, rather than letting the system do it
+automatically, in order to prevent a great deal of overhead from the
+garbage collector.
+
+It usually is not worth worrying about freeing of storage when the units
+of storage are very small things such as conses or small arrays.
+Numbers are not a problem, either; fixnums and short floats do not occupy
+storage, and the system has a special way of garbage-collecting the
+other kinds of numbers with low overhead.  But when a program allocates and
+then gives up very large objects at a high rate (or large objects at a
+very high rate), it can be worthwhile to keep track of that one
+kind of object manually.  Within the Lisp Machine system, there
+are several programs that are in this position.  The Chaosnet software
+allocates and frees ``packets'', which are moderately large, at a very
+high rate.  The window system allocates and frees certain kinds of
+windows, which are very large, moderately often.  Both of these programs
+manage their objects manually, keeping track of when they are no longer
+used.
+
+When we say that a program ``manually frees'' storage, it does not really
+mean that the storage is freed in the same sense that the garbage
+collector frees storage.  Instead, a list of unused objects is kept.
+When a new object is desired, the program first looks on the list to see
+if there is one around already, and if there is it uses it.  Only if the
+list is empty does it actually allocate a new one.  When the program is
+finished with the object, it returns it to this list.
+
+The functions and special forms in this section perform the above
+function.  The set of objects forming each such list is called a
+2resource*; for example, there might be a Chaosnet packet resource.
+3defresource* defines a new resource; 3allocate-resource* allocates
+one of the objects; 3deallocate-resource* frees one of the objects
+(putting it back on the list); and 3using-resource* temporarily
+allocates an object and then frees it.
+
+.subsection Defining Resources
+
+.defmac defresource
+The 3defresource* special form is used to define a new resource.  The
+form looks like this:
+.lisp
+(defresource 2name* 2parameters*
+   2doc-string*
+   2keyword* 2value*
+   2keyword* 2value*
+   ...)
+.end_lisp
+
+2name* should be a symbol; it is the name of the resource and gets a
+3defresource* property of the internal data structure representing the resource.
+
+2parameters* is a lambda-list giving names and default values (if 3&optional*
+is used) of parameters to an object of this type.  For example, if one had a resource
+of two-dimensional arrays to be used as temporary storage in a calculation, the
+resource would typically have two parameters, the number of rows and the number of
+columns.  In the simplest case 2parameters* is 3()*.
+
+The documentation string is recorded for 3(documentation 2name* 'resource)* to access.  It may be omitted.
+
+The keyword options control how the objects of the resource are made and kept
+track of.  The following keywords are allowed:
+.table 3
+.kitem :constructor
+The 2value* is either a form or the name of a function.  It is
+responsible for making an object, and will be used when someone tries to
+allocate an object from the resource and no suitable free objects exist.
+If the 2value* is a form, it may access the parameters as variables.
+If it is a function, it is given the internal data structure for the resource
+and any supplied parameters as its arguments; it will need to default any
+unsupplied optional parameters.  This keyword is required.
+
+.kitem :free-list-size
+The 2value* is the number of objects which the resource data
+structure should have room, initially, to remember.  This is not a
+hard limit, since the data structure will be made bigger if necessary.
+
+.kitem :initial-copies
+The 2value* is a number (or 3nil* which means 0).  This many objects will
+be made as part of the evaluation of the 3defresource*; thus is useful to
+set up a pool of free objects during loading of a program.  The default is
+to make no initial copies.
+
+If initial copies are made and there are 2parameters*, all the parameters must
+be 3&optional* and the initial copies will have the default values of the
+parameters.
+
+.kitem :initializer
+The 2value* is a form or a function as with 3:constructor*.  In
+addition to the parameters, a form here may access the variable
+3object* (in the current package).  A function gets the object as
+its second argument, after the data structure and before the
+parameters.  The purpose of the initializer function or form is to
+clean up the contents of the object before each use.  It is called or
+evaluated each time an object is allocated, whether just constructed
+or being reused.
+
+.kitem :finder
+The 2value* is a form or a function as with 3:constructor* and sees the
+same arguments.  If this option is specified, the resource system does not keep
+track of the objects.  Instead, the finder must do so.  It will be called
+inside a 3without-interrupts* and must find a usable object somehow and return it.
+
+.kitem :matcher
+The 2value* is a form or a function as with 3:constructor*.  In addition to
+the parameters, a form here may access the variable 3object* (in the current package).
+A function gets the object as its second argument, after the data structure and
+before the parameters.  The job of the matcher is to make sure that the object
+matches the specified parameters.  If no matcher is supplied, the system will remember
+the values of the parameters (including optional ones that defaulted) that were used
+to construct the object, and will assume that it matches those particular values for
+all time.  The comparison is done with 3equal* (not 3eq*).  The matcher is
+called inside a 3without-interrupts*.
+
+.kitem :checker
+The job of the checker is to determine whether the object is safe to allocate.
+The 2value* is a form or a function, as above.  In addition to the
+parameters, a form here may access the variables 3object* and 3in-use-p*
+(in the current package).  A function receives these as its second and third
+arguments, after the data structure and before the parameters.  If no checker
+is supplied, the default checker looks only at 3in-use-p*; if the object has
+been allocated and not freed it is not safe to allocate, otherwise it is.  The
+checker is called inside a 3without-interrupts*.
+
+.end_table
+If these options are used with forms (rather than functions), the forms
+get compiled into functions as part of the expansion of 3defresource*.
+The functions, whether user-provided or generated from forms, are given
+names like 3(:property 2resource-name* si:resource-constructor)*;
+these names are not guaranteed not to change in the future.
+
+Most of the options are not used in typical cases.  Here is an example:
+.lisp
+(defresource two-dimensional-array (rows columns)
+	:constructor (make-array (list rows columns)))
+.end_lisp
+
+Suppose the array was usually going to be 100 by 100, and you wanted to preallocate
+one during loading of the program so that the first time you needed an array you
+wouldn't have to spend the time to create one.  You might simply put
+.lisp
+(using-resource (foo two-dimensional-array 100 100)
+	)
+.end_lisp
+after your 3defresource*, which would allocate a 100 by 100 array and then
+immediately free it.  Alternatively you could write:
+.lisp
+(defresource two-dimensional-array
+			(&optional (rows 100) (columns 100))
+	:constructor (make-array (list rows columns))
+	:initial-copies 1)
+.end_lisp
+
+Here is an example of how you might use the 3:matcher* option.  Suppose you wanted
+to have a resource of two-dimensional arrays, as above, except that when you allocate
+one you don't care about the exact size, as long as it is big enough.  Furthermore
+you realize that you are going to have a lot of different sizes and if you always
+allocated one of exactly the right size, you would allocate a lot of different arrays
+and would not reuse a pre-existing array very often.  So you might write:
+.lisp
+(defresource sloppy-two-dimensional-array (rows columns)
+    :constructor (make-array (list rows columns))
+    :matcher (and ( (array-dimension-n 1 object) rows)
+		  ( (array-dimension-n 2 object) columns)))
+.end_lisp
+.end_defmac
+
+.subsection Allocating Resource Objects
+
+.defun allocate-resource resource-name &rest parameters
+Allocates an object from the resource specified by 2resource-name*.  The various forms
+and/or functions given as options to 3defresource*, together with any
+2parameters* given to 3allocate-resource*, control how a suitable object
+is found and whether a new one has to be constructed or an old one can be reused.
+
+Note that the 3using-resource* special form is usually what you want to
+use, rather than 3allocate-resource* itself; see below.
+.end_defun
+
+.defun deallocate-resource resource-name resource-object
+Frees the object 2resource-object*, returning it to the free-object
+list of the resource specified by 2resource-name*.
+.end_defun
+
+.defmac using-resource (variable resource parameters...) body...
+The 2body* forms are evaluated sequentially with 2variable* bound to an
+object allocated from the resource named 2resource*, using the given 2parameters*.
+The 2parameters* (if any) are evaluated, but 2resource* is not.
+
+3using-resource* is often more convenient than calling
+3allocate-resource* and 3deallocate-resource*.
+Furthermore it is careful to free the object when the body is exited,
+whether it returns normally or via 3throw*.  This is done by using
+3unwind-protect*; see (unwind-protect-fun).
+.end_defmac
+
+.lisp
+.exdent 96 Here is an example of the use of resources:
+(defresource huge-16b-array (&optional (size 1000))
+  :constructor (make-array size :type 'art-16b))
+
+(defun do-complex-computation (x y)
+  (using-resource (temp-array huge-16b-array)
+    ...                               ;1Within the body, the array can be used.*
+    (aset 5 temp-array i)
+    ...))                             ;1The array is deallocated at the end.*
+.end_lisp
+
+.defun deallocate-whole-resource resource-name
+Frees all objects in 2resource-name*.  This is like doing
+3deallocate-resource* on each one individually.  This function is
+often useful in warm-boot initializations.
+.end_defun
+
+.defun map-resource function resource-name &rest extra-args
+Calls function on each object created in 2resource-name*.  Each time
+function is called, it receives three fixed arguments, plus whatever
+2extra-args* were specified.  The three fixed arguments are an object
+of the resource; 3t* if the object is currently allocated (``in use'');
+and the resource data structure itself.
+.end_defun
+
+.defun clear-resource resource-name
+Forgets all of the objects being remembered by the resource specified by 2resource-name*.
+Future calls to 3allocate-resource* will create new objects.  This function is
+useful if something about the resource has been changed incompatibly, such that the
+old objects are no longer usable.  If an object of the resource is in use when
+3clear-resource* is called, an error will be signaled when that object is
+deallocated.
+.end_defun
+
+.subsection Accessing the Resource Data Structure
+
+The constructor, initializer, matcher and checker functions receive
+the internal resource data structure as an argument.  This is a named
+structure array whose elements record the objects both free and
+allocated, and whose array leader contains sundry other information.
+This structure should be accessed using the following primitives:
+
+.defun si:resource-object resource-structure index
+Returns the 2index*'th object remembered by the resource.
+Both free and allocated objects are remembered.
+.end_defun
+
+.defun si:resource-in-use-p resource-structure index
+Returns 3t* if the 2index*'th object remembered by the
+resource has been allocated and not deallocated.
+Simply defined resources will not reallocate an object in this state.
+.end_defun
+
+.defun si:resource-parameters resource-structure index
+Returns the list of parameters from which the 2index*'th object
+was originally created.
+.end_defun
+
+.defun si:resource-n-objects resource-structure
+Returns the number of objects currently remembered by the resource.
+This will include all objects ever constructed, unless
+3clear-resource* has been used.
+.end_defun
+
+.defun si:resource-parametizer resource-structure
+Returns a function, created by 3defresource*, which accepts the
+supplied parameters as arguments, and returns a complete list of
+parameter values, including defaults for the optional ones.
+.end_defun
+
+.subsection Fast Pseudo-Resources
+
+When small temporary data structures are allocated so often that they
+amount to a considerable drain of storage space, an ordinary resource
+may be unacceptably slow.  Here is a simple technique that
+provides in such cases nearly all the benefit of a resource while
+costing nearly nothing.  The function 3read* uses it to allocate a
+buffer for reading tokens of input.
+
+.lisp
+(defvar buffer-for-reuse nil)
+
+(defsubst get-buffer ()
+  (or (do (old)
+	  ((%store-conditional (locf buffer-for-reuse)
+			       (setq old buffer-for-reuse)
+			       nil)
+	   old))
+      (construct-new-buffer))))
+
+(defsubst free-buffer (buffer)
+  (setq buffer-for-reuse buffer))
+.end_lisp
+
+To allocate a buffer for use, do 3(get-buffer)*.
+To free it when you are done with it, call 3free-buffer*.
+It is assumed that 3construct-new-buffer* is the function
+which can create a new buffer when there is none available for
+reuse.
+
+This technique keeps track of at most one buffer which has been freed
+and may be reused.  It is not effective in this simple form when more
+than one buffer is needed at any given time by one application.
+In the case of 3read*, only one token is being read in at any time.
+
+It is safe for more than one process to call 3read* because
+3get-buffer* is designed to guarantee that a request cannot get a
+buffer already handed out and not freed.  Likewise, nothing terrible
+happens if there is an error inside 3read* and 3read* is called
+recursively within the debugger.  The only problem is that multiple
+buffers will be allocated, which means that some of them will be lost.
+But the cost of this is minor in the cases where this technique
+is applicable.  For example, if two processes are reading files,
+process switching will probably happen a few times a second, each time
+costing one buffer not reused.  This is insignificant compared to the
+storage used up for other purposes by reading large amounts of data.

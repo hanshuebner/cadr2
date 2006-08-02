@@ -1,0 +1,21 @@
+;(load '|lmwind; .bolio (init)|)
+
+(default-manual-style nil '|Flavors|)
+(standard-dover-fonts 10.)
+
+;(load '|bolio;1index fasl|)
+;(define-index-indirection message-index '|  /2Message/*|)
+(defprop index 2 index-columns)
+
+(DEFPROP DESCRIBE-FUN |page 261 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP PRINTER |sections 18.2 and 18.4 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP DATA-TYPE-FUN |page 111 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP SLASHIFICATION |page 154 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP DEFSTRUCT |chapter 17 of the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP TRACE-FUN |page 252 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP DISEMBODIED-PROPERTY-LIST |page 63 in the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP CLOSURE |chapter 10 of the Lisp Machine Manual| JUST-VALUE)
+(DEFPROP PACKAGE |chapter 19 of the Lisp Machine Manual| JUST-VALUE)
+
+(setq inhibit-automagic-second-pass 'ask)
+(setq barf-stop-p nil)

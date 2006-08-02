@@ -1,0 +1,13 @@
+.c -*- Bolio -*-
+.c This is the driving file for the Lisp Machine manual
+
+.insert TITLE
+.insert I.NTRO
+.insert FD.DTP
+.insert FD.OP
+.insert FD.EVA
+.insert FD.FLO
+.insert FD.CON
+.insert RESOUR
+.insert FD.NUM
+.insert FD.HAC

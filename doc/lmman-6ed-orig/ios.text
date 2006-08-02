@@ -1,0 +1,1030 @@
+.c This file is part of the Lisp Machine manual.	-*-Bolio-*-
+.c The I/O System Chapter.
+.c Need to add examples in the section on read, maybe print too.
+
+.chapter The I/O System
+.cindex input and output
+.setq io-chapter chapter-number
+.setq io section-page
+.cindex stream
+
+	Zetalisp provides a powerful and flexible system for performing
+input and output to peripheral devices.  Device independent I/O is
+generalized in the concept of an 2I/O stream*.  A stream is a source
+or sink for data in the form of characters or integers; sources are
+called 2input streams* and sinks are called 2output streams*.  A
+stream may be capable of use in either direction, in which case it is a
+2bidirectional* stream.  In a few unusual cases, it is useful to have
+a `stream' which supports neither input nor output; for example, opening
+a file with direction 3:probe* returns one ((probe-streams)).
+Streams on which characters are transferred are called 2character
+streams*, and are used more often than 2binary streams*, which
+usually transfer integers of type 3(unsigned-byte 2n*)* for some
+2n*.
+
+Streams automatically provide a modular separation between the program
+which implements the stream and the program which uses it, because
+streams obey a standard protocol.  The stream protocol is a special case
+is based on the general message passing protocol: a stream operation is
+invoked by calling the stream as a function, with a first argument that
+is a keyword and identifies the I/O operation desired (such as, 3:tyi*
+to read a character) and additional arguments as that operation calls
+for them.  The stream protocol consists of a particular set of operation
+names and calling conventions for them.  It is documented in
+(streams).
+
+Many programs do not invoke the stream operations directly; instead, they
+call standard I/O functions which then invoke stream operations.
+This is done for two reasons: the functions may provide useful services,
+and they may be transportable to Common Lisp or Maclisp.  Programs that
+use stream operations directly are not transportable outside Zetalisp.
+The I/O functions are documented in the first sections of this chapter.
+
+The generality of the Zetalisp I/O stream comes from the fact that
+I/O operations on it can invoke arbitrary Lisp code.  For example,
+it would be very simple to implement a "morse code" stream that accepted
+character output and used 3beep* with appropriate pauses to `display' it.
+How to implement a stream is documented in (stream-implementation),
+and the following sections.
+
+The most commonly used streams are windows, which read input from the
+keyboard and dispose of output by drawing on the screen, file streams,
+editor buffer streams which get input from the text in a buffer
+and insert output into the buffer, and string streams which do
+likewise with the contents of a string.
+
+Another unusual aspect of Lisp I/O is the ability to input and output
+general Lisp objects, represented as text.  These are done using the
+3read* and related functions and using 3print* and related functions.
+They are documented in chapter (expression-io-chapter).
+
+.section Input Functions
+
+The input functions read characters, lines, or bytes from an input
+stream.  This argument is called 2stream*.  If omitted or 3nil*,
+the current value of 3*standard-input**.  This is the
+``default input stream'', which in simple use reads
+from the terminal keyboard.  If the argument is 3t*, the current
+value of 3*terminal-io** is used; this is conventionally supposed to
+access ``the user's terminal'' and nearly always reads from the keyboard
+in processes belonging to windows.
+
+If the stream is an interactive one, such as the terminal, the input is
+echoed, and functions which read more than a single character allow
+editing as well.  3peek-char* echoes all of the characters that were
+skipped over if 3read-char* would have echoed them; the character not
+removed from the stream is not echoed either.
+
+When an input stream has no more data to return, it reports end of file.
+Each stream input operation has a convention for how to do this.
+The input functions accept an argument 2eof-option* or two arguments
+2eof-error* and 2eof-value* to tell them what to do if end of file
+is encountered instead of any input.  The functions that take two
+2eof-* arguments are the Common Lisp ones.  For them, end of
+file is an error if 2eof-error* is non-3nil* or if it is
+unsupplied.  If 2eof-error* is 3nil*, then the function returns
+2eof-value* at end of file.
+
+The functions which have one argument called 2eof-option* are from
+Maclisp.  End of file causes an error if the argument is not supplied.
+Otherwise, end of file causes the function to return the argument's
+value.  Note that an 2eof-option* of 3nil* means to return 3nil*
+if the end of the file is reached; it is 2not* equivalent to supplying
+no 2eof-option*.
+
+.defcondition sys:end-of-file (3error*)
+All errors signaled to report end of file possess this condition name.
+
+The 3:stream* operation on the condition instance returns the stream
+on which end of file was reached.
+.end_defcondition
+
+.subsection String Input Functions
+
+.defun read-line &optional stream (eof-errorp 3t*) eof-value ignore options
+Reads a line of text, terminated by a 3Return*.  It
+returns the line as a character string, 2without* the 3Return*
+character that ended the line.  The argument 2ignore*
+must be accepted for the sake of the Common Lisp specifications
+but it is not used.
+
+This function is usually used to get a line of input from
+the user.  If rubout processing is happening, then 2options* is passed
+as the list of options to the rubout handler (see (rubout-handler)).
+
+There is a second value, 3t* if the line was terminated by end of file.
+.end_defun
+
+.defun readline &optional stream eof-option options
+Like 3read-line* but uses the Maclisp convention for specifying
+what to do about end of file.  This function can take its first two
+arguments in the other order, for Maclisp compatibility only; see the
+note in (maclisp-input-functions).
+.end_defun
+
+.defun readline-trim &optional stream eof-option options
+This is like 3readline* except that leading and trailing spaces and
+tabs are discarded from the value before it is returned.
+.end_defun
+
+.defun readline-or-nil &optional stream eof-option options
+Like 3readline-trim* except that 3nil* is returned if the line is empty
+or all blank.
+.end_defun
+
+.defun read-delimited-string &optional delimiter stream eof rubout-handler-options buffer-size
+Reads input from 2stream* until a delimiter character is reached, then
+returns as a string all the input up to but not including the delimiter.
+2delimiter* is either a character or a list of characters which all
+serve as delimiters.  It defaults to the character 3End*.  2stream*
+defaults to the value of 3*standard-input**.
+
+If 2eof* is non-3nil*, then end of file on attempting to read the
+first character is an error.  Otherwise it just causes an empty string
+to be returned.  End of file once at least one character has been read
+is never an error but it does cause the function to return all the input
+so far.
+
+Input is done using rubout handling and echoing if stream supports the
+3:rubout-handler* operation.  In this case, 2rubout-handler-options*
+are passed as the options argument to that operation.
+
+2buffer-size* specifies the size of string buffer to allocate initially.
+
+The second value returned is 3t* if input ended due to end of file.
+
+The third value is the delimiter character which terminated input,
+or 3nil* if input terminated due to end of file.
+This character is currently represented as a fixnum, but perhaps someday
+will be a character object instead.
+.end_defun
+
+.subsection Character-Level Input Functions
+
+.defun read-char &optional stream (eof-errorp 3t*) eof-value
+Reads a character from 2stream* and returns it as a character object.
+End of file is an error if 2eof-errorp* is non-3nil*; otherwise, it
+causes 3read-char* to return 2eof-value*.  This uses the 3:tyi*
+stream operation.
+.end_defun
+
+.defun read-byte stream &optional (eof-errorp 3t*) eof-value
+Like 3read-char* but returns an integer rather than a character
+object.  In strict Common Lisp, only 3read-char* can be used
+on character streams and only 3read-byte* can be used on binary streams.
+.end_defun
+
+.defun read-char-no-hang &optional stream (eof-errorp 3t*) eof-value
+Similar but returns 3nil* immediately when no input is available on an interactive stream.
+Uses the 3:tyi-no-hang* stream operation ((streams-tyi-no-hang-method)).
+.end_defun
+
+.defun unread-char char &optional stream
+Puts 2char* back into 2stream* so that it will be read again
+as the next input character.  2char* must be the same character that was
+read from stream most recently.  It may not work to unread two characters
+in a row before reading again.
+Uses the 3:untyi* stream operation ((streams-untyi-method)).
+.end_defun
+
+.defun peek-char peek-type &optional stream (eof-errorp 3t*) eof-value
+If 2peek-type* is 3nil*, this is like 3read-char* except leaves the character
+to be read again by the next input operation.
+
+If 2peek-type* is 3t*, skips whitespace characters and peeks at the
+first nonwhitespace character.  That character is the value, and is also
+left to be reread.
+
+If 2peek-type* is a character, reads input until that character is seen.
+That character is unread and also returned.
+.end_defun
+
+.defun listen &optional stream
+3t* if input is now available on 2stream*.  Uses the 3:listen* operation
+((streams-listen-method)).
+.end_defun
+
+.defun clear-input &optional stream
+Discards any input now available on 2stream*, if it is an interactive stream.
+Uses the 3:clear-input* stream operation ((streams-clear-input-method)).
+.end_defun
+
+.subsection Maclisp Compatibility Input Functions
+.setq maclisp-input-functions section-page
+
+These functions accept an argument 2eof-option* to tell them what to
+do if end of file is encountered instead of any input.  End of file
+signals an error if the argument is not supplied.  Otherwise, end of
+file causes the function to return the argument's value.  Note that an
+2eof-option* of 3nil* means to return 3nil* if the end of the
+file is reached; it is 2not* equivalent to supplying no
+2eof-option*.
+
+The arguments 2stream* and 2eof-option* can also be given in the
+reverse order for compatibility with old Maclisp programs.  The
+functions attempt to figure out which way they were called by seeing
+whether each argument is a plausible stream.  Unfortunately, there is
+an ambiguity with symbols: a symbol might be a stream and it might be
+an eof-option.  If there are two arguments, one being a symbol and the
+other being something that is a valid stream, or only one argument,
+which is a symbol, then these functions interpret the symbol as an
+eof-option instead of as a stream.  To force them to interpret a
+symbol as a stream, give the symbol an 3si:io-stream-p* property
+whose value is 3t*.
+
+.defun tyi &optional stream eof-option
+Reads one character from 2stream* and returns it.
+The character is echoed if 2stream* is interactive,
+except that 3Rubout* is not echoed.
+The 3Control*, 3Meta*, etc. shifts echo as 3C-*, 3M-*, etc.
+
+The 3:tyi* stream operation is preferred over the 3tyi* function for
+some purposes.  Note that it does not echo.  See (general-stream-ops).
+
+(This function can take its arguments in the other order, for Maclisp
+compatibility only; see the note above.)
+.end_defun
+
+.defun readch &optional stream eof-option
+Like 3tyi* except that instead of returning a fixnum character, it
+returns a symbol whose print name is the character.  The symbol is
+interned in the current package.  This is just Maclisp's version of
+character object.  (This function can take its arguments in the other
+order, for Maclisp compatibility only; see the note above.)
+
+This function is provided only for Maclisp compatibility, since
+in Zetalisp never uses symbols to represent characters in this way.
+.end_defun
+
+.defun tyipeek &optional peek-type stream eof-option
+This function is provided mainly for Maclisp compatibility;
+the 3:tyipeek* stream operation is usually clearer (see (tyipeek-stream-operation)).
+
+What 3tyipeek* does depends on the 2peek-type*, which
+defaults to 3nil*.  With a 2peek-type* of 3nil*,
+3tyipeek* returns the next character to be read from 
+2stream*, without actually removing it from the input stream.
+The next time input is done from 2stream* the character will still
+be there; in general, 3(= (tyipeek) (tyi))* is 3t*.
+
+If 2peek-type* is a fixnum less than 1000 octal, then 3tyipeek*
+reads characters from 2stream* until it gets one equal to 2peek-type*.
+That character is not removed from the input stream.
+
+If 2peek-type* is 3t*, then 3tyipeek* skips over input characters
+until the start of the printed representation of a Lisp object is reached.
+As above, the last character (the one that starts an object)
+is not removed from the input stream.
+
+The form of 3tyipeek* supported by Maclisp in which 2peek-type*
+is a fixnum not less than 1000 octal is not supported, since the readtable
+formats of the Maclisp reader and the Zetalisp reader are quite different.
+
+Characters passed over by 3tyipeek* are echoed if 2stream* is interactive.
+.end_defun
+
+.subsection Interactive Input with Prompting
+
+.defun prompt-and-read type-of-parsing format-string &rest format-args
+Reads some sort of object from 3*query-io**, parsing
+it according to 2type-of-parsing*, and prompting by calling 3format*
+using 2format-string* and 2format-args*.
+
+2type-of-parsing* is either a keyword or a list starting with a
+keyword and continuing with a list of options and values, whose meanings
+depend on the keyword used.
+
+Most keywords specify reading a line of input and parsing it in some
+way.  The line can be terminated with 3Return* or 3End*.  Sometimes
+typing just 3End* has a special meaning.
+
+The keywords defined are
+.table 3
+.kitem :eval-sexp
+.xitem1 :eval-form prompt-and-read
+This keyword directs 3prompt-and-read* to accept a Lisp
+expression.  It is evaluated, and the value is returned by 3prompt-and-read*.
+
+If the Lisp expression is not a constant or quoted, the user is asked to
+confirm the value it evaluated to.
+
+A default value can be specified with an option, as in
+.lisp
+(:eval-sexp :default 2default*)
+.end_lisp
+Then, if the user types 3Space*, 3prompt-and-read* returns the
+2default* as the first value and 3:default* as the second value.
+
+.kitem :eval-sexp-or-end
+.xitem1 :eval-form-or-end prompt-and-read
+Synonymously direct 3prompt-and-read* to accept a Lisp expression or
+just the character 3End*.  If 3End* is typed, 3prompt-and-read*
+returns 3nil* as its first value and 3:end* as its second value.
+Otherwise, things proceed as for 3:eval-sexp*.
+
+A default value is allowed, as in 3:eval-sexp*.
+
+.kitem :read
+.xitem1 :expression prompt-and-read
+Synonymously direct 3prompt-and-read* to read an object
+and return it, with no evaluation.
+
+.kitem :expression-or-end
+Is like 3:expression* except that the user is also allowed to type just
+3End*.  If he does so, 3prompt-and-read* returns the two values
+3nil* and 3:end*.
+
+.kitem :number
+Directs 3prompt-and-read* to read and return a number.
+It insists on getting a number, forcing the user to rub out anything else.
+Additional features can be specified with options:
+.lisp
+(:number :input-radix 2radix* :or-nil 2nil-ok-flag*)
+.end_lisp
+parses the number using radix 2radix* if the number is a rational.  (By default,
+the ambient radix is used).  If
+2nil-ok-flag* is non-3nil*, then the user is also permitted to type
+just 3Return* or 3End*, and then 3nil* is returned.
+
+.kitem :decimal-number
+.xitem1 :number-or-nil prompt-and-read
+.xitem1 :decimal-number-or-nil prompt-and-read
+Abbreviations for
+.lisp
+(:number :input-radix 10)
+(:number :or-nil t)
+(:number :input-radix 10 :or-nil t)
+.end_lisp
+
+.kitem :date
+Directs 3prompt-and-read* to read a date and time, terminated
+with 2Return* or 3End*, and return it
+as a universal time (see (get-universal-time-fun)).  It allows several options:
+.lisp
+(:date :never-p 2never-ok* :past-p 2past-required*)
+.end_lisp
+If 2past-required* is non-3nil*, the date must be before the
+present time, or the user must rub out and use a different date.  If
+2never-ok* is non-3nil*, the user may also type ``never''; then
+3nil* is returned.
+
+.kitem :date-or-never
+.xitem1 :past-date prompt-and-read
+.xitem1 :past-date-or-never prompt-and-read
+Abbreviations for
+.lisp
+(:date :never-p t)
+(:date :past-p t)
+(:date :never-p t :past-p t)
+.end_lisp
+
+.kitem :character
+Directs 3prompt-and-read* to read a single character and
+return a character object representing it.
+
+.kitem :string
+Directs 3prompt-and-read* to read a line and return its
+contents as a string, using 3readline*.
+
+.kitem :string-or-nil
+Directs 3prompt-and-read* to read a line and return its
+contents as a string, using 3readline-trim*.  In addition, if the
+result would be empty, 3nil* is returned instead of the empty string.
+
+.kitem :string-list
+Like 3:string-trim* but regards the line as a sequence of input
+strings separated by commas.  Each substring between commas is trimmed,
+and a list of the strings is returned.
+
+.kitem :keyword-list
+Like 3:string-list* but converts each string to a keyword by interning
+it in the 3keyword* package.  The value is therefore a list of keywords.
+
+.kitem :font-list
+Like 3:string-list* but converts each string to a font name by interning
+it in the 3fonts* package.  The symbols must already exist in that package
+or the user is required to retype the input.
+
+.kitem :delimited-string
+Directs 3prompt-and-read* to read a string terminated by specified delimiters.
+With
+.lisp
+(:delimited-string :delimiter 2delimiter-list*
+		   :buffer-size 2size*)
+.end_lisp
+you can specify a list of delimiter characters and an initial size for the
+buffer.  The list defaults to 3(#\end)* and the size to 100.
+
+The work is done by 3read-delimited-string*
+((read-delimited-string-fun)).  The delimiters and size are passed to
+that function.
+
+.kitem :delimited-string-or-nil
+Like 3:delimited-string* except that 3nil* is returned instead
+of the empty string if the first character read is a delimiter.
+
+.kitem :host
+Directs 3prompt-and-read* to read a line and interpret the
+contents as a network host name.  The value returned is the host, looked up
+using 3si:parse-host* ((si:parse-host-fun)).  An option is defined:
+.lisp
+(:host :default 2default-name* :chaos-only 2chaos-only*)
+.end_lisp
+If the line read is empty, the host named 2default-name* is used.
+If 2chaos-only* is non-3nil*, only hosts on the Chaosnet are
+permitted input.
+
+.kitem :host-list
+Like 3:host* but regards the line as a sequence of host names
+separated by commas.  Each host name is looked up as in 3:host*
+and a list of the resulting hosts is returned.
+
+.kitem :pathname-host
+Like 3:host* but uses 3fs:get-pathname-host* to look up the host
+object from its name ((fs:get-pathname-host-fun)).  Thus, you find
+hosts that can appear in pathnames rather than hosts that are on the
+network.
+
+.kitem :pathname
+Directs 3prompt-and-read* to read a line and parse it as
+a pathname, merging it with the defaults.  If the line is empty,
+the default pathname is used.  These options are defined:
+.lisp
+(:pathname :defaults 2defaults-alist-or-pathname*
+	   :version 2default-version*)
+.end_lisp
+uses 2defaults-alist-or-pathname* as the 2defaults* argument to
+3fs:merge-pathname-defaults*, and 2default-version* as the
+2version* argument to it.
+
+.kitem :pathname-or-nil
+Is like 3:pathname*, but if the user types just 3End* it
+is interpreted as meaning ``no pathname'' rather than ``use the default''.
+Then 3nil* is returned.
+
+.kitem :pathname-list
+Like 3:pathname* but regards the line as a sequence of filenames
+separated by commas.  Each filename is parsed and defaulted and a list
+of the resulting pathnames is returned.
+
+.kitem :fquery
+Directs 3prompt-and-read* to query the user for a fixed
+set of alternatives, using 3fquery*.  2type-of-parsing* should always
+be a list, whose car is 3:fquery* and whose cdr is a list to be passed
+as the list of options (3fquery*'s first argument).
+.lisp
+.exdent 96 Example:
+(prompt-and-read `(:fquery 
+		   . ,format:y-or-p-options)
+                 "Eat it? ")
+.exdent 96 is equivalent to
+(y-or-n-p "Eat it? ")
+.end_lisp
+
+This keyword is most useful as a way to get to 3fquery* when going
+through an interface defined to call 3prompt-and-read*.
+.end_table
+.end_defun
+
+.section Output Functions
+
+These functions all take an optional argument called 2stream*, which is
+where to send the output.  If unsupplied 2stream* defaults to the value of
+3*standard-output**.  If 2stream* is 3nil*, the value of
+3*standard-output** (i.e. the default) is used.  If it is 3t*, the value of
+3*terminal-io** is used (i.e. the interactive terminal).  This is all
+more-or-less compatible with Maclisp, except that instead of the
+variable 3*standard-output** Maclisp has several variables and complicated rules.
+For detailed documentation of streams, refer to (streams).
+
+For 3print* and the other expression output functions, see
+(expression-output).
+
+.defun write-char char &optional stream
+.defun1 tyo char &optional stream
+Outputs 2char* to 2stream* (using 3:tyo*).  2char* may be an
+integer or a character object; in the latter case, it is converted to an
+integer before the 3:tyo*.
+.end_defun
+
+.defun write-byte number &optional stream
+Outputs number to stream using 3:tyo*.
+In strict Common Lisp, output to binary streams can be done only with
+3write-byte* and output to character streams requires 3write-char*.
+In fact, the two functions are identical on the Lisp Machine.
+.end_defun
+
+.defun write-string string &optional stream &key (start 30*) end
+Outputs 2string* (or the specified portion of it) to 2stream*.
+.end_defun
+
+.defun write-line string &optional stream &key (start 30*) end
+Outputs 2string* (or the specified portion) to 2stream*, followed by a 3Return* character.
+.end_defun
+
+.defun fresh-line &optional stream
+Outputs a 3Return* character to 3stream* unless either
+.table 1 0 300
+.item (1)
+nothing has been output to 2stream* yet, or
+.item (2)
+the last thing output was a 3Return* character, or
+.item (3)
+2stream* does not remember what previous output there has been.
+.end_table
+
+This uses the 3:fresh-line* stream operation.
+The value is 3t* if a 3Return* is output, 3nil* if nothing is output.
+.end_defun
+
+.defun force-output &optional stream
+Causes 2stream*'s buffered output, if any, to be transmitted immediately.
+This uses the 3:force-output* stream operation.
+.end_defun
+
+.defun finish-output &optional stream
+Causes 2stream*'s buffered output, if any, to be transmitted immediately,
+and waits until that is finished.
+This uses the 3:finish* stream operation.
+.end_defun
+
+.defun clear-output &optional stream
+Discards any output buffered in 2stream*.
+This uses the 3:clear-output* stream operation.
+.end_defun
+
+.defun terpri &optional stream
+Outputs a 3Return* character to 2stream*.
+It returns 3t* for Maclisp compatibility.
+It is wise not to depend on the value 3terpri* returns.
+.end_defun
+
+.defun cli:terpri &optional stream
+Outputs a 3Return* character to 2stream*.
+Returns 3nil* to meet Common Lisp specifications.
+It is wise not to depend on the value 3cli:terpri* returns.
+.end_defun
+
+	The 3format* function (see (format-fun)) is very useful for producing
+nicely formatted text.  It can do anything any of the above functions
+can do, and it makes it easy to produce good looking messages and such.
+3format* can generate a string or output to a stream.
+
+.defun stream-copy-until-eof from-stream to-stream &optional leader-size
+3stream-copy-until-eof* inputs characters from 2from-stream*
+and outputs them to 2to-stream*, until it reaches the end of file
+on the 2from-stream*.  For example, if 3x* is bound to a stream
+for a file opened for input, then 3(stream-copy-until-eof x *terminal-io*)*
+prints the file on the console.
+
+If 2from-stream* supports the 3:line-in* operation and 2to-stream* 
+supports the 3:line-out* operation, then 3stream-copy-until-eof*
+uses those operations instead of 3:tyi* and 3:tyo*, for greater
+efficiency.  2leader-size* is passed as the argument to the
+3:line-in* operation.
+.end_defun
+
+.defun beep &optional beep-type (stream 3*terminal-io**)
+This function is intended to attract the user's attention by causing
+an audible beep, or flashing the screen, or something similar.  If
+the stream supports the 3:beep* operation, then this function sends
+it a 3:beep* message, passing 2beep-type* along as an argument.  Otherwise
+it just causes an audible beep on the terminal.
+
+2beep-type* is a keyword which explains the significance of this beep.
+Users can redefine 3beep* to make different noises depending on the
+beep type.  The defined beep types are:
+.table 3
+.kitem zwei:converse-problem
+Used for the beep that is done when Converse is unable to send a message.
+.kitem zwei:converse-message-received
+Used for the beeps done when a Converse message is received.
+.kitem zwei:no-completion
+Used when you ask for completion in the editor and the string does not complete.
+.kitem tv:notify
+Used for the beep done when you get a notification that cannot 
+be printed on the selected window.
+.kitem fquery
+Used for the beep done by 3yes-or-no-p* or by 3fquery* with the
+3:beep* option specified.
+.kitem supdup:terminal-bell
+Used for the beep requested by the remote host being used through
+a Supdup window.
+.item nil
+Used whenever no other beep type applies.
+.end_table
+
+The 3:beep* operation is described on (streams-beep-method).
+.end_defun
+
+.defun cursorpos &rest args
+This function exists primarily for Maclisp compatibility.  Usually it is
+preferable to send the appropriate messages (see the Window System manual).
+
+3cursorpos* normally operates on the 3*standard-output** stream;
+however, if the last argument is a stream or 3t* (meaning 3*terminal-io**)
+then 3cursorpos* uses that stream and ignores it when doing the operations
+described below.  3cursorpos* only works on streams
+that are capable of these operations, such as windows.
+A stream is taken to be any argument that is not a number and not a symbol,
+or that is a symbol other than 3nil* with a name more than one character long.
+
+3(cursorpos) => (2line* . 2column*)*, the current
+cursor position.
+
+3(cursorpos 2line* 2column*)* moves the cursor to that position.
+It returns 3t* if it succeeds and 3nil* if it doesn't.
+
+3(cursorpos 2op*)* performs a special operation coded by 2op*,
+and returns 3t* if it succeeds and 3nil* if it doesn't.
+2op* is tested by string comparison, it is not a keyword symbol
+and may be in any package.
+.table 3 500 250 0 0
+.item f
+Moves one space to the right.
+.item b
+Moves one space to the left.
+.item d
+Moves one line down.
+.item u
+Moves one line up.
+.item t
+Homes up (moves to the top left corner).  Note that 3t* as the last
+argument to 3cursorpos* is interpreted as a stream, so a stream 2must*
+be specified if the 3t* operation is used.
+.item z
+Home down (moves to the bottom left corner).
+.item a
+Advances to a fresh line.  See the 3:fresh-line* stream operation.
+.item c
+Clears the window.
+.item e
+Clear from the cursor to the end of the window.
+.item l
+Clear from the cursor to the end of the line.
+.item k
+Clear the character position at the cursor.
+.item x
+3b* then 3k*.
+.end_table
+.end_defun
+
+.page
+.c section on I/O streams
+.insert stream
+
+
+
+.c sections on FORMAT and OUTPUT
+.insert fd-fio
+
+
+.section Rubout Handling
+.setq rubout-handler section-page
+.setq rubout-handling section-page
+.cindex rubout handler
+
+The rubout handler is a feature of all interactive streams, that is, streams
+that connect to terminals.  Its purpose is to allow the user to edit
+minor mistakes made during type-in.  At the same time, it is not supposed to
+get in the way; input is to be seen by Lisp as soon as a syntactically complete
+form has been typed.  The definition of `syntactically complete form'
+depends on the function that is reading from the stream; for 3read*, it
+is a Lisp expression.
+
+Some interactive streams (`editing Lisp listeners') have a rubout handler
+that allows input to be edited with the full power of the ZWEI editor.
+(ZWEI is the general editor implementation on which Zmacs and ZMail are based.)
+Most windows have a rubout handler that apes ZWEI, implementing about twenty
+common ZWEI commands.  The cold load stream has
+a simple rubout handler that allows just rubbing out of single
+characters, and a few simple commands like clearing the screen and
+erasing the entire input typed so far.  All three kinds of rubout
+handler use the same protocol, which is described in this section.  We
+also say a little about the most common of the three rubout handlers.
+.br
+[Eventually some version of ZWEI will be used for all streams
+except the cold load stream]
+
+The tricky thing about the rubout handler is the need for it to figure
+out when you are all done.  The idea of a rubout handler is that you can
+type in characters, and they are saved up in a buffer so that if you
+change your mind, you can rub them out and type different characters.
+However, at some point, the rubout handler has to decide that the time
+has come to stop putting characters into the buffer and to let the
+function parsing the input, such as 3read*, return.  This is
+called 2activation*.  The right time to activate depends on the function
+calling the rubout handler, and may be very complicated (if the function
+is 3read*, figuring out when one Lisp expression has been typed
+requires knowledge of all the various printed representations, what all
+currently-defined reader macros do, and so on).  Rubout handlers should
+not have to know how to parse the characters in the buffer to
+figure out what the caller is reading and when to activate; only the
+caller should have to know this.  The rubout handler interface is
+organized so that the calling function can do all the parsing, while the
+rubout handler does all the handling of editing commands, and the two are kept
+completely separate.
+
+The basic way that the rubout handler works is as follows.  When
+an input function that reads characters from a stream, such as 3read* or 3readline*
+(but not 3tyi*), is invoked with a stream which has 3:rubout-handler*
+in its 3:which-operations* list, that function ``enters'' the rubout handler.
+It then goes ahead 3:tyi*'ing characters from the stream.  Because control
+is inside the rubout handler, the stream echoes these characters so the user
+can see what he is typing.  (Normally echoing is considered to be a higher-level
+function outside of the province of streams, but when the higher-level function
+tells the stream to enter the rubout handler it is also handing it the responsibility
+for echoing.)  The rubout handler is also saving all these characters in a buffer,
+for reasons disclosed in the following paragraph.
+When the parsing function decides it has enough
+input, it returns and control ``leaves'' the rubout handler.  This is the easy case.
+
+If the user types a rubout, a 3throw* is done out of all recursive levels
+of 3read*, reader macros, and so forth, back to the point where the rubout
+handler was entered.  Also the rubout is echoed by erasing from the screen
+the character which was rubbed out.  Now the 3read* is tried over again,
+re-reading all the characters that have not been rubbed out, not echoing
+them this time.  When the saved characters have been exhausted, additional input is read
+from the user in the usual fashion.
+
+The effect of this is a complete separation of the functions of rubout
+handling and parsing, while at the same time mingling the execution of
+these two functions in such a way that input is always activated at
+just the right time.  It does mean that the parsing function (in the
+usual case, 3read* and all macro-character definitions) must be
+prepared to be thrown through at any time and should not have
+non-trivial side-effects, since it may be called multiple times.
+
+If an error occurs while inside the rubout handler, the error message is printed
+and then additional characters are read.  When the user types a rubout,
+it rubs out the error message as well as the character that caused the error.
+The user can then proceed to type the corrected expression;
+the input will be reparsed from the beginning in the usual fashion.
+
+The rubout handler based on the ZWEI editor interprets control
+characters in the usual ZWEI way: as editing commands, allowing you to
+edit your buffered input.
+
+The common rubout handler also recognizes a subset of the editor
+commands, including 3Rubout*, 3Control-F* and 3Meta-F* and others.
+Typing 3Help* while in the rubout handler displays a list of the
+commands.  The kill and yank commands in the rubout handler use the same
+kill ring as the editor, so you can kill an expression in the editor and
+yank it back into a rubout handler with 3Control-Y*, or kill an
+expression in the rubout handler with 3Control-K* or 3Clear-input*
+and yank it back in the editor.  The rubout processor also keeps a ring
+buffer of most recent input strings (a separate ring for each stream),
+and the commands 3Control-C* and 3Meta-C* retrieve from this ring
+just as 3Control-Y* and 3Meta-Y* do from the kill ring.
+
+When not inside the rubout handler, and when
+typing at a program that uses control characters for its own purposes,
+control characters are treated the same as ordinary characters.
+
+Some programs such as the debugger allow the user to type either a
+control character or an expression.  In such programs, you are really
+not inside the rubout handler unless you have typed the beginning of an
+expression.  When the input buffer is empty, a control character is
+treated as a command for the program (such as, 3Control-C* to continue
+in the debugger); when there is text in the rubout handler buffer, the
+same character is treated as a rubout handler command.  Another
+consequence of this is that the message you get by typing 3Help*
+varies, being either the rubout handler's documentation or the
+debugger's documentation. 
+
+To write a parsing function that reads with rubout handling,
+use 3with-input-editing*.
+
+.defmac with-input-editing (stream options) body...
+Invokes the rubout handler on 2stream*, if 2stream* supports it,
+and then executes 2body*.  2body* is executed in any case,
+within the rubout handler if possible.  3rubout-handler* is
+non-3nil* while in 2body* if rubout handling is in use.
+
+2options* are used as the rubout handler options.
+If already within an invocation of the rubout handler, 2options* are
+appended to the front of the options already in effect.  This happens if
+a function which reads input using 3with-input-editing*, such as
+3read* or 3readline*, is called from the body of another
+3with-input-editing*.  The 3:norecursive* option can be used
+to cause the outer set of options to be completely ignored even
+when not overridden by new ones.
+
+2body*'s values are returned by 3with-input-editing*.
+2body* ought to read input from 2stream* and return
+a Lisp object that represents the input.  It should have
+no nontrivial side effects aside from reading input from 2stream*
+structure, as it may be aborted at any time it reads input
+and may be executed over and over.
+
+If the 3:full-rubout* option is specified, and the user types some input
+and rubs it all out, the 3with-input-editing* form returns immediately.
+See 3:full-rubout*, below.
+
+If a preemptive command is input by the user, 3with-input-editing*
+returns immediately with the values being as specified below
+under the 3:command* and 3:preemptable* options.  2body*
+is aborted from its call to the 3:tyi* operation, and the input
+read so far remains in the rubout handler editing buffer to be read
+later.
+.end_defmac
+
+.defvar rubout-handler
+If control is inside the rubout handler in this process,
+the value is the stream on which rubout handling is being done.
+Otherwise, the value is 3nil*.
+.end_defvar
+
+.defmetamethod streams :rubout-handler options function &rest args
+Invokes the rubout handler on the stream, with 2options* as
+the options, and parses by applying 2function* to 2args*.
+3with-input-editing* uses this operation.
+.end_defmetamethod
+
+.defmetamethod streams :read-bp
+This operation may be used only from within the code for
+parsing input from this stream inside the rubout handler.
+It returns the index within the rubout handler buffer
+which parsing has reached.
+.end_defmetamethod
+
+.defmetamethod streams :force-rescan
+This operation may be used only from within the code for
+parsing input from this stream inside the rubout handler.
+It causes parsing to start again immediately from the beginning of the buffer.
+.end_defmetamethod
+
+.defmetamethod streams :rescanning-p
+This operation may be used only from within the code for
+parsing input from this stream inside the rubout handler.
+It returns 3t* if parsing is now being done on input
+already in the buffer, 3nil* if parsing has used up all
+the buffered input and the next character parsed will come
+from the keyboard.
+.end_defmetamethod
+
+Each option in the list of rubout handler options consists of a list
+whose first element is a keyword and whose remaining elements are
+the arguments of that keyword.  Note that this is not the same format as
+the arguments to a typical function that takes keyword arguments; rather
+this is an alist of options.  The standard options are:
+.table 3 500
+.item (:activation 2fn* 2args*...) 
+Activate if certain characters are typed in.
+When the user types an activation character, the rubout handler
+moves the editing pointer immediately to the end of the buffer
+and inserts the activation character.  This immediately causes
+the parsing function to begin rescanning the input.
+
+2fn* is used to test characters for being activators.  It is called
+with an input character as the first arg (possibly a fixnum, possibly a
+character object) and 2args* as additional args.  If 2fn* returns
+non-3nil*, the character is an activation.  2fn* is not called
+for blips.
+
+After the parsing function has read the entire contents of the buffer,
+it sees the activation character as a blip 3(:activation 2char*
+2numeric-arg*)* where 2char* is the character that activated and
+2numeric-arg* is the numeric arg that was pending for the next rubout
+handler command.  Normally the parsing function will return at this point.
+Then the activation character does not echo.  But if the parsing function
+continues to read input, the activation character echoes and is inserted
+in the buffer.
+
+.item (:do-not-echo 2chars*...) 
+Poor man's activation characters.  Like 3:activation* except that the
+characters that should activate are listed explicitly, and the character
+itself is returned to the parsing function rather than a blip.
+
+.item (:full-rubout 2val*)
+If the user rubs out all the characters he typed, then control is returned
+from the rubout handler immediately.  Two values are returned; the first is
+3nil* and the second is 2val*.  (If the user doesn't rub out all the
+characters, then the rubout handler propagates multiple values back
+from the function that it calls, as usual.)  In the absence of this option, the rubout
+handler would simply wait for more characters to be typed in and would ignore
+any additional rubouts.
+
+This is how the debugger knows to remove 3Eval:* from the screen
+if you type the beginning of a form and rub it all out.
+
+.item (:pass-through 2char1* 2char2*...)
+The characters 2char1*, 2char2*, etc. are not to be treated as special by
+the rubout handler.  They are read as input by the parsing function.
+If the parsing function does not return, they can be rubbed out.
+This works only for characters with no modifier bits.
+
+.item (:preemptable 2value*) 
+Makes all blips read as input by the rubout handler act as preemptive
+commands.  If this option is specified, the rubout handler returns
+immediately when it reads a blip.  It returns two values: the blip that
+was read, and 2value*.  The parsing function is not allowed to finish
+parsing up to a delimiter; instead, any buffered input remains in the
+buffer for the next time input is done.  In the mean time, the
+preemptive command character can be processed by the command loop.
+
+While this applies to all blips, the blips which it is probably intended
+for are mouse blips.
+
+.item (:command 2fn* 2args*...) 
+Makes certain characters preemptive commands.  A preemptive command
+returns instantly to the caller of the 3:rubout-handler* operation,
+regardless of the input in the buffer.  It returns two values: a list
+3(:command 2char* 2numeric-arg*)* and the keyword 3:command*.
+The parsing function is not allowed to finish parsing up to a delimiter;
+instead, any buffered input remains in the buffer for the next time
+input is done.  In the mean time, the preemptive command character can
+be processed by the command loop.
+
+The test for whether a character should be a preemptive command
+is done using 2fn* and 2args* just as in 3:activation*.
+
+.item (:editing-command (2char* 2doc*)...) 
+Defines editing commands to be executed by the parsing function itself.
+This is how 3qsend* implements the 3Control-Meta-Y* command.
+Each 2char* is such a command, and 2doc* says what it does.
+(2doc* is printed out by the rubout handler's 3Help* command.)
+If any of these characters is read by the rubout handler,
+it is returned immediately to the parsing function
+regardless of where the editing pointer is in the buffer.
+(Normal inserted text is not returned immediately when read unless the editing pointer
+is at the end of the buffer.)
+
+The parsing function should not regard these characters as part of the input.
+There are two reasonable things that the parsing function can do
+when it receives one of the editing command characters:
+print some output, or force some input.
+
+If it prints output, it should invoke the 3:refresh-rubout-handler* operation
+afterward before the next 3:tyi*.  This causes the rubout handler to redisplay
+so that the input being edited appears after the output that was done.
+
+If the parsing function forces input, the input is read by the rubout
+handler.  This can be used to modify the buffered input.  3qsend*'s
+3Control-Meta-Y* command works by forcing the yanked text as input.
+There is no way to act directly on the buffered input because different
+implementations of the rubout handler store it in different ways.
+
+.item (:prompt 2function*)
+.item1 (:reprompt 2function*)
+When it is time for the user to be prompted, 2function* is called with
+two arguments.  The first is a stream it may print on; the second is the
+character which caused the need for prompting, e.g. 3#\clear-input*
+or 3#\clear-screen*, or 3nil* if the rubout handler was just entered.
+
+The difference between 3:prompt* and 3:reprompt* is that the latter does
+not call the prompt function when the rubout handler is first entered, but only
+when the input is redisplayed (e.g. after a screen clear).  If both options
+are specified then 3:reprompt* overrides 3:prompt* except when the rubout
+handler is first entered.
+
+2function* may also be a string.  Then it is simply printed.
+
+If the rubout handler is exited with an empty buffer due to the
+3:full-rubout* option, whatever prompt was printed is erased.
+
+.item (:initial-input 2string*)
+Pretends that the user typed 2string*.  When the rubout handler is entered,
+2string* is typed out.  The user can input more characters or rub out
+characters from it.
+
+.item (:initial-input-index 2index*)
+Positions the editing pointer initially 2index* characters into the
+initial input string.  Used only in company with with
+3:initial-input*.
+
+.item (:no-input-save t) 
+Don't save this batch of input in the input history when it is done.
+For example, 3yes-or-no-p* specifies this option.
+
+.item (:norecursive t)
+If this invocation of the rubout handler is within another one,
+the options specified in the previous call should be completely
+ignored during this one.  Normally, individual options specified
+this time override the previous settings for the same options,
+but any of the previous options not individually overridden
+are still in effect.
+.end_table
+
+Rubout handlers handle the condition 3sys:parse-error* if it is
+signaled by the parsing function.  The handling consists of printing the
+error message, waiting for the user to rub out, erasing the error message,
+and parsing the input again.  All errors signaled by a parsing function
+that signify that the user's input was syntactically invalid should have
+this condition name.  For example, the errors 3read* signals have
+condition name 3sys:parse-error* since it is is a consequence of 3sys:read-error*.
+
+.defcondition sys:parse-error (3error*)
+The condition name for syntax errors in input being parsed.
+.end_defcondition
+
+The compiler handles 3sys:parse-error* by proceeding with proceed-type
+3:no-action*.  All signalers of 3sys:parse-error* should offer
+this proceed type, and respond to its use by continuing to parse,
+ignoring the invalid input.
+
+.defun sys:parse-ferror format-string &rest args
+Signals a 3sys:parse-error* error, using 2format-string* and 2args*
+to print the error message.  The proceed-type 3:no-action* is provided,
+and if a handler uses it, this function returns 3nil*.
+.end_defun

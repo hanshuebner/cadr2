@@ -1,0 +1,1603 @@
+.c This file is part of the Lisp Machine Manual 		-*-Bolio-*-
+
+.chapter Subprimitives
+.setq subprimitive-chapter chapter-number
+.cindex subprimitive
+	2Subprimitives* are functions which are not intended to be used by
+the average program, only by system programs.  They allow one to
+manipulate the environment at a level lower than normal Lisp.
+They are described in this chapter.
+Subprimitives usually have names starting with a 3%* character.
+The primitives described in other sections of the manual typically
+use subprimitives to accomplish their work.  To some extent the subprimitives take
+the place of what in other systems would be individual machine instructions.
+Subprimitives are normally hand-coded in microcode.
+	There is plenty of stuff in this chapter that is not fully
+explained; there are terms that are undefined, there are forward references,
+and so on.  Furthermore, most of what is in here is considered subject
+to change without notice.  In fact, this chapter does not exactly belong
+in this manual, but in some other more low-level manual.  Since the latter
+manual does not exist, it is here for the interim.
+	Subprimitives by their very nature cannot do full checking.
+Improper use of subprimitives can destroy the environment.
+Subprimitives come in varying degrees of dangerousness.
+Generally, those without
+a 3%* sign in their name are not directly dangerous, whereas those
+whose names begin with 3%* can ruin the Lisp world just as readily
+as they can do something useful.  The subprimitives are documented here
+since they need to be documented somewhere, but this manual does not
+document all the things you need to know in order to use them.  Still other
+subprimitives are not documented here because they are very specialized.
+Most of these are never used explicitly by a programmer; the compiler
+inserts them into the program to perform operations which are expressed
+differently in the source code.
+	The most common problem you can cause using subprimitives, though
+by no means the only one, is to create illegal pointers: pointers
+that are, for one reason or another, according to storage conventions,
+not allowed to exist.  The storage conventions are not documented;
+as we said, you have to be an expert to use a lot of the functions
+in this chapter correctly.  If you create such an illegal pointer, it probably will
+not be detected immediately, but later on parts of the system may see it,
+notice that it is illegal, and (probably) halt the Lisp Machine.
+	In a certain sense 3car*, 3cdr*, 3rplaca*, and 3rplacd* are
+subprimitives.  If these are given a locative instead of a list, they
+access or modify the cell addressed by the locative without regard to what
+object the cell is inside.  Subprimitives can be used to create locatives
+to strange places.
+
+.section Data Types
+
+.defun data-type arg
+3data-type* returns a symbol that is the name for the internal
+data-type of 2arg*.  The 3type-of* function ((type-of-fun)) is a
+higher-level primitive that is more useful in most cases; normal
+programs should always use 3type-of* (or, when appropriate, 3typep*)
+rather than 3data-type*.
+
+Note that some types as seen by the user are not
+distinguished from each other at this level, and some user types may be
+represented by more than one internal type.  For example,
+3dtp-extended-number* is the symbol that 3data-type* would return
+for either a single-float or a bignum, even though those two types are
+quite different.
+
+Some of these type codes occur in memory words but cannot be the type of
+an actual Lisp object.  These include header types such as
+3dtp-symbol-header*, which identify the first word of a structure, and
+forwarding or ``invisible'' pointer types such as 3dtp-one-q-forward*.
+
+.table 3 0 1600
+.item dtp-symbol
+'vindex dtp-symbol
+The object is a symbol.
+.item dtp-fix
+'vindex dtp-fix
+The object is a fixnum; the numeric value is contained in the address
+field of the pointer.
+.item dtp-small-flonum
+'vindex dtp-small-flonum
+The object is a short float; the numeric value is contained in the
+address field of the pointer.
+.item dtp-extended-number
+'vindex dtp-extended-number
+The object is a single-float, ratio, bignum or complexnum.  This value will also be used for
+future numeric types.
+.item dtp-character
+'vindex dtp-character
+The object is a character object; the value is contained in the address
+field of the pointer.
+.item dtp-list
+'vindex dtp-list
+The object is a cons.
+.item dtp-locative
+'vindex dtp-locative
+The object is a locative pointer.
+.item dtp-array-pointer
+'vindex dtp-array-pointer
+The object is an array.
+.item dtp-fef-pointer
+'vindex dtp-fef-pointer
+The object is a compiled function.
+.item dtp-u-entry
+'vindex dtp-u-entry
+The object is a microcode entry.
+.item dtp-closure
+'vindex dtp-closure
+The object is a closure; see (closure).
+.item dtp-stack-closure
+'vindex dtp-stack-closure
+The object is a closure which lives inside a stack, and which must be
+copied if it is stored anywhere but farther down in the same stack.
+Lexical scoping is implemented using these.
+.item dtp-instance
+'vindex dtp-instance
+The object is an instance of a flavor; see (flavor).
+.item dtp-entity
+'vindex dtp-entity
+The object is an entity; see (entity).
+.item dtp-select-method
+'vindex dtp-select-method
+The object is a select-method; see (select-method).
+.item dtp-stack-group
+'vindex dtp-stack-group
+The object is a stack-group; see (stack-group).
+.item 1The remaining types are internal only.*
+.item dtp-header
+'vindex dtp-header
+An internal type used to mark the first word of several kinds of multi-word structure,
+including single-floats, ratios, bignums and FEFs.
+.item dtp-array-header
+'vindex dtp-array-header
+An internal type used to mark the first word of an array.
+.item dtp-symbol-header
+'vindex dtp-symbol-header
+An internal type used to mark the first word of a symbol.
+The pointer field points to the symbol's print-name, which is a string.
+.item dtp-instance-header
+'vindex dtp-instance-header
+An internal type used to mark the first word of an instance.
+The pointer field points to the structure that describes the
+instance's flavor.
+.item dtp-null
+'vindex dtp-null
+'setq dtp-null-var page
+Nothing to do with 3nil*.  This type code identifies a void marker.
+An attempt to refer to the contents of a cell that contains a
+3dtp-null* signals an error.  This is how ``unbound variable'' and
+``undefined function'' errors are detected.
+.item dtp-trap
+'vindex dtp-trap
+The zero data-type, which is not used.  This hopes to detect microcode bugs.
+.item dtp-free
+'vindex dtp-free
+This type is used to fill free storage, to catch wild references.
+.item dtp-external-value-cell-pointer
+'vindex dtp-external-value-cell-pointer
+An ``invisible pointer'' used for external value cells,
+which are part of the closure mechanism (see (closure)),
+and used by compiled code to address value and function cells.
+.item dtp-self-ref-pointer
+'vindex dtp-self-ref-pointer
+An ``invisible pointer'' used to refer to an instance variable of 3self*.
+This data type appears in FEFs of flavor methods.
+.item dtp-header-forward
+'vindex dtp-header-forward
+An ``invisible pointer'' used to indicate that the structure containing
+it has been moved elsewhere.  The ``header word'' of the structure is
+replaced by one of these invisible pointers.  See the function 3structure-forward*
+((structure-forward-fun)).
+.item dtp-body-forward
+'vindex dtp-body-forward
+An ``invisible pointer'' used to indicate that the structure containing
+it has been moved elsewhere.  This points to the word containing
+the header-forward, which points to the new copy of the structure.
+.item dtp-one-q-forward
+'vindex dtp-one-q-forward
+An ``invisible pointer'' used to indicate that the single cell containing
+it has been moved elsewhere.
+.item dtp-gc-forward
+'vindex dtp-gc-forward
+This is used by the copying garbage collector to flag the obsolete copy
+of an object; it points to the new copy.
+.end_table
+.end_defun
+
+.defconst q-data-types
+The value of 3q-data-types* is a list of all of the symbolic
+names for data types described above under 3data-type*.
+These are the symbols whose print names begin
+with `3dtp-*'.  The values of these symbols are the internal numeric data-type codes
+for the various types.
+.end_defconst
+
+.defun q-data-types type-code
+Given the internal numeric data-type code, returns the corresponding symbolic name.
+This ``function'' is actually an array.
+.end_defun
+
+.section Forwarding
+.cindex invisible pointers
+.cindex forwarding pointer
+
+An 2invisible pointer* or 2forwarding pointer* is a kind of pointer
+that does not represent a Lisp object, but just resides in memory.
+There are several kinds of invisible pointer, and there are various
+rules about where they may or may not appear.  The basic property of an
+invisible pointer is that if the Lisp Machine reads a word of memory and
+finds an invisible pointer there, instead of seeing the invisible
+pointer as the result of the read, it does a second read, at the
+location addressed by the invisible pointer, and returns that as the
+result instead.  Writing behaves in a similar fashion.  When the Lisp
+Machine writes a word of memory it first checks to see if that word
+contains an invisible pointer; if so it goes to the location pointed to
+by the invisible pointer and tries to write there instead.  Many
+subprimitives that read and write memory do not do this checking.
+
+The simplest kind of invisible pointer has the data type code
+3dtp-one-q-forward*.  It is used to forward a single word of memory to
+someplace else.  The invisible pointers with data types
+3dtp-header-forward* and 3dtp-body-forward* are used for moving
+whole Lisp objects (such as cons cells or arrays) somewhere else.  The
+3dtp-external-value-cell-pointer* is very similar to the
+3dtp-one-q-forward*; the difference is that it is not ``invisible'' to
+the operation of binding.  If the (internal) value cell of a symbol
+contains a 3dtp-external-value-cell-pointer* that points to some other
+word (the external value cell), then 3symeval* or 3set* operations on
+the symbol consider the pointer to be invisible and use the
+external value cell, but binding the symbol saves away the
+3dtp-external-value-cell-pointer* itself, and stores the new value into
+the internal value cell of the symbol.  This is how closures are implemented.
+
+3dtp-gc-forward* is not an invisible pointer at all; it only appears in
+``old spaced'' and can never be seen by any program other than the garbage
+collector.  When an object is found not to be garbage, and the garbage collector 
+moves it from ``old space'' to ``new space'', a 3dtp-gc-forward* is left behind
+to point to the new copy of the object.  This ensures that other references
+to the same object get the same new copy.
+
+.defun structure-forward old-object new-object
+This causes references to 2old-object* actually to reference
+2new-object*, by storing invisible pointers in 2old-object*.
+It returns 2old-object*.
+
+An example of the use of 3structure-forward* is 3adjust-array*.
+If the array is being made bigger and cannot be expanded in place, a new
+array is allocated, the contents are copied, and the old array is
+structure-forwarded to the new one.  This forwarding ensures that pointers
+to the old array, or to cells within it, continue to work.  When the garbage
+collector goes to copy the old array, it notices the forwarding and uses
+the new array as the copy; thus the overhead of forwarding disappears
+eventually if garbage collection is in use.
+.end_defun
+
+.defun follow-structure-forwarding object
+Normally returns 2object*, but if 2object* has been 3structure-forward*'ed,
+returns the object at the end of the chain of forwardings.  If 2object*
+is not exactly an object, but a locative to a cell in the middle of an object,
+a locative to the corresponding cell in the latest copy of the object is
+returned.
+.end_defun
+
+.defun forward-value-cell from-symbol to-symbol
+This alters 2from-symbol* so that it always has the same value
+as 2to-symbol*, by sharing its value cell.  A 3dtp-one-q-forward*
+invisible pointer is stored into 2from-symbol*'s value cell.
+Do not do this while 2from-symbol*'s current dynamic binding
+is not global, as
+the microcode does not bother to check for that case and something
+bad will happen when 2from-symbol*'s binding is unbound.  The microcode check
+is omitted to speed up binding and unbinding.
+
+This is how synonymous variables (such as 3*terminal-io** and 3terminal-io*)
+are created.
+
+To forward one arbitrary cell to another (rather than specifically
+one value cell to another), given two locatives, do
+.lisp
+(%p-store-tag-and-pointer 2locative1* dtp-one-q-forward 2locative2*)
+.end_lisp
+.end_defun
+
+.defun follow-cell-forwarding loc evcp-p
+2loc* is a locative to a cell.  Normally 2loc* is returned, but if the
+cell has been forwarded, this follows the chain of forwardings and returns
+a locative to the final cell.  If the cell is part of a structure which has
+been forwarded, the chain of structure forwardings is followed, too.
+If 2evcp-p* is 3t*, external value cell pointers are followed; if
+it is 3nil* they are not.
+.end_defun
+
+.section Pointer Manipulation
+
+It should again be emphasized that improper use of these functions
+can damage or destroy the Lisp environment.  It is possible to create
+pointers with illegal data-type, pointers to non-existent objects, and
+pointers to untyped storage, which will completely confuse the garbage
+collector.
+
+.c Narrative description of Q format, and data types, or pointer thereto.
+
+.defun %data-type x
+Returns the data-type field of 2x*, as a fixnum.
+.end_defun
+
+.defun %pointer x
+Returns the pointer field of 2x*, as a fixnum.  For most
+types, this is dangerous since the garbage collector can copy the object
+and change its address.
+.end_defun
+
+.defun %make-pointer data-type pointer
+Makes up a pointer, with 2data-type* in the data-type
+field and 2pointer* in the pointer field, and returns it.  2data-type*
+should be an internal numeric data-type code; these are the values of
+the symbols that start with 3dtp-*.  2pointer* may be any object;
+its pointer field is used.  This is
+most commonly used for changing the type of a pointer.  Do not use this
+to make pointers which are not allowed to be in the machine, such as
+3dtp-null*, invisible pointers, etc.
+.end_defun
+
+.defun %make-pointer-offset data-type pointer offset
+Returns a pointer with 2data-type* in the data-type
+field, and 2pointer* plus 2offset* in the pointer field.  The
+2data-type* and 2pointer* arguments are like those of 3%make-pointer*;
+2offset* may be any object but is usually a fixnum.  The
+types of the arguments are not checked; their pointer fields are simply
+added together.  This is useful for constructing locative pointers
+into the middle of an object.  However, note that it is illegal to
+have a pointer to untyped data, such as the inside of a FEF or
+a numeric array.
+.end_defun
+
+.defun %pointer-difference pointer-1 pointer-2
+Returns a fixnum which is 2pointer-1* minus 2pointer-2*.
+No type checks are made.  For the result to be meaningful, the two pointers
+must point into the same object, so that their difference cannot change
+as a result of garbage collection.
+.end_defun
+
+.defun %pointerp object
+3t* if 2object* points to storage.  For example,
+3(%pointerp "foo")* is 3t*, but 3(%pointerp 5)* is 3nil*.
+.end_defun
+
+.defun %pointer-type-p data-type
+3t* if the specified data type is one which points to storage.
+For example, 3(%pointer-type-p dtp-fix)* returns 3nil*.
+.end_defun
+
+.section Special Memory Referencing
+
+.defun %p-pointerp location
+3t* if the contents of the word at 2location* points to storage.
+This is similar to 3(%pointerp (contects 2location*))*, but the latter may get
+an error if 2location* contains a forwarding pointer, a header type, or a
+void marker.  In such cases, 3%p-pointerp* correctly tells you whether
+the header or forward points to storage.
+.end_defun
+
+.defun %p-pointerp-offset location offset
+Similar to 3%p-pointerp* but operates on the word 2offset* words beyond 2location*.
+.end_defun
+
+.defun %p-contents-offset base-pointer offset
+Returns the contents of the word 2offset* words beyond 2base-pointer*.
+This first checks the cell pointed to by 2base-pointer* for
+a forwarding pointer.  Having followed forwarding pointers to the
+real structure pointed to, it adds 2offset* to the resulting
+forwarded 2base-pointer* and returns the contents of that location.
+.end_defun
+
+.nopara
+There is no 3%p-contents*, since 3car* performs that operation.
+
+.defun %p-contents-safe-p location
+3t* if the contents of word 2location* are a valid Lisp object, at least
+as far as data type is concerned.  It is 3nil* if the word contains a header type,
+a forwarding pointer, or a void marker.  If the value of this function is
+3t*, you will not get an error from 3(contents 2location*)*.
+.end_defun
+
+.defun %p-contents-safe-p-offset location offset
+Similar to 3%p-contents-safe-p* but operates on the word 2offset* words beyond 2location*.
+.end_defun
+
+.defun %p-contents-as-locative pointer
+Given a pointer to a memory location containing a pointer that isn't
+allowed to be ``in the machine'' (typically an invisible pointer)
+this function returns the contents of the location as a 3dtp-locative*.
+It changes the disallowed data type to 3dtp-locative* so that you can safely
+look at it and see what it points to.
+.end_defun
+
+.defun %p-contents-as-locative-offset base-pointer offset
+Extracts the contents of a word like 3%p-contents-offset*,
+but changes it into a locative like 3%p-contents-as-locative*.
+This can be used, for example, to analyze the
+3dtp-external-value-cell-pointer* pointers in a FEF, which are
+used by the compiled code to reference value cells and function cells
+of symbols.
+.end_defun
+
+.defun %p-safe-contents-offset location offset
+Returns the contents of the word 2offset* words beyond 2location* as accurately as
+possible without getting an error.
+
+If the contents are a valid Lisp object, it is returned exactly.
+
+If the contents are not a valid Lisp object but do point to storage,
+the value returned is a locative which points to the same place in storage.
+
+If the contents are not a valid Lisp object and do not point to storage,
+the value returned is a fixnum with the same pointer field.
+
+Forwarding pointers are checked as in 3%p-contents-offset*.
+.end_defun
+
+.defun %p-store-contents pointer value
+Stores 2value* into the data-type and pointer fields of the location
+addressed by 2pointer*, and returns 2value*.  The cdr-code field of
+the location remains unchanged.
+.end_defun
+
+.defun %p-store-contents-offset value base-pointer offset
+Stores 2value* in the location 2offset* beyond words beyond
+2base-pointer*, then returns 2value*.  The cdr-code field remains
+unchanged.  Forwarding pointers in the location at 2base-pointer* are
+handled as they are in 3%p-contents-offset*.
+.end_defun
+
+.defun %p-store-tag-and-pointer pointer miscfields pointerfield
+Stores 2miscfields* and 2pointerfield* into the location addressed
+by 2pointer*.  25 bits are taken from 2pointerfield* to fill the
+pointer field of the location, and the low 7 bits of 2miscfields* are
+used to fill both the data-type and cdr-code fields of the location.
+The low 5 bits of 2miscfields* become the data-type, and the top two
+bits become the cdr-code.  This is a good way to store a forwarding
+pointer from one structure to another (for example).
+
+3%p-store-tag-and-pointer* should be used only for storing into `boxed' words,
+for the same reason as 3%blt-typed*: the microcode could halt if the data stored
+is not valid boxed data.  See (%blt-typed-fun).
+.end_defun
+
+.defun %p-ldb byte-spec pointer
+Extracts a byte according to 2byte-spec* from the contents of the
+location addressed by 2pointer*, in effect regarding the contents as a
+32-bit number and using 3ldb*.  The result is always a fixnum.
+For example, 3(%p-ldb %%q-cdr-code 2loc*)* returns the cdr-code of
+the location addressed by 2loc*.
+.end_defun
+
+.defun %p-ldb-offset byte-spec base-pointer offset
+Extracts a byte according to 2byte-spec* from the contents of the
+location 2offset* words beyond 2base-pointer*, after handling
+forwarding pointers like 3%p-contents-offset*.
+
+This is the way to reference byte fields within a structure
+without violating system storage conventions.
+.end_defun
+
+.defun %p-mask-field byte-spec pointer
+Like 3%p-ldb*, except that the selected byte is returned in its
+original position within the word instead of right-aligned.
+.end_defun
+
+.defun %p-mask-field-offset byte-spec base-pointer offset
+Like 3%p-ldb-offset*, except that the selected byte is returned in its
+original position within the word instead of right-aligned.
+.end_defun
+
+Note: 3%p-dbp*, 3%p-dpb-offset*, 3%p-deposit-field* and
+3%p-deposit-field-offset* should never be used to modify
+the pointer field of a boxed word if the data type is one which actually
+points to storage, unless you are sure that the new pointer is such as
+to cause no trouble (such as, if it points to a static area).  Likewise,
+it should never be used to change a data type which does not point to
+storage into one which does.  Either action could confuse the garbage
+collector.
+
+.defun %p-dpb value byte-spec pointer
+Stores 2value*, a fixnum, into the byte selected
+by 2byte-spec* in the word addressed by 2pointer*.  3nil* is returned.
+You can use this to alter data types, cdr-codes, etc.,
+but see the note above for restrictions.
+.end_defun
+
+.defun %p-dpb-offset value byte-spec base-pointer offset
+Stores 2value* into the specified byte of the location 2offset*
+words beyond that addressed by 2base-pointer*, after first
+handling forwarding pointers in the location addressed by 2base-pointer*
+as in 3%p-contents-offset*.  3nil* is returned.
+
+This is the way to alter unboxed data within a structure
+without violating system storage conventions.
+You can use this to alter boxed words too,
+but see the note above for restrictions.
+.end_defun
+
+.defun %p-deposit-field value byte-spec pointer
+Like 3%p-dpb*, except that the selected
+byte is stored from the corresponding bits of 2value* rather than
+the right-aligned bits.  
+See the note above 3%p-dpb* for restrictions.
+.end_defun
+
+.defun %p-deposit-field-offset value byte-spec base-pointer offset
+Like 3%p-dpb-offset*, except that the selected
+byte is stored from the corresponding bits of 2value* rather than
+the right-aligned bits.
+See the note above 3%p-dpb* for restrictions.
+.end_defun
+
+.defun %p-pointer pointer
+Extracts the pointer field of the contents of the
+location addressed by 2pointer* and returns
+it as a fixnum.
+.end_defun
+
+.defun %p-data-type pointer
+Extracts the data-type field of the contents of the
+location addressed by 2pointer* and returns
+it as a fixnum.
+.end_defun
+
+.defun %p-cdr-code pointer
+Extracts the cdr-code field of the contents of the
+location addressed by 2pointer* and returns
+it as a fixnum.
+.end_defun
+
+.defun %p-store-pointer pointer value
+Stores 2value* in the pointer field of the location
+addressed by 2pointer*, and returns 2value*.
+.end_defun
+
+.defun %p-store-data-type pointer value
+Stores 2value* in the data-type field of the location
+addressed by 2pointer*, and returns 2value*.
+.end_defun
+
+.defun %p-store-cdr-code pointer value
+Stores 2value* in the cdr-code field of the location
+addressed by 2pointer*, and returns 2value*.
+.end_defun
+
+.defun %stack-frame-pointer
+Returns a locative pointer to its caller's stack frame.  This
+function is not defined in the interpreted Lisp environment; it only works
+in compiled code.  Since it turns into a ``misc'' instruction,
+the ``caller's stack frame'' really means ``the frame for the FEF
+that executed the 3%stack-frame-pointer* instruction''.
+.end_defun
+
+.section Storage Layout Definitions
+
+The following special variables have values which define the most important attributes
+of the way Lisp data structures are laid out in storage.  In addition to the variables
+documented here, there are many others that are more specialized.  They are not
+documented in this manual since they are in the 3system* package rather than
+the 3global* package.  The variables whose names start with 3%%* are
+byte specifiers, intended to be used with subprimitives such as 3%p-ldb*.
+If you change the value of any of these variables, you will probably bring the
+machine to a crashing halt.
+
+.defconst %%q-cdr-code
+The field of a memory word that contains the cdr-code.  See (cdr-code).
+.end_defconst
+
+.defconst %%q-data-type
+The field of a memory word that contains the data-type code.  See (data-type-fun).
+.end_defconst
+
+.defconst %%q-pointer
+The field of a memory word that contains the pointer address, or immediate data.
+.end_defconst
+
+.defconst %%q-pointer-within-page
+The field of a memory word that contains the part of the address that lies
+within a single page.
+.end_defconst
+
+.defconst %%q-typed-pointer
+The concatenation of the 3%%q-data-type* and 3%%q-pointer* fields.
+.end_defconst
+
+.defconst %%q-all-but-typed-pointer
+This is now synonymous with 3%%q-cdr-code*, and therefore obsolete.
+.end_defconst
+
+.defconst %%q-all-but-pointer
+The concatenation of all fields of a memory word except for 3%%q-pointer*.
+.end_defconst
+
+.defconst %%q-all-but-cdr-code
+The concatenation of all fields of a memory word except for 3%%q-cdr-code*.
+.end_defconst
+
+.defconst %%q-high-half
+.defconst1 %%q-low-half
+The two halves of a memory word.  These fields are only used in storing compiled code.
+.end_defconst
+
+.defconst cdr-normal
+.defconst1 cdr-next
+.defconst1 cdr-nil
+.defconst1 cdr-error
+The values of these four variables are the numeric values that go in the cdr-code
+field of a memory word.  See (cdr-code) for the details of cdr-coding.
+.end_defconst
+
+.section Analyzing Structures
+
+.defun %find-structure-header pointer
+This subprimitive finds the structure into which 
+2pointer* points, by searching backward for a header.
+It is a basic low-level function used by such things as the
+garbage collector.
+2pointer* is normally a locative, but its data-type is ignored.
+Note that it is illegal to point into an ``unboxed'' portion of
+a structure, for instance the middle of a numeric array.
+
+In structure space, the ``containing structure'' of a pointer
+is well-defined by system storage conventions.  In list space,
+it is considered to be the contiguous, cdr-coded segment of
+list surrounding the location pointed to.  If a cons of the list
+has been copied out by 3rplacd*, the contiguous list includes
+that pair and ends at that point.
+.end_defun
+
+.defun %find-structure-leader pointer
+This is identical to 3%find-structure-header*, except that if the
+structure is an array with a leader, this returns a locative pointer
+to the leader-header, rather than returning the array-pointer itself.
+Thus the result of 3%find-structure-leader* is always the lowest
+address in the structure.  This is the one used internally by the garbage collector.
+.end_defun
+
+.defun %structure-boxed-size object
+Returns the number of ``boxed Q's'' in 2object*.  This is the number
+of words at the front of the structure which contain normal Lisp objects.
+Some structures, for example FEFs and numeric arrays, contain additional
+``unboxed Q's'' following their boxed Q's.
+Note that the boxed size of a PDL (either regular or special) does not
+include Q's above the current top of the PDL.  Those locations are boxed,
+but their contents are considered garbage and are not protected by the
+garbage collector.
+.end_defun
+
+.defun %structure-total-size object
+Returns the total number of words occupied by the representation
+of 2object*, including boxed Q's, unboxed Q's, and garbage Q's off
+the ends of PDLs.
+.end_defun
+
+.section Creating Objects
+
+.defun %allocate-and-initialize data-type header-type header second-word area size
+	This is the subprimitive for creating most structured-type objects.
+2area* is the area in which it is to be created, as a fixnum or a symbol.
+2size* is the number of words to be allocated.  The value returned
+points to the first word allocated and has data-type 2data-type*.
+Uninterruptibly, the words allocated are initialized so that storage
+conventions are preserved at all times.  The first word, the header,
+is initialized to have 2header-type* in its data-type field 
+and 2header* in its pointer field.  The second word is initialized
+to 2second-word*.  The remaining words are initialized to 3nil*.
+The cdr-codes of all words
+except the last are set to 3cdr-next*; the cdr-code of the last word
+is set to 3cdr-nil*.  It is probably a bad idea to rely on this.
+.end_defun
+
+.defun %allocate-and-initialize-array header data-length leader-length area size
+	This is the subprimitive for creating arrays, called only by 3make-array*.
+It is different from 3%allocate-and-initialize* because arrays have
+a more complicated header structure.
+.end_defun
+
+The basic functions for creating list-type objects are 3cons* and
+3make-list*; no special subprimitive is needed.  Closures, entities,
+and select-methods are based on lists, but there is no primitive
+for creating them.  To create one, create a list and then use 3%make-pointer*
+to change the data type from 3dtp-list* to the desired type.
+
+.section Copying Data
+
+3%blt* and 3%blt-typed* are subprimitives for copying blocks of
+data, word aligned, from one place in memory to another with little
+or no type checking.
+
+.defun %blt from to count increment
+.defun1 %blt-typed from to count increment
+Copies 2count* words, separated by 2increment*.  The word at
+address 2from* is moved to address 2to*, the word at address
+2from*3+*2increment* is moved to address 2to*3+*2increment*,
+and so on until 2count* words have been moved.
+
+Only the pointer fields of 2from* and 2to* are significant;
+they may be locatives or even fixnums.  If one of them must point
+to the unboxed data in the middle of a structure, you must make it a fixnum,
+and you must do so with interrupts disabled, or else garbage collection
+could move the structure after you have already created the fixnum.
+
+3%blt-typed* assumes that each copied word contains a data type field
+and checks that field, interfacing suitably with the garbage collector
+if necessary.  3%blt* does not check the data type fields of the copied words.
+.end_defun
+
+3%blt* may be used on any data except boxed data containing pointers
+to storage, while 3%blt-typed* may be used on any boxed data.
+Both 3%blt* and 3%blt-typed* can be used validly on data which is formatted with
+data types (boxed) but whose contents never point to storage.  This includes
+words whose contents are always fixnums or short floats, and also words which
+contain array headers, array leader headers, or FEF headers.  Whether or not the
+machine is told to examine the data types of such data makes no difference
+since, on examining them, it would decide that nothing needed to be done.
+
+For unboxed data (data which is formatted not containing valid data type fields),
+such as the inside of a numeric array or the instruction words of a FEF, only
+3%blt* may be used.  If 3%blt-typed* were used, it would examine the data type
+fields of the data words, and probably halt due to an invalid data type code.
+
+For boxed data which may contain pointers, only 3%blt-typed* may be used.  If
+3%blt* were used, it would appear to work, but problems could appear mysteriously
+later because nothing would notice the presence of the pointer there.  For
+example, the pointer might point to a bignum in the number consing area, and
+moving it in this way would fail to copy it into a nontemporary area.  Then the
+pointer would become invalidated the next time the number consing area was
+emptied out.  There could also be problems with lexical closures and with
+garbage collection.
+
+.section Returning Storage
+
+.defun return-storage object
+This peculiar function attempts to return 2object* to free storage.
+If it is a displaced array, this returns the displaced array itself,
+not the data that the array points to.  Currently 3return-storage*
+does nothing if the object is not at the end of its region, i.e. if
+it was not either the most recently allocated non-list object in its
+area, or the most recently allocated list in its area.
+
+If you still have any references to 2object* anywhere in the Lisp world
+after this function returns, the garbage collector can get a fatal error
+if it sees them.  Since the form that calls this function must get the
+object from somewhere, it may not be clear how to legally call 3return-storage*.
+One of the only ways to do it is as follows:
+.lisp
+(defun func ()
+   (let ((object (make-array 100)))
+      ...
+      (return-storage (prog1 object (setq object nil)))))
+.end_lisp
+so that the variable 3object* does not refer to the object when
+3return-storage* is called.  Alternatively, you can free the
+object and get rid of all pointers to it while interrupts are turned
+off with 3without-interrupts*.
+
+You should only call this function if you know what you are doing;
+otherwise the garbage collector can get fatal errors.  Be careful.
+.end_defun
+
+.section Locking Subprimitive
+
+.defun %store-conditional pointer old new
+This is the basic locking primitive.  2pointer* is a locative to
+a cell which is uninterruptibly read and written.  If the contents of
+the cell is 3eq* to 2old*, then it is replaced by 2new* and
+3t* is returned.  Otherwise, 3nil* is returned and the contents
+of the cell are not changed.
+
+See also 3store-conditional*, a higher-level function which provides
+type checking ((store-conditional-fun)).
+.end_defun
+
+.section CADR I/O Device Subprimitives
+
+The CADR processor has a 32-bit memory bus called the Xbus.
+In addition to main memory and TV screen memory,
+most I/O device registers are on this bus.  There is also
+a Unibus compatible with the PDP-11.  A map of Xbus and Unibus
+addresses can be found in 3SYS: DOC; UNADDR TEXT*.
+
+.defun %unibus-read address
+Returns as a fixnum the contents of the register at the specified Unibus
+address.  You must specify a full 18-bit address.  This
+is guaranteed to read the location only once.  Since the Lisp
+Machine Unibus does not support byte operations, this always references
+a 16-bit word, and so 2address* should normally be an even number.
+.end_defun
+
+.defun %unibus-write address data
+Writes the 16-bit number 2data* at the specified Unibus
+address, exactly once.
+.end_defun
+
+.defun %xbus-read io-offset
+Returns the contents
+of the register at the specified Xbus address.  2io-offset* is
+an offset into the I/O portion of Xbus physical address space.
+This is guaranteed to read the location exactly once.
+The returned value can be either a fixnum or a bignum.
+.end_defun
+
+.defun %xbus-write io-offset data
+Writes 2data*, which can be a fixnum or a bignum, into the register at
+the specified Xbus address.  2io-offset* is an offset into the I/O
+portion of Xbus physical address space.  This is guaranteed to write the
+location exactly once.
+.end_defun
+
+.defun sys:%xbus-write-sync w-loc w-data delay sync-loc sync-mask sync-value
+Does 3(%xbus-write 2w-loc* 2w-data*)*, but first synchronizes to
+within about one microsecond of a certain condition.  The synchronization
+is achieved by looping until
+.lisp
+(= (logand (%xbus-read 2sync-loc*) 2sync-mask*) 2sync-value*)
+.end_lisp
+is false, then looping until it is true, then looping 2delay* times.
+Thus the write happens a specified delay after the leading edge of the
+synchronization condition.
+The number of microseconds of delay is roughly one third of 2delay*.
+
+This primitive is used to alter the color TV screen's color map
+during vertical retrace.
+.end_defun
+
+.section Lambda I/O-Device Subprimitives
+
+.defun sys:%nubus-read slot byte-address
+Returns the contents of a word read from the Nu bus.
+Addresses on the Nu bus are divided into an 8-bit slot number
+which identifies which physical board is being referenced
+and a 24-bit address within slot.  The address is measured in
+bytes and therefore should be a multiple of 4.  Which addresses are valid
+depends on the type of board plugged into the specified slot.
+If, for example, the board is a 512k main memory board,
+then the valid address range from 0 to 4 * (512k - 1).
+(Of course, main memory boards are normally accessed through
+the virtual memory mechanism.)
+.end_defun
+
+.defun sys:%nubus-write slot byte-address word
+Writes 2word* into a word of the Nu bus, whose address is specified
+by 2slot* and 2byte-address* as described above.
+.end_defun
+
+.defun sys:%nubus-physical-address apparent-physical-page
+The valid portions of the Nu bus address space are not contiguous.
+Each board is allocated 16m bytes of address space, but no memory
+board actually provides 16m bytes of memory.  
+
+The Lisp Machine virtual memory system maps virtual addresses into a
+contiguous physical address space.  On the Lambda, this contiguous
+address space is mapped a second time into the discontiguous Nu bus
+address space.  Unlike the mapping of virtual addresses to physical
+ones, the second mapping is determined from the hardware configuration
+when the machine is booted and does not change during operation.
+
+This function performs exactly that mapping.  The argument is
+a physical page number (a physical address divided by 3sys:page-size*).
+The argument is a "Nu bus page number"; multiplied by 3sys:page-size*
+and then by four, it yields the Nu bus byte address of the beginning
+of that physical page.
+
+See also 3sys:%physical-address*, (sys:%physical-address-fun).
+.end_defun
+
+.section Function-Calling Subprimitives
+
+These subprimitives can be used (carefully!) to call a function with the
+number of arguments variable at run time.  They only work in compiled code
+and are not defined in the interpreted Lisp environment.
+The preferred higher-level primitive is 3apply* ((apply-fun)).  
+
+.defun %open-call-block function n-adi-pairs destination
+Starts a call to 2function*.  2n-adi-pairs* is the number of
+pairs of additional information words already 3%push*'ed; normally
+this should be 30*.  2destination* is where to put the result;
+the useful values are 0 for the value to be ignored, 1
+for the value to go onto the stack, 3 for the value to be
+the last argument to the previous open call block, and 2
+for the value to be returned from this frame.
+.end_defun
+
+.defun %push value
+Pushes 2value* onto the stack.  Use this to push the arguments.
+.end_defun
+
+.defun %activate-open-call-block
+Causes the call to happen.
+.end_defun
+
+.defun %pop
+Pops the top value off of the stack and returns it as its value.
+Use this to recover the result from a call made by 3%open-call-block*
+with a destination of 1.
+.end_defun
+
+.defun %assure-pdl-room n-words
+Call this before doing a sequence of 3%push*'s or 3%open-call-block*'s
+that will add 2n-words* to the current frame.  This subprimitive checks
+that the frame will not exceed the maximum legal frame size, which is 255 words
+including all overhead.  This limit is dictated by the way stack frames are linked together.
+If the frame is going to exceed the legal limit, 3%assure-pdl-room* signals
+an error.
+.end_defun
+
+.c sys:%make-stack-list could be documented here I suppose
+
+.section Special-Binding Subprimitive
+
+.defun %bind locative value
+.defun1 bind locative value
+Binds the cell pointed to by 2locative* to 2x*, in the caller's
+environment. This function is not defined in the interpreted Lisp
+environment; it only works from compiled code.  Since it turns into an
+instruction, the ``caller's environment'' really means ``the binding block
+for the compiled function that executed the 3%bind* instruction''.  The preferred
+higher-level primitives that turn into this are 3let* ((let-fun)),
+3let-if* ((let-if-fun)), and 3progv* ((progv-fun)).
+
+The binding is in effect for the scope of the innermost binding
+construct, such as 3prog* or 3let*--even one that binds no
+variables itself.
+
+3%bind* is the preferred name; 3bind* is an older name which will
+eventually be eliminated.
+.end_defun
+
+.section The Paging System
+
+.c Insert narrative description of the page hash table, etc.
+
+[Someday this may discuss how it works.]
+
+.defvar sys:%disk-switches
+This variable contains bits that control various disk usage features.
+
+Bit 0 (the least significant bit) enables read-compares after disk read
+operations.  This causes a considerable slowdown, so it is rarely used.
+
+Bit 1 enables read-compares after disk write operations.
+
+Bit 2 enables the
+multiple page swap-out feature.  When this is enabled, as it is by
+default, each time a page is swapped out, up to 16. contiguous pages
+are also written out to the disk if they have been modified.  This
+greatly improves swapping performance.
+
+Bit 3 controls the multiple page swap-in feature, which is also on by
+default.  This feature causes pages to be swapped in in groups; each
+time a page is needed, several contiguous pages are swapped in in the
+same disk operation.  The number of pages swapped in can be specified
+for each area using 3si:set-swap-recommendations-of-area*.
+.end_defvar
+
+.defun si:set-swap-recommendations-of-area area-number recommendation
+Specifies that pages of area 2area-number* should be swapped in in
+groups of 2recommendation* at a time.  This recommendation is used
+only if the multiple page swap-in feature is enabled.
+
+Generally, the more memory a machine has, the higher the swap
+recommendations should be to get optimum performance.  The
+recommendations are set automatically according to the memory size when
+the machine is booted.
+.end_defun
+
+.defun si:set-all-swap-recommendations recommendation
+Specifies the swap-in recommendation of all areas at once.
+.end_defun
+
+
+.defun si:wire-page address &optional (wire-p 3t*)
+If 2wire-p* is 3t*, the page containing 2address* is 2wired-down*; that is,
+it cannot be paged-out.  If 2wire-p* is 3nil*, the page ceases to be wired-down.
+.end_defun
+
+.defun si:unwire-page address
+3(si:unwire-page 2address*)* is the same as
+3(si:wire-page 2address* 3nil*)*.
+.end_defun
+
+.defun sys:page-in-structure object
+Makes sure that the storage that represents 2object* is in main
+memory.  Any pages that have been swapped out to disk are read in,
+using as few disk operations as possible.  Consecutive disk pages are
+transferred together, taking advantage of the full speed of the disk.
+If 2object* is large, this is much faster than bringing the pages
+in one at a time on demand.  The storage occupied by 2object* is defined
+by the 3%find-structure-leader* and 3%structure-total-size* subprimitives.
+.end_defun
+
+.defun sys:page-in-array array &optional from to
+This is a version of 3sys:page-in-structure* that can bring in a portion
+of an array.  2from* and 2to* are lists of subscripts; if they are shorter
+than the dimensionality of 2array*, the remaining subscripts are assumed to
+be zero.
+.end_defun
+
+.defun sys:page-in-pixel-array array &optional from to
+Like 3sys:page-in-array* except that the lists 2from* and 2to*, if
+present, are assumed to have their subscripts in the order horizontal,
+vertical, regardless of which of those two is actually the first axis of
+the array.  See 3make-pixel-array*, (make-pixel-array-fun).
+.end_defun
+
+.defun sys:page-in-words address n-words
+Any pages that have been swapped out to disk in the range of address
+space starting at 2address* and continuing for 2n-words* are read in
+with as few disk operations as possible.
+.end_defun
+
+.defun sys:page-in-area area-number
+.defun1 sys:page-in-region region-number
+All swapped-out pages of the specified region or area are brought into main memory.
+.end_defun
+
+.defun sys:page-out-structure object
+.defun1 sys:page-out-array array &optional from to
+.defun1 sys:page-out-pixel-array array &optional from to
+.defun1 sys:page-out-words address n-words
+.defun1 sys:page-out-area area-number
+.defun1 sys:page-out-region region-number
+These are similar to the above, except that they take pages out of main
+memory rather than bringing them in.  Actually, they only mark the pages
+as having priority for replacement by others.  Use these operations when
+you are done with a large object, to make the virtual memory system
+prefer reclaiming that object's memory over swapping something else out.
+.end_defun
+
+.defun sys:%page-status virtual-address
+If the page containing 2virtual-address* is swapped out, or if it is
+part of one of the low-numbered fixed areas, this returns 3nil*.
+Otherwise it
+returns the entire first word
+of the page hash table entry for the page.
+
+The 3%%pht1-* symbols in 3SYS: SYS; QCOM LISP* are byte specifiers you
+can use with 3%logldb* for decoding the value.
+.end_defun
+
+.defun sys:%change-page-status virtual-address swap-status access-status-and-meta-bits
+The page hash table entry for the page containing 2virtual-address*
+is found and altered as specified.  3t* is returned if it was found,
+3nil* if it was not (presumably the page is swapped out).  2swap-status*
+and 2access-status-and-meta-bits* can be 3nil* if those fields are not
+to be changed.  This doesn't make any error checks; you can really
+screw things up if you call it with the wrong arguments.
+.end_defun
+
+.defun sys:%compute-page-hash virtual-address
+Makes the hashing function for the page hash table
+available to the user.
+.end_defun
+
+.defun sys:%physical-address virtual-address
+Returns the physical address which 2virtual-address*
+currently maps into.  The value is unpredictable if the
+virtual page is not swapped in; therefore, this function should
+be used on wired pages, or you should do
+.lisp
+(without-interrupts
+  (%p-pointer virtual-address)     ;1swap it in*
+  (sys:%physical-address virtual-address))
+.end_lisp
+.end_defun
+
+.defun sys:%create-physical-page physical-address
+This is used when adjusting the size of real memory available
+to the machine.  It adds an entry for the page frame at 2physical-address*
+to the page hash table, with virtual address -1, swap status flushable,
+and map status 120 (read only).  This doesn't make error checks; you
+can really screw things up if you call it with the wrong arguments.
+.end_defun
+
+.defun sys:%delete-physical-page physical-address
+If there is a page in the page frame at 2physical-address*,
+it is swapped out and its entry is deleted from the page hash table,
+making that page frame unavailable for swapping in of pages in the
+future.  This doesn't make error checks; you
+can really screw things up if you call it with the wrong arguments.
+.end_defun
+
+.defun sys:%disk-restore high-16-bits low-16-bits
+Loads virtual memory from the partition named by the concatenation of
+the two 16-bit arguments, and starts executing it.  The name 30*
+refers to the default load (the one the machine loads when it is
+started up).  This is the primitive used by 3disk-restore* (see (disk-restore-fun)).
+.end_defun
+
+.defun sys:%disk-save physical-mem-size high-16-bits low-16-bits
+Copies virtual memory into the partition named by the concatenation
+of the two 16-bit arguments (30* means the default), then restarts
+the world, as if it had just been restored.  The 2physical-mem-size*
+argument should come from 3%sys-com-memory-size* in 3system-communication-area*.
+If 2physical-mem-size* is negative, it is minus the memory size,
+and an incremental save is done.
+This is the primitive used by 3disk-save* (see (disk-save-fun)).
+.end_defun
+
+.defun si:set-memory-size nwords
+Specifies the size of physical memory in words.  The Lisp machine
+determines the actual amount of physical memory when it is booted, but with
+this function you can tell it to use less memory than is actually present.
+This may be useful for comparing performance based on the amount of memory.
+.end_defun
+
+.section Closure Subprimitives
+
+These functions deal with things like what closures deal with: the distinction
+between internal and external value cells and control over how they work.
+
+.defun sys:%binding-instances list-of-symbols
+This is the primitive that could be used by 3closure*.
+First, if any of the symbols in 2list-of-symbols* has no external
+value cell, a new external value cell is created for it, with
+the contents of the internal value cell.  Then a list of locatives,
+twice as long as 2list-of-symbols*, is created and returned.
+The elements are grouped in pairs: pointers to the internal
+and external value cells, respectively, of each of the symbols.
+3closure* could have been defined by:
+.lisp
+(defun closure (variables function)
+  (%make-pointer dtp-closure
+     (cons function (sys:%binding-instances variables))))
+.end_lisp
+.end_defun
+
+.defun sys:%using-binding-instances instance-list
+This function is the primitive operation that invocation of closures
+could use.  It takes a list such as 3sys:%binding-instances* returns,
+and for each pair of elements in the list, it ``adds'' a binding to the
+current stack frame, in the same manner that the 3%bind* function
+does.  These bindings remain in effect until the frame returns or is
+unwound.
+
+3sys:%using-binding-instances* checks for redundant bindings and ignores them.
+(A binding is redundant if the symbol is already bound to the desired external
+value cell.)  This check avoids excessive growth of the special pdl in some cases
+and is also made by the microcode which invokes closures, entities, and instances.
+
+Given a closure, 3closure-bindings* extracts its list of binding instances,
+which you can then pass to 3sys:%using-binding-instances*.
+.end_defun
+
+.defun sys:%internal-value-cell symbol
+Returns the contents of the internal value cell of 2symbol*.
+3dtp-one-q-forward* pointers are considered invisible, as usual, but
+3dtp-external-value-cell-pointer*s are 2not*; this function can
+return a 3dtp-external-value-cell-pointer*.  Such pointers will be
+considered invisible as soon as they leave the ``inside of the machine'',
+meaning internal registers and the stack.
+.end_defun
+
+.section Distiguishing Processor Types
+
+The MIT Lisp Machine system runs on two types of processors: the CADR
+and the Lambda.  These are similar enough that there is no difference in
+compiled code for them, and no provision for compile-time
+conditionalization.  However, obscure or internal I/O code sometimes
+needs to behave differently at run-time depending on the type of
+processor.  This is possible through the use of these macros.
+
+.defvar sys:processor-type-code
+This variable is 1 on a CADR processor or equivalent, 2 on a Lambda.
+.end_defvar
+
+.defmac if-in-cadr body...
+Executes 2body* only when executing on a CADR.
+.end_defmac
+
+.defmac if-in-lambda body
+Executes 2body* only when executing on a Lambda.
+.end_defmac
+
+.defmac if-in-cadr-else-lambda if-cadr-form else-body...
+Executes 2if-cadr-form* when executing on a CADR,
+executes 2else-body* when executing on a Lambda.
+.lisp
+(format t "~&Processor is a ~A.~%"
+        (if-in-cadr-else-lambda "CADR" "Lambda"))
+.end_lisp
+.end_defmac
+
+.defmac if-in-lambda-else-cadr if-lambda-form else-body...
+Executes 2if-cadr-form* when executing on a Lambda
+executes 2else-body* when executing on a CADR.
+.end_defmac
+
+.defmac select-processor clauses
+Each clause consists of 3:cadr* or 3:lambda* followed by forms
+to execute when running on that kind of processor.  Example:
+.lisp
+(format t "~&Processor is a ~A.~%"
+        (select-processor
+          (:cadr "CADR")
+	  (:lambda "Lambda")))
+.end_lisp
+.end_defmac
+
+.section Microcode Variables
+
+The following variables' values actually reside in the scratchpad memory
+of the processor.  They are put there by 3dtp-one-q-forward* invisible
+pointers.  The values of these variables are used by the microcode.
+Many of these variables are highly internal and you shouldn't expect to
+understand them.
+
+.defvar %microcode-version-number
+This is the version number of the currently-loaded microcode, obtained
+from the version number of the microcode source file.
+.end_defvar
+
+.defvar sys:%number-of-micro-entries
+Size of 3micro-code-entry-area* and related areas.
+.end_defvar
+
+.nopara
+3default-cons-area* is documented on (default-cons-area-var).
+
+.defvar sys:number-cons-area
+The area number of the area where bignums, ratios, full-size floats and
+complexnums are consed.  Normally this variable contains the value of
+3sys:extra-pdl-area*, which enables the ``temporary storage'' feature
+for numbers, saving garbage collection overhead.
+.end_defvar
+
+.nopara
+3current-stack-group* and 3current-stack-group-resumer*
+are documented on (current-stack-group-var).
+
+.defvar sys:%current-stack-group-state
+The 3sg-state* of the currently-running stack group.
+.end_defvar
+
+.defvar sys:%current-stack-group-calling-args-pointer
+The argument list of the currently-running stack group.
+.end_defvar
+
+.defvar sys:%current-stack-group-calling-args-number
+The number of arguments to the currently-running stack group.
+.end_defvar
+
+.defvar sys:%trap-micro-pc
+The microcode address of the most recent error trap.
+.end_defvar
+
+.defvar sys:%initial-fef
+The function that is called when the machine starts up.
+Normally this is the definition of 3si:lisp-top-level*.
+.end_defvar
+
+.defvar sys:%initial-stack-group
+The stack group in which the machine starts up.
+Normally this is the initial Lisp Listener window's process's stack group.
+.end_defvar
+
+.defconst sys:%error-handler-stack-group
+The stack group that receives control when a microcode-detected error
+occurs.  This stack group cleans up, signals the appropriate condition,
+or assigns a stack group to run the debugger on the erring stack group.
+.end_defconst
+
+.defconst sys:%scheduler-stack-group
+The stack group that receives control when a sequence break occurs.
+.end_defconst
+
+.defconst sys:%chaos-csr-address
+A fixnum, the virtual address that maps to the Unibus location of the
+Chaosnet interface.
+.end_defconst
+
+.defvar %mar-low
+A fixnum, the inclusive lower bound of the region of virtual
+memory subject to the MAR feature (see (mar)).
+.end_defvar
+
+.defvar %mar-high
+A fixnum, the inclusive upper bound of the region of virtual
+memory subject to the MAR feature (see (mar)).
+.end_defvar
+
+.defvar sys:%inhibit-read-only
+If non-3nil*, you can write into read-only areas.  This is used by 3fasload*.
+.end_defvar
+
+.nopara
+3self* is documented on (self-var).
+
+.nopara
+3inhibit-scheduling-flag* is documented on (inhibit-scheduling-flag-var).
+
+.defvar inhibit-scavenging-flag
+If non-3nil*, the scavenger is turned off.  The scavenger is
+the quasi-asynchronous portion of the garbage collector,
+which normally runs during consing operations.
+.end_defvar
+
+.defvar sys:scavenger-ws-enable
+If this is 3nil*, scavenging can compete for all of the physical
+memory of the machine.  Otherwise, it should be a fixnum, which
+specifies how much physical memory the scavenger can use: page numbers
+as high as this number or higher are not available to it.
+.end_defvar
+
+.defvar sys:%region-cons-alarm
+Increments whenever a new region is allocated.
+.end_defvar
+
+.defvar sys:%page-cons-alarm
+Increments whenever a new page is allocated.
+.end_defvar
+
+.defvar sys:%gc-flip-ready
+3t* while the scavenger is running, 3nil* when there are no pointers
+to oldspace.
+.end_defvar
+
+.defvar sys:%gc-generation-number
+A fixnum which is incremented whenever the garbage collector flips, converting
+one or more regions from newspace to oldspace.
+If this number has changed, the 3%pointer* of an object may have changed.
+.end_defvar
+
+.defconst sys:%disk-run-light
+A fixnum, the virtual address of the TV buffer location of the run-light
+which lights up when the disk is active.  This plus 2 is the address of the run-light
+for the processor.  This minus 2 is the address of the run-light for the garbage collector.
+.end_defconst
+
+.defvar sys:%loaded-band
+A fixnum, the high 24 bits of the name of the disk partition
+from which virtual memory was booted.  Used to create the greeting message.
+.end_defvar
+
+.defvar sys:%disk-blocks-per-track
+.defvar1 sys:%disk-blocks-per-cylinder
+Configuration of the disk being used for paging.  Don't change these!
+.end_defvar
+
+.nopara
+3sys:%disk-switches* is documented on (sys:%disk-switches-var).
+
+.defvar sys:%qlaryh
+This is the last array to be called as a function, remembered for the
+sake of the function 3store*.
+.end_defvar
+
+.defvar sys:%qlaryl
+This is the index used the last time an array was called as a
+function, remembered for the sake of the function 3store*.
+.end_defvar
+
+.defvar sys:%mc-code-exit-vector
+This is a vector of pointers that microcompiled code uses to refer to
+quoted constants.
+.end_defvar
+
+.defvar sys:currently-prepared-sheet
+Used for communication between the window system and the microcoded graphics primitives.
+.end_defvar
+
+.nopara
+3alphabetic-case-affects-string-comparison* is documented on
+(alphabetic-case-affects-string-comparison-var).
+
+.nopara
+3sys:tail-recursion-flag* is documented on
+(tail-recursion-flag-var).
+
+.nopara
+3zunderflow* is documented on (zunderflow-var).
+
+.nopara
+The next four have to do with implementing the metering system described
+in (meter-section).
+
+.defvar sys:%meter-global-enable
+3t* if the metering system is turned on for all stack-groups.
+.end_defvar
+
+.defvar sys:%meter-buffer-pointer
+A temporary buffer used by the metering system.
+.end_defvar
+
+.defvar sys:%meter-disk-address
+Where the metering system writes its next block of results on the disk.
+.end_defvar
+
+.defvar sys:%meter-disk-count
+The number of disk blocks remaining for recording of metering information.
+.end_defvar
+
+.defvar sys:lexical-environment
+This is the static chain used in the implementation of lexical
+scoping of variable bindings in compiled code.
+.end_defvar
+
+.defvar sys:amem-evcp-vector
+No longer used.
+.end_defvar
+
+.nopara
+3background-cons-area* is documented on
+(background-cons-area-var).
+
+.nopara
+3sys:self-mapping-table* is documented on
+(sys:self-mapping-table-var).
+
+.nopara
+3sys:processor-type-code* is documented on
+(sys:processor-type-code-var).
+
+.defconst sys:a-memory-location-names
+A list of all of the above symbols (and any others added after this documentation
+was written).
+.end_defconst
+
+.section Microcode Meters
+
+Microcode meters are locations in the scratchpad memory which contain
+numbers.  Most of them are used to count events of various sorts.  They
+are accessible only through the functions 3read-meter* and
+3write-meter*.  They have nothing to do with the Lisp metering tools.
+
+.defun read-meter name
+Returns the contents of the microcode meter named 2name*, which can be a fixnum
+or a bignum.  2name* must be one of the symbols listed below.
+.end_defun
+
+.defun write-meter name value
+Writes 2value*, a fixnum or a bignum, into the microcode meter named 2name*.
+2name* must be one of the symbols listed below.
+.end_defun
+
+.nopara
+The microcode meters are as follows:
+
+.defmeter sys:%count-chaos-transmit-aborts
+The number of times transmission on the Chaosnet was aborted, either by a collision
+or because the receiver was busy.
+.end_defmeter
+
+.defmeter sys:%count-cons-work
+.defmeter1 sys:%count-scavenger-work
+Internal state of the garbage collection algorithm.
+.end_defmeter
+
+.defmeter sys:%tv-clock-rate
+The number of TV frames per clock sequence break.
+The default value is 67., which causes clock sequence breaks to happen
+about once per second.
+.end_defmeter
+
+.defmeter sys:%count-first-level-map-reloads
+The number of times the first-level virtual-memory map was invalid
+and had to be reloaded from the page hash table.
+.end_defmeter
+
+.defmeter sys:%count-second-level-map-reloads
+The number of times the second-level virtual-memory map was invalid
+and had to be reloaded from the page hash table.
+.end_defmeter
+
+.defmeter sys:%count-meta-bits-map-reloads
+The number of times the virtual address map was reloaded to contain only
+``meta bits'', not an actual physical address.
+.end_defmeter
+
+.defmeter sys:%count-pdl-buffer-read-faults
+The number of read references to the pdl buffer that were
+virtual memory references that trapped.
+.end_defmeter
+
+.defmeter sys:%count-pdl-buffer-write-faults
+The number of write references to the pdl buffer that were
+virtual memory references that trapped.
+.end_defmeter
+
+.defmeter sys:%count-pdl-buffer-memory-faults
+The number of virtual memory references that trapped in case
+they should have gone to the pdl buffer, but turned out to be
+real memory references after all (and therefore were needlessly
+slowed down).
+.end_defmeter
+
+.defmeter sys:%count-disk-page-reads
+The number of pages read from the disk.
+.end_defmeter
+
+.defmeter sys:%count-disk-page-writes
+The number of pages written to the disk.
+.end_defmeter
+
+.defmeter sys:%count-fresh-pages
+The number of fresh (newly-consed) pages created in core,
+which would have otherwise been read from the disk.
+.end_defmeter
+
+.defmeter sys:%count-disk-page-read-operations
+The number of paging read operations; this can be smaller than the number of
+disk pages read when more than one page at a time is read.
+.end_defmeter
+
+.defmeter sys:%count-disk-page-write-operations
+The number of paging write operations; this can be smaller than the number of
+disk pages written when more than one page at a time is written.
+.end_defmeter
+
+.defmeter sys:%count-disk-prepages-used
+The number of times a page was used after being read in before it was needed.
+.end_defmeter
+
+.defmeter sys:%count-disk-prepages-not-used
+The number of times a page was read in before it was needed, but got evicted
+before it was ever used.
+.end_defmeter
+
+.defmeter sys:%count-disk-page-write-waits
+The number of times the machine waited for a page to finish being written out
+in order to evict the page.
+.end_defmeter
+
+.defmeter sys:%count-disk-page-write-busys
+The number of times the machine waited for a page to finish being written out
+in order to do something else with the disk.
+.end_defmeter
+
+.defmeter sys:%disk-wait-time
+The time spent waiting for the disk, in microseconds.  This can be used to
+distinguish paging time from running time when measuring and optimizing the`
+performance of programs.
+.end_defmeter
+
+.defmeter sys:%count-disk-errors
+The number of recoverable disk errors.
+.end_defmeter
+
+.defmeter sys:%count-disk-recalibrates
+The number of times the disk seek mechanism was recalibrated,
+usually as part of error recovery.
+.end_defmeter
+
+.defmeter sys:%count-disk-ecc-corrected-errors
+The number of disk errors that were corrected through the error correcting code.
+.end_defmeter
+
+.defmeter sys:%count-disk-read-compare-differences
+The number of times a read compare was done, no disk error occurred, but the
+data on disk did not match the data in memory.
+.end_defmeter
+
+.defmeter sys:%count-disk-read-compare-rereads
+The number of times a disk read was done over because after the read a read
+compare was done and did not succeed (either it got an error or the data on disk
+did not match the data in memory).
+.end_defmeter
+
+.defmeter sys:%count-disk-read-compare-rewrites
+The number of times a disk write was done over because after the write a read
+compare was done and did not succeed (either it got an error or the data on disk
+did not match the data in memory).
+.end_defmeter
+
+.defmeter sys:%disk-error-log-pointer
+Address of the next entry to be written in the disk error log.  The function
+3si:print-disk-error-log* (see (si:print-disk-error-log-fun)) prints this log.
+.end_defmeter
+
+.defmeter sys:%count-aged-pages
+The number of times the page ager set an age trap on a page, to determine
+whether it was being referenced.
+.end_defmeter
+
+.defmeter sys:%count-age-flushed-pages
+The number of times the page ager saw that a page still had an age trap
+and hence made it ``flushable'', a candidate for eviction from main memory.
+.end_defmeter
+
+.defmeter sys:%aging-depth
+A number from 0 to 3 that controls how long a page must remain unreferenced
+before it becomes a candidate for eviction from main memory.
+.end_defmeter
+
+.defmeter sys:%count-findcore-steps
+The number of pages inspected by the page replacement algorithm.
+.end_defmeter
+
+.defmeter sys:%count-findcore-emergencies
+The number of times no evictable page was found and extra aging had to be done.
+.end_defmeter
+
+.defconst sys:a-memory-counter-block-names
+A list of all of the above symbols (and any others added after this documentation
+was written).
+.end_defconst
+
+.section Miscellaneous Subprimitives
+
+.defun sys:%halt
+Stops the machine.
+.end_defun

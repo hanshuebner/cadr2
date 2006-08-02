@@ -1,0 +1,306 @@
+.c This file is part of the Lisp Machine manual.  -*-Bolio-*-
+
+.chapter "Areas"
+'cindex area
+.setq area section-page
+.setq area-chapter chapter-number
+
+Storage in the Lisp Machine is divided into 2areas*.  Each area
+contains related objects, of any type.  Areas are intended to give the
+user control over the paging behavior of the program, among other
+things.  Putting frequently used data and rarely used data in different
+areas can cause the frequently used data to occupy fewer pages.  For
+example, the system puts the debugging info alists of compiled functions
+in a special area so that the other list structure the functions point
+to will be more compact.
+
+Whenever a new object is created the area to be used can
+optionally be specified.  For example, instead of using 3cons* you can
+use 3cons-in-area* (see (cons-in-area-fun)).  Object-creating functions
+which take keyword arguments generally accept a 3:area* argument.
+You can also control which area is used by binding 3default-cons-area*
+(see (default-cons-area-var)); most functions that allocate storage
+use the value of this variable, by default, to specify the area to use.
+
+There is a default `working storage' area that collects those objects
+that the user has not chosen to control explicitly. 
+
+	Areas also give the user a handle to control the garbage
+collector.  Some areas can be declared to be 2static*, which means that
+they change slowly and the garbage collector should not attempt to
+reclaim any space in them.  This can eliminate a lot of useless
+copying.  A static area can be explicitly
+garbage-collected at infrequent intervals when it is believed that that
+might be worthwhile. 
+
+	Each area can potentially have a different storage discipline,
+a different paging algorithm, and even a different data representation. 
+The microcode dispatches on attributes of the area at the
+appropriate times.  The structure of the machine makes the performance
+cost of these features negligible; information about areas is stored
+in extra bits in the memory mapping hardware where it can be quickly
+dispatched on by the microcode; these dispatches usually have to be
+done anyway to make the garbage collector work and to implement
+invisible pointers.  This feature is not currently used by the system,
+except for the list/structure distinction described below.
+
+	Each area has a name and a number.  The name is a symbol whose
+value is the number.  The number is an index into various internal
+tables.  Normally the name is treated as a special variable, so the
+number is what is given as an argument to a function that takes an area
+as an argument.  Thus, areas are not Lisp objects; you cannot
+pass an area itself as an argument to a function; you just pass its
+number.  There is a maximum number of areas (set at cold-load generation
+time); you can only have that many areas before the various internal
+tables overflow.  Currently (as this manual is written) the limit is
+256 areas, of which 64 already exist when you start.
+
+	The storage of an area consists of one or more 2regions*.  Each region
+is a contiguous section of address space with certain homogeneous properties.
+The most important of these is the 2data representation type*.  A given region
+can only store one type.  The two types that exist now are 2list* and 2structure*.
+A list is anything made out of conses (a closure for instance).  A structure is
+anything made out of a block of memory with a header at the front; symbols, strings,
+arrays, instances, compiled functions, etc.  Since lists and structures cannot be stored
+in the same region, they cannot be on the same page.  It is necessary to know about
+this when using areas to increase locality of reference.
+
+When you create an area, one region is created initially.  When you try
+to allocate memory to hold an object in some area, the system tries to
+find a region that has the right data representation type to hold this
+object, and that has enough room for it to fit.  If there isn't any such
+region, it makes a new one (or signals an error; see the 3:size* option
+to 3make-area*, below).  The size of the new region is an attribute of
+the area (controllable by the 3:region-size* option to 3make-area*).
+If regions are too large, memory may get taken up by a region and never used.
+If regions are too small, the system may run out of regions because regions,
+like areas, are defined by internal tables that have a fixed size (set at
+cold-load generation time).  Currently (as this manual is written) the limit
+is 256 regions, of which about 105 already exist when you start.
+(If you're wondering why the limit on regions isn't higher than the limit
+on areas, as it clearly ought to be, it's just because both limits have
+to be multiples of 256 for internal reasons, and 256 regions seem
+to be enough.)
+
+.section Area Functions and Variables
+
+.defvar default-cons-area
+The value of this variable is the number of the area in which objects are created
+by default.  It is initially the number of 3working-storage-area*.
+Giving 3nil* where an area is required uses the value of 3default-cons-area*.
+Note that to put objects into an area other than 3working-storage-area*
+you can either bind this variable or use functions such as
+3cons-in-area* (see (cons-in-area-fun)) which take the area as an explicit argument.
+.end_defvar
+
+.defvar background-cons-area
+The value of this variable is the number of a non-temporary area in
+which objects created as incidental side effects by system functions
+should be created.  This area is used whenever an object is created that
+should never be in a temporary area, even if 2default-cons-area* is a
+temporary area.
+
+By default, this area is 3working-storage-area*.
+.end_defvar
+
+.defun make-area &key name size region-size representation gc read-only pdl room
+Creates a new area, whose name and attributes are specified by the keywords.
+You must specify a symbol as a name; the symbol is 3setq*'ed to
+the area-number of the new area, and that number is also returned,
+so that you can use 3make-area* as the initialization of a 3defvar*.
+
+Here are the meanings of the keywords:
+.table 2
+.item name
+'kindex :name make-area
+A symbol that will be the name of the area.  This item is required.
+
+.item size
+'kindex :size make-area
+The maximum allowed size of the area, in words.  Defaults to infinite.
+(Actually, the default is the largest positive fixnum; but the area is
+not limited to that size!)
+If the number of words allocated to the area reaches this size, attempting
+to cons an object in the area will signal an error.
+
+.item region-size
+'kindex :region-size make-area
+The approximate size, in words, for regions within this area.  The
+default is the area size if a 3:size* argument was given, otherwise it is a
+suitable medium size.  Note that if you specify 3:size* and not
+3:region-size*, the area will have exactly one region.  When making an
+area that will grow very big, it is desirable to make the region size
+larger than the default region size to avoid creating very many regions
+and possibly overflowing the system's fixed-size region tables.
+
+.item representation
+'kindex :representation make-area
+The type of object to be contained in the area's initial region.
+The argument to this keyword can be 3:list*, 3:structure*, or a numeric code.
+3:structure* is the default.  If you are only going to cons lists in your
+area, you should specify 3:list* so you don't get a useless structure region.
+
+.item gc
+'kindex :gc make-area
+The type of garbage-collection to be employed.  The choices are
+3:dynamic* (which is the default), 3:static*, and 3:temporary*.
+3:static* means that the area will not be copied by the garbage
+collector, and nothing in the area or pointed to by the area will ever
+be reclaimed, unless a garbage collection of this area is manually
+requested.  3:temporary* is like 3:static*, but in addition you are
+allowed to use 3si:reset-temporary-area* on this area.
+
+.item read-only
+'kindex :read-only make-area
+With an argument of 3t*, causes the area to be made read-only.  Defaults
+to 3nil*.  If an area is read-only, then any attempt to change anything
+in it (altering a data object in the area or creating a new object in the
+area) will signal an error unless 3sys:%inhibit-read-only*
+(see (sys:%inhibit-read-only-var)) is bound to a non-3nil* value.
+
+.item pdl
+'kindex :pdl make-area
+With an argument of 3t*, makes the area suitable for storing
+regular-pdls of stack-groups.  This is a special attribute due to the
+pdl-buffer hardware.  Defaults to 3nil*.  Areas for which this is 3nil*
+may 2not* be used to store regular-pdls.  Areas for which this is 3t*
+are relatively slow to access; all references to pages in the area will
+take page faults to check whether the referenced location is really in
+the pdl-buffer.
+
+.item room
+'kindex :room make-area
+With an argument of 3t*, adds this area to the list of areas that are
+displayed by default by the 3room* function (see (room-fun)).
+.end_table
+
+.lisp
+.exdent 96 Example:
+(make-area :name 'foo-area
+	   :gc :dynamic
+	   :representation :list)
+.end_lisp
+.end_defun
+
+.defun describe-area area
+2area* may be the name or the number of an area.  Various
+attributes of the area are printed.
+.end_defun
+
+.defvar area-list
+The value of 3area-list* is a list of the names of all existing areas.
+This list shares storage with the internal area name table, so you should
+not change it.
+.end_defvar
+
+.defun %area-number pointer
+Returns the number of the area to which 2pointer* points, or 3nil* if
+it does not point within any known area.  The data-type of 2pointer*
+is ignored.
+.end_defun
+
+.defun %region-number pointer
+Returns the number of the region to which 2pointer* points, or 3nil* if
+it does not point within any known region.  The data-type of 2pointer*
+is ignored.  (This information is generally not very interesting to users;
+it is important only inside the system.)
+.end_defun
+
+.defun area-name number
+Given an area number, returns the name.  This ``function'' is actually an array.
+.end_defun
+
+.defun si:reset-temporary-area area-number
+This very dangerous operation marks all the storage in area
+2area-number* as free and available for re-use.  Any data in the area
+is lost and pointers to it become meaningless.  In principle,
+this operation should only be used if you are sure there are no pointers
+into the area.
+
+If the area was not defined as temporary, this function gets an
+error.
+.end_defun
+
+.nopara
+See also 3cons-in-area* ((cons-in-area-fun)), 3list-in-area* ((list-in-area-fun)),
+and 3room* ((room-fun)).
+
+
+.section Interesting Areas
+
+This section lists the names of some of the areas and tells what they are for.
+Only the ones of the most interest to a user are listed; there are many others.
+
+.defconst working-storage-area
+This is the normal value of 3default-cons-area*.
+Most working data are consed in this area.
+.end_defconst
+
+.defconst permanent-storage-area
+This area is to be used for permanent data, which will (almost) never become
+garbage.  Unlike 3working-storage-area*, the contents of this area
+are not continually copied by the garbage collector; it is a static area.
+.end_defconst
+
+.defconst sys:extra-pdl-area
+The `number consing area' in which floating point numbers, ratios and bignums
+are normally created.  If a pointer to a number in this area is stored anywhere
+outside the machine registers and current stack, a copy of the number is
+made in 3working-storage-area* and a pointer to the copy is stored instead.
+When 3sys:extra-pdl-area* gets full, the all numbers pointed to by the
+registers and current stack are copied, and then nothing in the area can be
+in use any more, so it is marked as empty.
+.end_defconst
+
+.defconst sys:p-n-string
+Print-names of symbols are stored in this area.
+.end_defconst
+
+.defconst sys:nr-sym
+Contains most of the symbols in the Lisp world, except 3t* and 3nil*.
+.end_defconst
+
+.defconst sys:resident-symbol-area
+Contains the symbols 3t* and 3nil*.  3nil* is known to be at address zero.
+.end_defconst
+
+.defconst sys:pkg-area
+This area contains packages, principally the hash tables with which 3intern*
+keeps track of symbols.
+.end_defconst
+
+.defconst macro-compiled-program
+Compiled functions (FEFs) are put here by the compiler and by 3fasload*.
+So are the constants that they refer to.
+.end_defconst
+
+.defconst sys:property-list-area
+This area holds the property lists of symbols.
+.end_defconst
+
+.section Errors Pertaining to Areas
+
+.defcondition sys:area-overflow (3error*)
+This is signaled on an attempt to make an area bigger than its declared maximum size.
+
+The condition instance supports the operations 3:area-name* and
+3:area-maximum-size*.
+.end_defcondition
+
+.defcondition sys:region-table-overflow (3error*)
+This is signaled if you run out of regions.
+.end_defcondition
+
+.defcondition sys:virtual-memory-overflow (3error*)
+This is signaled if all of virtual memory is part of some region and an
+attempt is made to allocate a new region.  There may be free space left
+in some regions in other areas, but there is no way to apply it to the
+area in which storage is to be allocated. 
+.end_defcondition
+
+.defcondition sys:cons-in-fixed-area (3error*)
+This is signaled if an attempt is made add a second region to a fixed
+area.  The fixed areas are certain areas, created at system
+initialization, that are only allowed a single region, because their
+contents must be contiguous in virtual memory.
+.end_defcondition

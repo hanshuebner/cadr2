@@ -1,0 +1,29 @@
+.c -*- Bolio -*-
+.c This is part 1 of the Lisp machine manual.
+.c for proper results, run part 1 through bolio, then part 2, then 3, then 4.
+
+.insert TITLE
+.insert INTRO
+.insert FD-DTP
+.insert FD-EVA
+.insert FD-FLO
+.c Logically LOOP belongs here but it's too hairy for this part of the manual
+.insert FD-CON
+.insert RESOUR
+.insert FD-SYM
+.insert FD-NUM
+.insert FD-ARR
+.insert GENERIC
+.insert FD-STR
+.insert FD-FUN
+.insert FD-CLO
+.insert FD-SG
+.insert FD-LOC
+.insert FD-SUB
+.insert AREAS
+.insert COMPIL
+.insert MACROS
+.insert LOOPTM
+.insert DEFSTR
+.save-cumulative-state
+

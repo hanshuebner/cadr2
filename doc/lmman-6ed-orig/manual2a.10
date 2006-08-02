@@ -1,0 +1,16 @@
+.c -*- Bolio -*-
+.c This is part 2 of the Lisp machine manual.
+.c for proper results, run part 1 through bolio, then part 2, then 3, then 4.
+.read-old-vars
+.restore-cumulative-state
+.insert FLAVOR
+.insert IOS
+.insert RDPRT
+.insert PATHNM
+.insert FILES
+.insert CHAOS
+.insert PACKD
+.insert MAKSYS
+.insert PATCH
+.insert PROCES
+.save-cumulative-state

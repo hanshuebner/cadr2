@@ -1,0 +1,1518 @@
+.c This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c Function Description: Flow of Control
+
+.chapter Flow of Control
+.setq flow-chapter chapter-number
+.cindex control structure
+.cindex flow of control
+	Lisp provides a variety of structures for flow of control.
+
+	Function application is the basic method for construction of
+programs.  Operations are written as the application of a function
+to its arguments.  Usually, Lisp programs are written as a large collection
+of small functions, each of which implements a simple operation.
+These functions operate by calling one another, and so larger
+operations are defined in terms of smaller ones.
+
+'cindex "recursion"
+	A function may always call itself in Lisp.  The calling of
+a function by itself is known as 2recursion*; it is analogous
+to mathematical induction.
+
+'cindex "iteration"
+	The performing of an action repeatedly (usually with some
+changes between repetitions) is called 2iteration*, and is provided as
+a basic control structure in most languages.  The 2do* statement of
+PL/I, the 2for* statement of ALGOL/60, and so on are examples of
+iteration primitives.  Lisp provides two general iteration facilities:
+3do* and 3loop*, as well as a variety of special-purpose iteration
+facilities.  (3loop* is sufficiently complex that it is explained
+in its own chapter later in the manual; see (loop-fun).)
+
+'cindex "conditional"
+	A 2conditional* construct is one which allows a program
+to make a decision, and do one thing or another based on some logical
+condition.  Lisp provides the simple one-way conditionals 3and* and 3or*,
+the simple two-way conditional 3if*, and more general multi-way
+conditionals such as 3cond* and 3selectq*.
+The choice of which form to use in any particular situation is a matter
+of personal taste and style.
+
+'cindex "non-local exit"
+'cindex "exit"
+	There are some 2non-local exit* control structures, analogous
+to the 2leave*, 2exit*, and 2escape* constructs in many modern
+languages.
+'c French, Italian, ...
+Zetalisp provides for both static (lexical) non-local exits with
+3block* and 3return-from* and dynamic non-local exits with 3catch*
+and 3throw*.  Another kind of non-local exit is the goto, provided
+by the 3tagbody* and 3go* constructs.
+
+	Zetalisp also provides a coroutine capability,
+explained in the section on 2stack-groups* ((stack-group)), and
+a multiple-process facility (see (process)).  There is also a facility
+for generic function calling using message passing; see (flavor).
+
+.section "Compound Statements"
+
+.defspec progn body...
+The 2body* forms are evaluated in order from left to right and the value
+of the last one is returned.
+3progn* is the primitive control structure construct for "compound
+statements".
+.lisp
+.exdent 96 Example:
+(foo (cdr a)
+     (progn (setq b (extract frob))
+	    (car b))
+     (cadr b))
+.end_lisp
+
+Lambda-expressions, 3cond* forms, 3do* forms, and
+many other control structure forms use 3progn* implicitly, that is,
+they allow multiple forms in their bodies.
+.end_defspec
+
+.defspec prog1 first-form body...
+3prog1* is similar to 3progn*, but it returns the value of its 2first* form rather
+than its last.
+It is most commonly used to evaluate an expression with side effects, and return
+a value which must be computed 2before* the side effects happen.
+.lisp
+.exdent 96 Example:
+(setq x (prog1 y (setq y x)))
+.end_lisp
+interchanges the values of the variables 2x* and 2y*.  3prog1* never
+returns multiple values.
+.end_defspec
+
+.defspec prog2 first-form second-form body...
+3prog2* is similar to 3progn* and 3prog1*, but it returns its
+2second* form.  It is included largely for compatibility with old programs.
+.end_defspec
+
+.section "Conditionals"
+
+.defspec if
+3if* is the simplest conditional form.  The ``if-then'' form looks like:
+.lisp
+(if 2predicate-form* 2then-form*)
+.end_lisp
+2predicate-form* is evaluated, and if the result is non-3nil*, the
+2then-form* is evaluated and its result is returned.  Otherwise, 3nil*
+is returned.
+
+In the ``if-then-else'' form, it looks like
+.lisp
+(if 2predicate-form* 2then-form* 2else-form*)
+.end_lisp
+2predicate-form* is evaluated, and if the result is non-3nil*, the
+2then-form* is evaluated and its result is returned.  Otherwise, the
+2else-form* is evaluated and its result is returned.
+
+If there are more than three subforms, 3if* assumes you want more than
+one 2else-form*; if the predicate returns 3nil*, they are evaluated
+sequentially and the result of the last one is returned.
+.end_defmac
+
+.defmac when condition body...
+If 2condition* evaluates to something non-3nil*, the 2body* is
+executed and its value(s) returned.  Otherwise, the value of the 3when*
+is 3nil* and the 2body* is not executed.
+.end_defmac
+
+.defmac unless condition body...
+If 2condition* evaluates to 3nil*, the 2body* is
+executed and its value(s) returned.  Otherwise, the value of the 3unless*
+is 3nil* and the 2body* is not executed.
+.end_defmac
+
+.defspec cond
+The 3cond* special form consists of the symbol 3cond* followed by
+several 2clauses*.  Each clause consists of a predicate form, called
+the 2condition*, followed by zero or more 2body* forms.
+
+.lisp
+(cond (2condition body body*...)
+      (2condition*)
+      (2condition body* ...)
+      ... )
+.end_lisp
+
+The idea is that each clause represents a case which
+is selected if its condition is satisfied and the conditions
+of all preceding clauses were not satisfied.  When a clause
+is selected, its body forms are evaluated.
+
+3cond* processes its clauses in order from left to right.  First,
+the condition of the current clause is evaluated.  If the result is
+3nil*, 3cond* advances to the next clause.  Otherwise, the cdr of
+the clause is treated as a list of body forms which are
+evaluated in order from left to right.  After evaluating the
+body forms, 3cond* returns without inspecting any remaining
+clauses.  The value of the 3cond* form is the value of the
+last body form evaluated, or the value of the condition if there
+were no body forms in the clause.  If 3cond* runs out of clauses,
+that is, if every condition evaluates to 3nil*, and thus no case is
+selected, the value of the 3cond* is 3nil*. 
+.lisp
+.exdent 96 Example:
+(cond ((zerop x)    ;1First clause:*
+       (+ y 3))     ; (zerop x)1 is the condition.*
+                    ; (+ y 3)1 is the body.*
+      ((null y)     ;1A clause with 2 body forms:*
+       (setq y 4)   ;1 this*
+       (cons x z))  ;1 and this.*
+      (z)           ;1A clause with no body forms: the condition is *
+                    ;1 just 3z*.  If 3z* is non-3nil*, it is returned.*
+      (t            ;1A condition of *t
+       105)         ;1 is always satisfied.*
+   )                ;1This is the end of the cond.*
+.end_lisp
+.end_defspec
+
+.defmac cond-every
+3cond-every* has the same syntax as 3cond*, but executes every clause whose
+condition is satisfied, not just the first.  If a condition is the symbol
+3otherwise*, it is satisfied if and only if no preceding condition is
+satisfied.  The value returned
+is the value of the last body form in the last clause whose condition
+is satisfied.  Multiple values are not returned.
+.end_defmac
+
+
+.defspec and form...
+3and* evaluates the 2form*s one at a time,
+from left to right.  If any 2form* evaluates to 3nil*, 3and*
+immediately returns 3nil* without evaluating the remaining
+2forms*.  If all the 2forms* evaluate to non-3nil* values, 3and* returns
+the value of the last 2form*.
+
+3and* can be used in two different ways.  You can use it as a logical
+3and* function, because it returns a true value only if all of its
+arguments are true:
+.lisp
+(if (and socrates-is-a-person
+         all-people-are-mortal)
+    (setq socrates-is-mortal t))
+.end_lisp
+
+Because the order of evaluation is well-defined, you can do
+.lisp
+(if (and (boundp 'x)
+         (eq x 'foo))
+    (setq y 'bar))
+.end_lisp
+knowing that the 3x* in the 3eq* form will not be evaluated if 3x*
+is found to be void.
+
+You can also use 3and* as a simple conditional form:
+.lisp
+(and (setq temp (assq x y))
+     (rplacd temp z))
+.end_lisp
+.lisp
+(and bright-day
+     glorious-day
+     (princ "It is a bright and glorious day."))
+.end_lisp
+but 3when* is usually preferable.
+
+Note: 3(and) => t*, which is the identity for the 3and* operation.
+.end_defspec
+
+.defspec or form...
+3or* evaluates the 2form*s one by one from left to right.
+If a 2form* evaluates to 3nil*, 3or* proceeds to evaluate the
+next 2form*.  If there are no more 2form*s, 3or* returns 3nil*.
+But if a 2form* evaluates to a non-3nil* value, 3or* immediately returns
+that value without evaluating any remaining 2form*s.
+
+As with 3and*, 3or* can be used either as a logical 3or* function,
+or as a conditional:
+
+.lisp
+(or it-is-fish it-is-fowl)
+
+(or it-is-fish it-is-fowl
+    (print "It is neither fish nor fowl.")
+.end_lisp
+
+but it is often possible and cleaner to use 3unless* in the latter case.
+.cindex fish
+
+Note:  3(or) => nil*, the identity for this operation.
+.end_defspec
+
+.defmac selectq
+.defmac1 case
+.defmac1 caseq
+3selectq* is a conditional which chooses one of its clauses to execute
+by comparing the value of a form against various constants using 3eql*.
+Its form is as follows:
+.lisp
+(selectq 2key-form*
+  (2test body*...)
+  (2test body*...)
+  (2test body*...)
+  ...)
+.end_lisp
+The first thing 3selectq* does is to evaluate 2key-form*; call the resulting
+value 2key*.  Then 3selectq* considers
+each of the clauses in turn.  If 2key* matches the clause's
+2test*, the body of the clause
+is evaluated, and 3selectq* returns the value of the last
+body form.  If there are no matches, 3selectq* returns 3nil*.
+
+A 2test* may be any of:
+.table 1 500 1500 0 80 1
+.item 1) A symbol
+If the 2key* is 3eql* to the symbol, it matches.
+.item 2) A number
+If the 2key* is 3eql* to the number, it matches.
+2key* must have the same type and the same value
+as the number.
+.item 3) A list
+If the 2key* is 3eql* to one of the elements of the list,
+then it matches.  The elements of the list should be symbols
+or numbers.
+.item 4) 3t* or 3otherwise*
+The symbols 3t* and 3otherwise* are special tests which match anything.  
+Either symbol may be used, it makes no difference;
+3t* is mainly for compatibility with Maclisp's 3caseq* construct.
+To be useful, this should be the last clause in the 3selectq*.
+.end_table
+
+.lisp
+.exdent 96 Example:
+(selectq x
+  (foo (do-this))
+  (bar (do-that))
+  ((baz quux mum) (do-the-other-thing))
+  (otherwise (ferror nil "Never heard of ~S" x)))
+.end_lisp
+is equivalent to
+.lisp
+(cond ((eq x 'foo) (do-this))
+      ((eq x 'bar) (do-that))
+      ((memq x '(baz quux mum)) (do-the-other-thing))
+      (t (ferror nil "Never heard of ~S" x)))
+.end_lisp
+
+Note that the 2tests* are 2not* evaluated; if you want them to
+be evaluated use 3select* rather than 3selectq*.
+
+3case* is the Common Lisp name for this construct.
+3caseq* is the Maclisp name; it identical
+to 3selectq*, which is not totally compatible with Maclisp,
+because 3selectq* accepts 3otherwise* as well as 3t*
+where 3caseq* would not accept 3otherwise*, and because Maclisp
+does some error-checking that 3selectq* does not.  Maclisp programs
+that use 3caseq* work correctly so long as they don't use the
+symbol 3otherwise* as a key.
+.end_defmac
+
+.defmac ecase key-form clauses...
+Like 3case* except that an uncorrectable error is signaled if
+every clause fails.  3t* or 3otherwise* clauses are not allowed.
+.end_defmac
+
+.defmac ccase place clauses...
+Like 3ecase* except that the error is correctable.  The first argument
+is called 2place* because it must be 3setf*'able.
+If the user proceeds from the error, a new value is read and stored into
+2place*; then the clauses are tested again using the new value.
+Errors repeat until a value is specified which makes some clause succeed.
+.end_defmac
+
+.nopara
+Also see 3defselect* ((defselect-fun)), a special form for defining a function
+whose body is like a 3selectq*.
+
+.defmac select
+3select* is like 3selectq*, except that the elements of the
+2tests* are evaluated before they are used.
+
+This creates a syntactic ambiguity: if 3(bar baz)* is seen the
+first element of a clause, is it a list of two forms, or is it one
+form?  3select* interprets it as a list of two forms.  If you
+want to have a clause whose test is a single form, and that form
+is a list, you have to write it as a list of one form.
+.lisp
+.exdent 96 Example:
+(select (frob x)
+   (foo 1)
+   ((bar baz) 2)
+   (((current-frob)) 4)
+   (otherwise 3))
+.end_lisp
+is equivalent to
+.lisp
+(let ((var (frob x)))
+  (cond ((eq var foo) 1)
+	((or (eq var bar) (eq var baz)) 2)
+	((eq var (current-frob)) 4)
+	(t 3)))
+.end_lisp
+.end_defmac
+
+.defmac selector
+3selector* is like 3select*, except that you get to specify the function
+used for the comparison instead of 3eq*.  For example,
+.lisp
+(selector (frob x) equal
+   (('(one . two)) (frob-one x))
+   (('(three . four)) (frob-three x))
+   (otherwise (frob-any x)))
+.end_lisp
+is equivalent to
+.lisp
+(let ((var (frob x)))
+  (cond ((equal var '(one . two)) (frob-one x))
+	((equal var '(three . four)) (frob-three x))
+	(t (frob-any x))))
+.end_lisp
+.end_defmac
+
+.defmac select-match
+3select-match* is like 3select* but each clause can specify a pattern
+to match the key against.  The general form of use looks like
+.lisp
+(select-match 2key-form*
+  (2pattern* 2condition* 2body*...)
+  (2pattern* 2condition* 2body*...)
+  ...
+  (otherwise 2body*...))
+.end_lisp
+The value of 2key-form* is matched against the 2patterns* one at a
+time until a match succeeds and the accompanying 2condition* evaluates
+to something non-3nil*.  At this point the 2body* of that clause is
+executed and its value(s) returned.  If all the patterns/conditions
+fail, the 2body* of the 3otherwise* clause (if any) is executed.  A
+pattern can test the shape of the key object, and set variables
+which the 2condition* form can refer to.  All the variables set by the
+patterns are bound locally to the 3select-match* form.
+
+The patterns are matched using 3list-match-p* ((list-match-p-fun)).
+
+.lisp
+.exdent 96 Example:
+(select-match '(a b c) 
+  (`(,x b ,x) t (vector x))
+  (`((,x ,y) b . ,ignore) t (list x y))
+  (`(,x b ,y) (symbolp x) (cons x y))
+  (otherwise 'lose-big))
+.end_lisp
+returns 3(a . c)*, having checked 3(symbolp 'a)*.  The first clause
+matches only if the there are three elements, the first and third
+elements are 3equal* and the second element is 3b*.  The second
+matches only if the first element is a list of length two and the second
+element is 3b*.  The third clause accepts any list of length three
+whose second element is 3b*.  The fourth clause accepts anything that did
+not match the previous clauses.
+
+3select-match* generates highly optimized code using special
+instructions.
+.end_defmac
+
+.defmac dispatch
+3(dispatch 2byte-specifier* 2number* 2clauses...*)* is the same
+as 3select* (not 3selectq*), but the key is obtained by evaluating
+3(ldb 2byte-specifier number*)*.
+2byte-specifier* and 2number* are both evaluated.  Byte specifiers
+and 3ldb* are explained on (ldb-fun).
+.lisp
+.exdent 96 Example:
+(princ (dispatch (byte 2 13) cat-type
+	   (0 "Siamese.")
+	   (1 "Persian.")
+	   (2 "Alley.")
+	   (3 (ferror nil
+		      "~S is not a known cat type."
+		      cat-type))))
+.end_lisp
+.c This example borrowed from DuMouchel.CatData
+.cindex kitty
+
+It is not necessary to include all possible values of the byte which
+is dispatched on.
+.end_defmac
+
+.defmac selectq-every
+3selectq-every* has the same syntax as 3selectq*, but, like
+3cond-every*, executes every selected clause instead of just the first
+one.  If an 3otherwise* clause is present, it is selected if and only
+if no preceding clause is selected.  The value returned is the value of
+the last form in the last selected clause.  Multiple values are not
+returned.  Example:
+.lisp
+(selectq-every animal
+  ((cat dog) (setq legs 4))
+  ((bird man) (setq legs 2))
+  ((cat bird) (put-in-oven animal))
+  ((cat dog man) (beware-of animal)))
+.end_lisp
+.end_defmac
+
+.subsection Comparison Predicates
+
+.defun eq x y
+3(eq 2x y*) => t* if and only if 2x* and 2y* are the same object.
+It should be noted that things that print the same are not necessarily 3eq* to each other.
+In particular, numbers with the same value
+need not be 3eq*, and two similar lists are usually not 3eq*.
+'cindex "eq versus equal"
+.lisp
+.exdent 96 Examples:
+(eq 'a 'b) => nil
+(eq 'a 'a) => t
+(eq (cons 'a 'b) (cons 'a 'b)) => nil
+(setq x (cons 'a 'b)) (eq x x) => t
+.end_lisp
+
+Note that in Zetalisp equal fixnums are 3eq*; this is not true in Maclisp.
+Equality does not imply 3eq*-ness for other types of numbers.  To compare numbers,
+use 3=*; see (=-fun).
+.end_defun
+
+.defun neq x y
+3(neq 2x y*)* = 3(not (eq 2x y*))*.  This is provided
+simply as an abbreviation for typing convenience.
+.end_defun
+
+.defun eql x y
+3eql* is the same as 3eq* except that if 2x* and 2y* are numbers
+of the same type they are 3eql* if they are 3=*.
+.end_defun
+
+.defun equal x y
+The 3equal* predicate returns 3t* if its arguments are similar
+(isomorphic) objects.
+'cindex "eq versus equal"
+'cindex "equal versus ="
+Two numbers are 3equal* if they have the same value and type (for
+example, a float is never 3equal* to a fixnum, even if 3=* is true of them).
+For conses, 3equal* is defined
+recursively as the two cars being 3equal* and the two cdrs
+being equal.  Two strings are 3equal* if they have the same length,
+and the characters composing them are the same; see 3string=*,
+(string=-fun).  Alphabetic case is significant.  All other objects
+are 3equal* if and only if they are 3eq*.  Thus 3equal* could have
+been defined by:
+.lisp
+(defun equal (x y)
+  (cond ((eq x y) t)
+	((and (numberp x) (numberp y))
+	 (= x y))
+	((and (stringp x) (stringp y))
+	 (string-equal x y))
+	((and (consp x) (consp y))
+	 (and (equal (car x) (car y))
+	      (equal (cdr x) (cdr y))))))
+.end_lisp
+
+As a consequence of the above definition, it can be seen that
+3equal* may compute forever when applied to looped list structure. 
+In addition, 3eq* always implies 3equal*; that is, if 3(eq a b)*
+then 3(equal a b)*.  An intuitive definition of 3equal* (which is
+not quite correct) is that two objects are 3equal* if they look the
+same when printed out.  For example:
+.lisp
+(setq a '(1 2 3))
+(setq b '(1 2 3))
+(eq a b) => nil
+(equal a b) => t
+(equal "Foo" "foo") => nil
+.end_lisp
+.end_defun
+
+.defun equalp x y
+3equalp* is a broader kind of equality than 3equal*.  Two objects that
+are 3equal* are always 3equalp*.  In addition,
+numbers of different types are 3equalp* if they are 3=*.  Two character
+objects are 3equalp* if they are 3char-equal* (that is, they are compared
+ignoring font, case and meta bits).
+
+Two arrays of any sort are 3equalp* if they have the same dimensions
+and corresponding elements are 3equalp*.  In particular, this means
+that two strings are 3equalp* if they match ignoring case and font information.
+.lisp
+(equalp "Foo" "foo") => t
+(equalp '1 '1.0) => t
+(equalp '(1 "Foo") '(1.0 "foo")) => t
+.end_lisp
+
+Because 3equalp* is a Common Lisp function, it regards a string as having
+character objects as its elements:
+.lisp
+(equalp "Foo" #(#/F #/o #/o)) => t
+(equalp "Foo" #(#/F #/o #/o)) => nil
+.end_lisp
+.end_defun
+
+.defun not x
+.defun1 null x
+	3not* returns 3t* if 2x* is 3nil*, else 3nil*.
+3null* is the same as 3not*; both functions are included for the sake
+of clarity.  Use 3null* to check whether something is 3nil*; use 3not*
+to invert the sense of a logical value.  Some people prefer to distinguish
+between 3nil* as falsehood and 3nil* as the empty list by writing:
+.lisp
+(cond ((not (null lst)) ... )
+      ( ... ))
+1rather than*
+(cond (lst ... )
+      ( ... ))
+.end_lisp
+	There is no loss of efficiency, since these compile into exactly
+the same instructions.
+.end_defun
+
+
+.section "Iteration"
+'cindex "iteration"
+
+.defspec do
+The 3do* special form provides a simple generalized iteration facility,
+with an arbitrary number of ``index variables'' whose values are saved
+when the 3do* is entered and restored when it is left, i.e. they are
+bound by the 3do*.  The index variables are used in the iteration
+performed by 3do*.  At the beginning, they are initialized to
+specified values, and then at the end of each trip around the loop the
+values of the index variables are changed according to specified
+rules.  3do* allows the programmer to specify a predicate which
+determines when the iteration will terminate.  The value to be
+returned as the result of the form may, optionally, be specified. 
+
+3do* comes in two varieties, new-style and old-style.  The old-style
+3do* is obsolete and exists for Maclisp compatibility only.
+The more general, ``new-style'' 3do* looks like:
+.lisp
+(do ((2var init repeat*) ...)
+  (2end-test exit-form* ...)
+  2body*...)
+.end_lisp
+
+The first item in the form is a list of zero or more index variable
+specifiers.  Each index variable specifier is a list of the name of a
+variable 2var*, an initial value form 2init*, which defaults to 3nil*
+if it is omitted, and a repeat value form 2repeat*.  If 2repeat* is
+omitted, the 2var* is not changed between repetitions.  If 2init* is
+omitted, the 2var* is initialized to 3nil*.
+
+An index variable specifier can also be just the name of a variable,
+rather than a list.  In this case, the variable has an initial value of
+3nil*, and is not changed between repetitions.
+
+All assignment to the index variables is done in parallel.  At the
+beginning of the first iteration, all the 2init* forms are evaluated,
+then the 2vars* are bound to the values of the 2init* forms, their
+old values being saved in the usual way.  Note that the 2init* forms
+are evaluated 2before* the 2vars* are bound, i.e.  lexically
+2outside* of the 3do*.  At the beginning of each succeeding
+iteration those 2vars* that have 2repeat* forms get set to the
+values of their respective 2repeat* forms.  Note that all the
+2repeat* forms are evaluated before any of the 2vars* is set.
+
+The second element of the 3do*-form is a list of an end-testing
+predicate form 2end-test*, and zero or more forms, called the
+2exit-forms*.  This resembles a 3cond* clause.  At the beginning of
+each iteration, after processing of the variable specifiers, the
+2end-test* is evaluated.  If the result is 3nil*, execution proceeds
+with the body of the 3do*.  If the result is not 3nil*, the
+2exit-forms* are evaluated from left to right and then 3do* returns.
+The value of the 3do* is the value of the last 2exit-form*, or
+3nil* if there were no 2exit-forms* (2not* the value of the
+2end-test*, as you might expect by analogy with 3cond*).
+
+Note that the 2end-test* gets evaluated before the first time the body
+is evaluated.  3do* first initializes the variables from the 2init*
+forms, then it checks the 2end-test*, then it processes the body, then
+it deals with the 2repeat* forms, then it tests the 2end-test*
+again, and so on.  If the 3end-test* returns a non-3nil* value the
+first time, then the body is not executed.
+
+If the second element of the form is 3nil*, there is no 2end-test*
+nor 2exit-forms*, and the 2body* of the 3do* is executed only
+once.  In this type of 3do* it is an error to have 2repeats*.  This
+type of 3do* is no more powerful than 3let*; it is obsolete
+and provided only for Maclisp compatibility.
+
+If the second element of the form is 3(nil)*, the 2end-test* is
+never true and there are no 2exit-forms*.  The 2body* of the 3do*
+is executed over and over.  The resulting infinite loop can be terminated by use
+of 3return* or 3throw*.
+
+3do* implicitly creates a 3block* with name 3nil*, so 3return*
+can be used lexically within a 3do* to exit it immediately.  This
+unbinds the 3do* variables and the 3do* form returns whatever values
+were specified in the 3return* form.  See (block-and-return-section)
+for more information on these matters.  The 2body* of the 3do* is
+actually treated as a 3tagbody*, so that it may contain 3go* tags
+(see (go-to)), but this usage is discouraged as it is often unclear.
+.lisp
+.exdent 96 Examples of the new form of 3do*:
+(do ((i 0 (1+ i))	1; This is just the same as the above example,*
+     (n (array-length foo-array)))
+    ((= i n))		1; but written as a new-style 3do*.*
+  (aset 0 foo-array i))	1; Note how the 3setq* is avoided.*
+.end_lisp
+.lisp
+
+(do ((z list (cdr z)) 1; z starts as 3list* and is cdr'd each time.*
+     (y other-list)   1; y starts as 3other-list*, and is unchanged by the do.*
+     (x)	      1; x starts as 3nil* and is not changed by the 3do*.*
+     w) 	      1; w starts as 3nil* and is not changed by the 3do*.*
+    (nil)	      1; The end-test is 3nil*, so this is an infinite loop.*
+  2body*)    1; Presumably the 2body* uses 3return* somewhere.*
+.end_lisp
+
+The construction
+.lisp
+(do ((x e (cdr x))
+     (oldx x x))
+    ((null x))
+  2body*)
+.end_lisp
+exploits parallel assignment to index variables.  On the first
+iteration, the value of 3oldx* is whatever value 3x* had before
+the 3do* was entered.  On succeeding iterations, 3oldx* contains
+the value that 3x* had on the previous iteration. 
+
+The 2body* of a 3do* may contains no forms at all.  Very often an
+iterative algorithm can be most clearly expressed entirely in the
+2repeats* and 2exit-forms* of a new-style 3do*, and the 2body*
+is empty.  For example,
+.lisp
+(do ((x x (cdr x))
+     (y y (cdr y))
+     (z nil (cons (f x y) z))) ;1exploits parallel assignment.*
+    ((or (null x) (null y))
+     (nreverse z))             ;1typical use of 3nreverse*.*
+    )                          ;1no 3do*-body required.*
+1is like 3(maplist 'f x y)* (see (maplist-fun)).*
+.end_lisp
+
+The old-style 3do* exists only for Maclisp
+compatibility.  It looks like:
+.lisp
+(do 2var* 2init* 2repeat* 2end-test* 2body*...)
+.end_lisp
+The first time through the loop 2var* gets the value of the 2init* form; 
+the remaining times through the loop it gets the value of the 2repeat* form,
+which is re-evaluated each time.  Note that the 2init* form is evaluated
+before 2var* is bound, i.e. lexically 2outside* of the 3do*.
+Each time around the loop, after 2var* is set,
+2end-test* is evaluated.  If it is non-3nil*, the 3do* finishes
+and returns 3nil*.  If the 2end-test* evaluated to 3nil*, the 2body* of
+the loop is executed. As with the new-style do, 3return* and 3go*
+may be used in the body, and they have the same meaning.
+.end_defspec
+
+.nopara
+Also see 3loop* ((loop-fun)), a general iteration facility based on a keyword
+syntax rather than a list-structure syntax.
+
+.defspec do*
+In a word, 3do** is to 3do* as 3let** is to 3let*.
+
+3do** works like 3do* but binds and steps the variables sequentially
+instead of in parallel.  This means that the 2init* form for one
+variable can use the values of previous variables.  The 2repeat* forms
+refer to the new values of previous variables instead of their old
+values.  Here is an example:
+.lisp
+(do* ((x xlist (cdr x))
+      (y (car x) (car x)))
+  (print (list x y)))
+.end_lisp
+On each iteration, 2y*'s value is the car of 2x*.  The same
+construction with 3do* might get an error on entry since 2x*
+might not be bound yet.
+.end_defspec
+
+.defspec do-named
+3do-named* is like 3do* but defines a 3block* with a name
+explicitly specified by the programmer in addition to the 3block*
+named 3nil* which every 3do* defines.  This makes it possible to
+use 3return-from* to return from this 3do-named* even from within
+an inner 3do*.  An ordinary 3return* there would return from the
+inner 3do* instead.  3do-named* is obsolete now that 3block*,
+which is more general and more coherent, exists.  See
+(block-and-return-section) for more information on 3block* and
+3return-from*.
+
+The syntax of 3do-named* is like 3do* except that the symbol 3do-named* is
+immediately followed by the 3block* name, which should be a symbol.
+.lisp
+.exdent 96 Example:
+(do-named george ((a 1 (1+ a))
+		  (d 'foo))
+		 ((> a 4) 7)
+  (do ((c b (cdr c)))
+      ((null c))
+    ...
+    (return-from george (cons b d))
+    ...))
+.exdent 96 is equivalent to
+(block george
+  (do ((a 1 (1+ a))
+       (d 'foo))
+      ((> a 4) 7)
+    (do ((c b (cdr c)))
+	((null c))
+      ...
+      (return-from george (cons b d))
+      ...)))
+.end_lisp
+
+3t* as the name of a 3do-named* behaves somewhat peculiarly, and
+therefore should be avoided.
+.end_defspec
+
+.defspec do*-named
+This special form offers a combination of the features of 3do** and
+those of 3do-named*.  It is obsolete, as is 3do-named*,
+since it is cleaner to use 3block*.
+.end_defspec
+
+.defmac dotimes (index count [value-expression]) body...
+3dotimes* is a convenient abbreviation for the most common integer
+iteration.  3dotimes* performs 2body* the number of times given by
+the value of 2count*, with 2index* bound to 30*, 31*, etc. on
+successive iterations.  When the 2count* is exhausted, the value of
+2value-expression* is returned; or 3nil*, if 2value-expression*
+is missing.
+.lisp
+.exdent 96 Example:
+(dotimes (i (truncate m n))
+  (frob i))
+.end_lisp
+is equivalent to:
+.lisp
+(do ((i 0 (1+ i))
+     (count (truncate m n)))
+    (( i count))
+  (frob i))
+.end_lisp
+except that the name 3count* is not used.  Note that 3i* takes on
+values starting at zero rather than one, and that it stops before taking
+the value 3(truncate m n)* rather than after.  You can use 3return* and
+3go* and 3tagbody*-tags inside the body, as with 3do*.
+3dotimes* forms return the value of 2value-expression*, or 3nil*,
+unless returned from explicitly with 3return*.  For example:
+.lisp
+(dotimes (i 5)
+  (if (eq (aref a i) 'foo)
+      (return i)))
+.end_lisp
+This form searches the array that is the value of 3a*, looking for
+the symbol 3foo*.  It returns the fixnum index of the first element
+of 3a* that is 3foo*, or else 3nil* if none of the elements
+are 3foo*.
+.end_defmac
+
+.defmac dolist (item list [value-expression]) body...
+3dolist* is a convenient abbreviation for the most common list
+iteration.  3dolist* performs 2body* once for each element in the
+list which is the value of 2list*, with 2item* bound to the
+successive elements.  If the list is exhausted, the value of
+2value-expression* is returned; or 3nil*, if
+2value-expression* is missing.
+.lisp
+.exdent 96 Example:
+(dolist (item (frobs foo))
+  (mung item))
+.end_lisp
+is equivalent to:
+.lisp
+(do ((lst (frobs foo) (cdr lst))
+     (item))
+    ((null lst))
+  (setq item (car lst))
+  (mung item))
+.end_lisp
+except that the name 3lst* is not used.
+You can use 3return* and 3go* and 3tagbody*-tags inside the body, as with 3do*.
+.end_defmac
+
+.defmac do-forever body...
+Executes the forms in the body over and over, or until a non-local exit
+(such as 3return*).
+.end_defmac
+
+.section Static Non-Local Exits
+.setq block-and-return-section section-page
+.cindex static non-local exit
+.cindex non-local exit
+
+The static non-local exit allows code deep within a construct to jump
+to the end of that construct instantly, not executing anything except
+3unwind-protect*'s on the way.  The construct which defines a static level
+that can be exited non-locally is called 3block* and the construct which
+exits it is called 3return-from*.  The 3block* being exited must be lexically
+visible from the 3return-from* which says to exit it; this is what `static' means.  By contrast, 3catch* and 3throw* provide for dynamic non-local
+exits; refer to the following section.
+Here is an example of using a static non-local exit:
+
+.lisp
+(block top
+  (let ((v1 (do-1)))
+    (when (all-done v1) (return-from top v1))
+    (do-2))
+  (do-3)
+  ...
+  (do-last))
+.end_lisp
+
+.nopara
+If 3(all-done v1)* returns non-3nil*, the entire 3block*
+immediately returns the value of 3v1*.  Otherwise, the rest of the
+body of the block is executed sequentially, and ultimately the value or
+values of 3(do-last)* are returned.
+
+Note that the 3return-from* form is very unusual: it does not ever
+return a value itself, in the conventional sense.  It isn't useful to
+write 3(setq a (return-from foo 3))*, because when the
+3return-from* form is evaluated, the containing 3block* is
+immediately exited, and the 3setq* never happens.
+
+The fact that 3block*'s and 3return-from*'s are matched up lexically
+means you cannot do this:
+
+.lisp
+(defun foo (a)
+  (block foo1
+    (bar a)))
+
+(defun bar (x)
+  (return-from foo1 x))
+.end_lisp
+
+.nopara
+The 3(return-from foo1 x)* gets an error because there is no lexically
+visible 3block* named 3foo1*.  The suitable 3block* in the caller, 3foo*,
+is not even noticed.
+
+Static handling allows the compiler to produce good code for 3return-from*.
+It is also useful with functional arguments:
+
+.lisp
+(defun first-symbol (list)
+  (block done
+    (mapc #'(lambda (elt)
+	      (if (symbolp elt) (return-from done elt)))
+	  list)))
+.end_lisp
+
+.nopara
+The 3return-from done* sees the 3block done* lexically.
+Even if 3mapc* had a 3block* in it named 3done* it would
+have no effect on the execution of 3first-symbol*.
+
+When a function is defined with 3defun* with a name which is a symbol,
+a 3block* whose name is the function name is automatically placed around
+the body of the function definition.  For example,
+.lisp
+(defun foo (a)
+  (if (evenp a) 
+      (return-from foo (list a)))
+  (1+ a))
+
+(foo 4) => (4)
+(foo 5) => 6
+.end_lisp
+
+A function written explicitly with 3lambda* does not have a 3block*
+unless you write one yourself.
+
+A named 3prog*, or a 3do-named*, implicitly defines a 3block* with
+the specified name.  So you can exit those constructs with 3return-from*.
+In fact, the ability to name 3prog*'s was the original way to define
+a place for 3return-from* to exit, before 3block* was invented.
+
+Every 3prog*, 3do* or 3loop*, whether named or not, implicitly
+defines a 3block* named 3nil*.  Thus, named 3prog*'s define 2two*
+3block*'s, one named 3nil* and one named whatever name you specify.
+As a result, you can use 3return* (an abbreviation for 3return-from nil*)
+to return from the innermost lexically containing 3prog*, 3do* or
+3loop* (or from a 3block nil* if you happen to write one).
+This function is like 3assq*, but it returns an additional value
+which is the index in the table of the entry it found.  For example,
+.lisp
+(defun assqn (x table)
+  (do ((l table (cdr l))
+       (n 0 (1+ n)))
+      ((null l) nil)
+    (if (eq (caar l) x)
+	(return (values (car l) n)))))
+.end_lisp
+
+There is one exception to this: a 3prog*, 3do* or 3loop* with
+name 3t* defines only the block named 3t*, no block named 3nil*.
+The compiler used to make use of this feature in expanding certain built-in
+constructs into others.
+
+.defspec block name body...
+Executes 2body*, returning the values of the last form in 2body*,
+but permitting non-local exit using 3return-from* forms present
+lexically within 2body*.  2name* is not evaluated, and is used
+to match up 3return-from* forms with their 3block*'ss.
+.lisp
+(block foo
+  (return-from foo 24) t) => 24
+(block foo t) => t
+.end_lisp
+.end_defspec
+
+.defspec return-from name values
+Performs a non-local exit from the innermost lexically containing
+3block* whose name is 2name*.  2name* is not evaluated.
+When the compiler is used, 3return-from*'s are matched up with
+3block*'s at compile time.
+
+2values* is evaluated and its values
+become the values of the exited 3block* form.
+
+A 3return-from* form may appear as or inside an argument to a regular
+function, but if the 3return-from* is executed then the function will never
+actually be called.  For example,
+.lisp
+(block done
+  (foo (if a (return-from done t) nil)))
+.end_lisp
+3foo* is actually called only if 3a*'s value is 3nil*.
+This style of coding is not recommended when 3foo* is actually a function.
+
+3return-from* can also be used with zero value forms, or with several
+value forms.  Then 2one* value is returned from each value form.
+Originally 3return-from* always returned only one value from each
+value form, even when there was only one value form.  Passing
+back all the values when there is a single 2values* form is a later
+change, which is also the Common Lisp standard.  In fact, the single
+value form case is much more powerful and subsumes all the others.
+For example,
+.lisp
+(return-from foo 1 2)
+.exdent 96 is equivalent to
+(return-from foo (values 1 2))
+.exdent 96 and
+(return-from foo)
+.exdent 96 is equivalent to
+(return-from foo (values))
+.end_lisp
+It is unfortunate that the case of one value form is treated differently
+from all other cases, but the power of being able to propagate any
+number of values from a single form is worth it.
+
+To return precisely one value, use 3(return-from foo (values 2form*))*.
+It is legal to write simply 3(return-from foo)*, which returns no
+values from the 3block*.
+See (multiple-value) for more information.
+.end_defspec
+
+.defspec return values
+Is equivalent to 3(return-from nil 2values*)*.
+It returns from a 3block* whose name is 3nil*.
+
+In addition, 3break* (see (break-fun)) recognizes the typed-in form
+3(return 2value*)* specially.  3break* evaluates 2value*
+and returns it. 
+.end_defspec
+
+.defspec return-list list
+This function is like 3return* except that each element of 2list*
+is returned as a separate value from the 3block* that is exited.
+
+3return-list* is obsolete, since 3(return (values-list 2list*))*
+does the same thing.
+.end_defspec
+
+.section Tags and Gotos
+.setq go-to section-page
+.cindex prog tag
+.cindex tag
+.cindex go to
+
+Jumping to a label or 2tag* is another kind of static non-local exit.  Compared with
+3return-from*, it allows more flexibility in choosing where to send
+control to, but does not allow values to be sent along.  This is because
+the tag does not have any way of saying what to 2do* with any
+values.
+
+.cindex statement
+To define a tag, the 3tagbody* special form is used.
+In the body of a 3tagbody*, all lists are treated as forms to be
+evaluated (called 2statements* when they occur in this context).
+If no goto happens, all the forms are evaluated in sequence
+and then the 3tagbody* form returns 3nil*.  Thus, the statements
+are evaluated only for effect.
+
+An element of the 3tagbody*'s body which is a symbol is not a statement
+but a tag instead.  It identifies a place in the sequence of statements
+which you can go to.  Going to a tag is accomplished by the form
+3(go 2tag*)*, executed at any point lexically within the 3tagbody*.
+
+3go* transfers control immediately to the first statement following
+2tag* in its 3tagbody*, pausing only to deal with any
+3unwind-protect*s that are being exited as a result.  If there are
+no more statements after 2tag* in its 3tagbody*, then that 3tagbody*
+returns 3nil* immediately.
+
+All lexically containing 3tagbody*'s are eligible to contain the
+specified tag, with the innermost 3tagbody* taking priority.  If no
+suitable tag is found, an error is signaled.  The compiler matches
+3go*'s with tags at compile time and issues a compiler warning if no
+tag is found.  Example:
+.lisp
+(block nil
+  (tagbody
+    (setq x 2some frob*)
+  loop
+    2do something*
+    (if 2some predicate* (go endtag))
+    2do something more*
+    (if (minusp x) (go loop))
+  endtag
+    (return z)))
+.end_lisp
+is a kind of iteration made out of go-to's.  This
+3tagbody* can never exit normally because the 3return* in the last
+statement takes control away from it.  This use of a 3return* and 3block*
+is how one encapsulates a 3tagbody* to produce a non-3nil* value.
+
+It works to 3go* from an internal 3lambda* function to a tag
+in a lexically containing function, as in
+
+.lisp
+(defun foo (a)
+  (tagbody
+   t1
+    (bar #'(lambda () (go t1)))))
+.end_lisp
+
+.nopara
+If 3bar* ever invokes its argument, control goes to 3t1* and
+3bar* is invoked anew.  Not very useful, but it illustrates the technique.
+
+.defspec tagbody statements-and-tags...
+Executes all the elements of 2statements-and-tags* which are lists (the statements),
+and then returns 3nil*.  But meanwhile, all elements of 2statements-and-tags*
+which are symbols (the tags) are available for use with 3go* in any of the
+statements.  Atoms other than symbols are meaningless in a 3tagbody*.
+
+The reason that 3tagbody* returns 3nil* rather than the value of the last
+statement is that the designers of Common Lisp decided that one could not
+reliably return a value from the 3tagbody* by writing it as the last statement
+since some of the time the expression for the desired value would be a symbol
+rather than a list, and then it would be taken as a tag rather than the last statement
+and it would not work.
+.end_defspec
+
+.defspec go tag
+The 3go* special form is used to ``go-to'' a tag defined
+in a lexically containing 3tagbody* form (or other form which
+implicitly expands into a 3tagbody*, such as 3prog*, 3do* or 3loop*).
+2tag* must be a symbol.  It is not evaluated.
+.end_defspec
+
+.defspec prog
+3prog* is an archaic special form which provides temporary variables,
+static non-local exits, and tags for 3go*.  These aspects of 3prog*
+were individually abstracted out to inspire 3let*, 3block* and
+3tagbody*.  Now 3prog* is obsolete, as it is much cleaner to use
+3let*, 3block*, 3tagbody* or all three of them, or 3do* or
+3loop*.  But 3prog* appears in so many programs that it cannot be
+eliminated.
+
+A typical 3prog* looks like 3(prog (2variables*...) 2body*...)*,
+which is equivalent to
+.lisp
+(block nil
+  (let (2variables*...)
+    (tagbody 2body*...)))
+.end_lisp
+
+If the first subform of a 3prog* is a non-3nil* symbol (rather than
+a list of variables), it is the name of the 3prog*, and 3return-from*
+(see (return-from-fun)) can be used to return from it.  A 2named prog*
+looks like
+.lisp
+(prog 2name* (2variables*...) 2body*...)
+.exdent 96 and is equivalent to
+(block 2name*
+  (block nil
+    (let (2variables*...)
+      (tagbody 2body*...))))
+.end_lisp
+.end_defspec
+
+.defspec prog*
+The 3prog** special form is almost the same as 3prog*.  The only
+difference is that the binding and initialization of the temporary
+variables is done 2sequentially*, so each one can depend on the
+previous ones.  Thus, the equivalent code would use 3let** rather
+than 3let*.
+.end_defspec
+
+.section Dynamic Non-Local Exits
+.cindex dynamic non-local exit
+'cindex "non-local exit"
+'cindex catch
+'cindex throw
+.cindex tag
+
+.defspec catch tag body...
+3catch* is a special form used with the 3throw* function to do
+non-local exits.  First 2tag* is evaluated; the result is called the 2tag*
+of the 3catch*.  Then the 2body* forms are evaluated sequentially,
+and the values of the last form are returned.  However, if,
+during the evaluation of the body, the
+function 3throw* is called with the same tag as the tag of the
+3catch*, then the evaluation of the body is aborted, and the
+3catch* form immediately returns the values of the second
+argument to 3throw* without further evaluating the current 2body* form or
+the rest of the body.
+
+The 2tag*'s are used to match up 3throw*'s with 3catch*'s. 
+3(catch 'foo 2form*)* catches a 3(throw 'foo 2form*)* but
+not a 3(throw 'bar 2form*)*.  It is an error if 3throw* is done
+when there is no suitable 3catch* (or 3catch-all*; see below).
+
+Any Lisp object may be used as a 3catch* tag.
+The values 3t* and 3nil* for 2tag* are special: a 3catch* whose
+tag is one of these values catches throws regardless of tag.  These are only
+for internal use by 3unwind-protect* and 3catch-all* respectively.
+The only difference between 3t* and 3nil* is in the error checking;
+3t* implies that after a ``cleanup handler'' is executed control will be
+thrown again to the same tag, therefore it is an error if a specific
+catch for this tag does not exist higher up in the stack.  With 3nil*,
+the error check isn't done.  Example:
+.lisp
+(catch 'negative
+   (values
+     (mapcar #'(lambda (x) 
+		 (cond ((minusp x)
+			(throw 'negative 
+			  (values x :negative)))
+		       (t (f x)) )))
+	     y)
+     :positive))
+.end_lisp
+returns a list of 3f* of each element of 3y*, and 3:positive*, if they are all
+positive, otherwise the first negative member of 3y*, and 3:negative*.
+.end_defun
+
+.defmac catch-continuation tag throw-cont non-throw-cont body...
+.defmac1 catch-continuation-if cond-form tag throw-cont non-throw-cont body...
+The 3catch-continuation* special form makes it convenient to
+discriminate whether exit is normal or due to a throw.
+
+The 2body* is executed inside a 3catch* on 2tag* (which is
+evaluated).  If 2body* returns normally, the function
+2non-throw-cont* is called, passing all the values returned by the
+last form in 2body* as arguments.  This function's values are returned
+from the 3catch-continuation*.
+
+If on the other hand a throw to 2tag* occurs, the values thrown
+are passed to the function 2throw-cont*, and its values are
+returned.
+
+If a continuation is explicitly written as 3nil*, it is
+not called at all.  The arguments that would have been passed to it are
+returned instead.  This is equivalent to using 3values* as the
+function; but explicit 3nil* is optimized, so use that.
+
+3catch-continuation-if* differs only in that the catch is not done if
+the value of the 2cond-form* is 3nil*.  In this case, the non-throw
+continuation if any is always called.
+
+In the general case, consing is necessary to record the multiple values,
+but if a continuation is an explicit 3#'(lambda ...)* with a
+fixed number of arguments, or if a continuation is 3nil*, it is open
+coded and the consing is avoided.
+.end_defspec
+
+.defspec throw tag values-form
+3throw* is the primitive for exiting from a surrounding 3catch*.
+2tag* is evaluated, and the result is matched (with 3eq*) against
+the tags of all active 3catch*'es; the innermost matching one is exited.
+If no matching 3catch* is dynamically active, an error is signaled.
+
+All the values of 2values-form* are returned from the exited 3catch*.
+
+3catch*'es with tag 3nil* always match any 3throw*.  They are
+really 3catch-all*'s.  So do 3catch*'es with tag 3t*, which are
+3unwind-protect*'s, but if the only matching 3catch*'es are these
+then an error is signaled anyway.  This is because an 3unwind-protect*
+always throws again after its cleanup forms are finished; if there
+is nothing to catch after the last 3unwind-protect*, an error will
+happen then, and it is better to detect the error sooner.
+
+The values 3t*, 3nil*, and 30* for 2tag* are reserved and used
+for internal purposes.  3nil* may not be used, because it would cause
+confusion in handling of 3unwind-protect*'s.  3t* may only be
+used with 3*unwind-stack*.  30* and 3nil* are used internally when
+returning out of an 3unwind-protect*.
+.end_defspec
+
+.defmac *catch form tag
+.defmac1 *throw form tag
+Old, obsolete names for 3catch* and 3throw*.
+.end_defmac
+
+.defcondition sys:throw-tag-not-seen (3error*)
+This is signaled when 3throw* (or 3*unwind-stack*) is used and
+there is no 3catch* for the specified tag.  The condition instance
+supports these extra operations:
+.table 3
+.item :tag
+The tag being thrown to.
+.item :value
+The value being thrown (the second argument to 3throw*).
+.item :count
+.item1 :action
+The additional two arguments given to 3*unwind-stack*, if that was used.
+.end_table
+
+The error occurs in the environment of the 3throw*; no unwinding has yet taken place.
+
+The proceed type 3:new-tag* expects one argument, a tag to throw to instead.
+.end_defcondition
+
+'cindex unwinding a stack
+.defun *unwind-stack tag value active-frame-count action
+This is a generalization of 3throw* provided for program-manipulating
+programs such as the debugger.
+
+2tag* and 2value* are the same as the corresponding arguments to
+3throw*.
+
+A 2tag* of 3t* invokes a special feature whereby the entire stack is
+unwound, and then the function 2action* is called (see below).  During
+this process 3unwind-protect*'s receive control, but 3catch-all*'s do
+not.  This feature is provided for the benefit of system programs which
+want to unwind a stack completely.
+
+2active-frame-count*, if non-3nil*, is the number of frames
+to be unwound.  The definition of a frame is implementation-dependent.
+If this counts down to zero before a suitable 3catch*
+is found, the 3*unwind-stack* terminates and
+2that frame* returns 2value* to whoever called it.
+This is similar to Maclisp's 3freturn* function.
+'findex "freturn"
+
+If 2action* is non-3nil*, whenever the 3*unwind-stack* would be
+ready to terminate (either due to 2active-frame-count* or due to
+2tag* being caught as in 3throw*), instead 2action* is called
+with one argument, 2value*.  If 2tag* is 3t*, meaning throw out
+the whole way, then the function 2action* is not allowed to return.
+Otherwise the function 2action* may return and its value will be
+returned instead of 2value* from the 3catch*--or from an arbitrary
+function if 2active-frame-count* is in use.  In this case the
+3catch* does not return multiple values as it normally does when
+thrown to.  Note that it is often useful for 2action* to be a
+stack-group.
+
+Note that if both 2active-frame-count* and 2action* are 3nil*,
+3*unwind-stack* is identical to 3throw*.
+.end_defun
+
+'cindex unwind protection
+'cindex cleanup handler
+.defspec unwind-protect protected-form cleanup-form...
+Sometimes it is necessary to evaluate a form and make sure that
+certain side-effects take place after the form is evaluated;
+a typical example is:
+.lisp
+(progn
+   (turn-on-water-faucet)
+   (hairy-function 3 nil 'foo)
+   (turn-off-water-faucet))
+.end_lisp
+
+The non-local exit facilities of Lisp create situations in which the
+above code won't work, however: if 3hairy-function* should use
+3throw*, 3return* or 3go* to transfer control outside of the
+3progn* form, then 3(turn-off-water-faucet)* will never be evaluated
+(and the faucet will presumably be left running).  This is particularly
+likely if 3hairy-function* gets an error and the user tells the
+debugger to give up and flush the computation.
+
+In order to allow the above program to work, it can
+be rewritten using 3unwind-protect* as follows:
+.lisp
+(unwind-protect
+    (progn (turn-on-water-faucet)
+	   (hairy-function 3 nil 'foo))
+  (turn-off-water-faucet))
+.end_lisp
+If 3hairy-function* transfers control out of the
+evaluation of the 3unwind-protect*, the
+3(turn-off-water-faucet)* form is evaluated during the
+transfer of control, before control arrives at the
+3catch*, 3block* or 3go* tag to which it is being transferred.
+
+If the 3progn* returns normally, then the 3(turn-off-water-faucet)*
+is evaluated, and the 3unwind-protect* returns the result of the 3progn*.
+
+
+The general form of 3unwind-protect* looks like
+.lisp
+(unwind-protect
+    2protected-form*
+  2cleanup-form1*
+  2cleanup-form2*
+  ...)
+.end_lisp
+2protected-form* is evaluated, and when it returns or when it attempts
+to transfer control out of the 3unwind-protect*, the 2cleanup-forms*
+are evaluated.  The value of the 3unwind-protect* is the value of
+2protected-form*.  Multiple values returned by the 2protected-form*
+are propagated back through the 3unwind-protect*.
+
+The cleanup forms are run in the variable-binding environment that you
+would expect: that is, variables bound outside the scope of the
+3unwind-protect* special form can be accessed, but variables bound
+inside the 2protected-form* can't be.  In other words, the stack is
+unwound to the point just outside the 2protected-form*, then the
+cleanup handler is run, and then the stack is unwound some more.
+.end_defspec
+
+.defmac catch-all body...
+3(catch-all 2form*)* is like 3(catch 2some-tag form*)*
+except that it catches a
+3throw* to any tag at all.  Since the tag thrown to
+is one of the returned values, the caller of 3catch-all* may continue 
+throwing to that tag if he wants.  The one thing that 3catch-all*
+does not catch is a 3*unwind-stack* with a tag of 3t*.
+3catch-all* is a macro which expands into 3catch* with a 2tag* of 3nil*.
+
+3catch-all* returns all the values thrown to it, or returned by the
+body, plus three additional values: the tag thrown to, the
+active-frame-count, and the action.  The tag value is 3nil* if the
+body returned normally.  The last two values are the third and fourth
+arguments to 3*unwind-stack* (see (*unwind-stack-fun)) if that was
+used, or 3nil* if an ordinary 3throw* was done or if the body
+returned normally.
+
+If you think you want this, most likely you are mistaken and you really
+want 3unwind-protect*.
+.end_defmac
+
+.section "Mapping"
+'cindex "mapping"
+
+.defun map fcn &rest lists
+.defun1 mapl fcn &rest lists
+.defun1 mapc fcn &rest lists
+.defun1 maplist fcn &rest lists
+.defun1 mapcar fcn &rest lists
+.defun1 mapcon fcn &rest lists
+.defun1 mapcan fcn &rest lists
+
+Mapping is a type of iteration in which a function is successively
+applied to pieces of a list.  There are several options for the way in
+which the pieces of the list are chosen and for what is done with the
+results returned by the applications of the function.
+
+For example, 3mapcar* operates on successive 2elements* of the list. 
+As it goes down the list, it calls the function giving it an element
+of the list as its one argument:  first the car, then the
+cadr, then the caddr, etc., continuing until the end of the
+list is reached.  The value returned by 3mapcar* is a list of the
+results of the successive calls to the function.  An example of the
+use of 3mapcar* would be 3mapcar*'ing the function 3abs* over
+the list 3(1 -2 -4.5 6.0e15 -4.2)*, which would be written as
+3(mapcar (function abs) '(1 -2 -4.5 6.0e15 -4.2))*.
+The result is 3(1 2 4.5 6.0e15
+4.2)*.  
+
+In general, the mapping functions take any number of arguments.  For example,
+.lisp
+(mapcar 2f* 2x1* 2x2* ... 2xn*)
+.end_lisp
+In this case 2f* must be a function of 2n* arguments.
+3mapcar* proceeds
+down the lists 2x1, x2, ..., xn* in parallel.
+The first argument to 2f*
+comes from 2x1*, the second from 2x2*, etc.
+The iteration stops as soon as any of the lists is exhausted.
+(If there are no lists at all, then there are no lists to be exhausted,
+so 2f* is called repeatedly without end.  This is an
+obscure way to write an infinite loop.  It is supported for
+consistency.)  If you want to call a function of many arguments
+where one of the arguments successively takes on the values of the elements
+of a list and the other arguments are constant, you can use a circular
+list for the other arguments to 3mapcar*.  The function 3circular-list*
+is useful for creating such lists; see (circular-list-fun).
+
+There are five other mapping functions besides 3mapcar*.  3maplist*
+is like 3mapcar* except that the function is applied to the list and
+successive cdrs of that list rather than to successive elements of the
+list.  3map* (or 3mapl*) and 3mapc* are like 3maplist* and 3mapcar*
+respectively, except that they don't return any useful value.  These
+functions are used when the function is being called merely for its
+side-effects, rather than its returned values.  3mapcan* and
+3mapcon* are like 3mapcar* and 3maplist* respectively, except
+that they combine the results of the function using 3nconc* instead
+of 3list*.  That is, 3mapcon* could have been defined by
+.lisp
+(defun mapcon (f x y)
+    (apply 'nconc (maplist f x y)))
+.end_lisp
+Of course, this definition is less general than the real one.
+
+Sometimes a 3do* or a straightforward recursion is preferable to a
+map;  however, the mapping functions should be used wherever they
+naturally apply because this increases the clarity of the code. 
+
+Often 2f* is a lambda-expression, rather than a symbol;
+for example,
+.lisp
+(mapcar (function (lambda (x) (cons x something)))
+	some-list)
+.end_lisp
+
+The functional argument to a mapping function must be a function, acceptable
+to 3apply*--it cannot be a macro or the name of a special form.
+
+.group
+Here is a table showing the relations between
+the six map functions.
+.nofill
+7
+                              applies function to
+
+                         |  successive  |   successive  |
+                         |   sublists   |    elements   |
+          ---------------+--------------+---------------+
+              its own    |              |               | 
+              second     |     map(l)   |     mapc      |
+             argument    |              |               |
+          ---------------+--------------+---------------+
+            list of the  |              |               |
+returns      function    |    maplist   |    mapcar     |
+              results    |              |               |
+          ---------------+--------------+---------------+
+            nconc of the |              |               |
+              function   |    mapcon    |    mapcan     |
+              results    |              |               |
+          ---------------+--------------+---------------+*
+.fill
+
+Note that 3map* and 3mapl* are synonymous.  3map* is the
+traditional name of this function.  3mapl* is the Common Lisp name.
+In Common Lisp, the function 3map* does something different and
+incompatible; see 3cli:map*, (cli:map-fun).  3mapl* works the same
+in traditional Zetalisp and Common Lisp.
+
+	There are also functions (3mapatoms* and 3mapatoms-all*)
+for mapping over all symbols in certain
+packages.  See the explanation of packages ((package)).
+
+You can also do what the mapping functions do in a different way by using
+3loop*.  See (loop-fun).
+.apart
+.end_defun

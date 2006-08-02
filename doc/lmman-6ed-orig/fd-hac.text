@@ -1,0 +1,1953 @@
+.c This file is part of the Lisp Machine Manual.		-*-Bolio-*-
+
+.chapter Miscellaneous Useful Functions
+.setq misc-chapter chapter-number
+
+This chapter describes a number of functions that don't logically fit in anywhere else.
+Most of these functions are not normally used in programs, but are ``commands'', i.e.
+things that you type directly at Lisp.
+
+.section Documentation
+
+.defun documentation name doc-type
+Returns the documentation string of 2name* in the role 2doc-type*.
+2doc-type* should be a symbol, but only its print-name matters.
+3function* as 2doc-type* requests the documentation of 2name*
+as a function, 3variable* as 2doc-type* requests the documentation of
+2name* as a variable, and so on.
+
+When 2doc-type* is 3function*, 2name* can be any function spec,
+and the documentation string of its function definition is returned.
+Otherwise, 2name* must be a symbol, and 2doc-type* may be anything.
+However, only these values of 2doc-type* are standardly used:
+.table 3
+.item variable
+Documentation of 2name* as a special variable.  Such documentation is
+recorded automatically by 3defvar*, 3defconst*, 3defconstant*,
+3defparameter* ((defvar-fun)).
+.item type
+Documentation of 2name* as a type for 3typep*.  Recorded
+automatically when a documentation string is given in a 3deftype*
+form ((deftype-fun)).
+.item structure
+Documentation of 2name* as a 3defstruct* type.
+Recorded automatically by a 3defstruct* for 2name* ((defstruct)).
+.item setf
+Documentation on what it means to 3setf* a form
+that starts with 2name*.
+Recorded when there is a documentation string in a 3defsetf* of 2name*
+((defsetf-fun)).
+.item flavor
+Documentation of the flavor named 2name*.
+Put on by the 3:documentation* option in a 3defflavor* for 2name*
+((defflavor-fun)).
+.item resource
+Documentation of the resource named 2name*.
+Put on when there is a documentation string in a 3defresource* of 2name*
+((defresource-fun)).
+.item signal
+Documentation for 2name* as a signal name.
+Put on when there is a documentation string in a 3defsignal* or 3defsignal-explicit*
+for 2name* ((defsignal-fun)).
+.end_table
+
+Documentation strings for any 2doc-type* can be added to 2name*
+by doing 3(setf (documentation 2name* 2doc-type*) 2string*)*.
+.end_defun
+
+The command 3Control-Shift-D* in Zmacs and the rubout handler, used
+within a call to a function, prints the documentation of that function.
+3Control-Shift-V*, within a symbol, prints the documentation of that
+symbol as a variable.
+
+.section Hardcopy
+.setq hardcopy section-page
+
+The hardcopy functions allow you to specify the printer to use on each
+call.  The default is set up by the site files for your site, but can be
+overridden for a particular machine in the 3LMLOCS* file or by a user
+in his INIT file.  Any kind of printer can be used, no matter how it is
+actually driven, if it is hooked into the software properly as described below.
+
+A 2printer-type* is a keyword that has appropriate properties;
+a 2printer* is either a printer-type or a list starting with one.
+The rest of the list can specify 2which* printer of that type you want
+to use (perhaps with a host name or filename).
+
+The printer types defined by the system are:
+.table
+.xitem :dover printer-type
+This printer type is used by itself as a printer, and refers to the
+Dover at MIT.
+
+.xitem :xgp printer-type
+This printer type indicates a printer that is accessed by writing spool
+files in MIT XGP format.  A printer would be specified as a list,
+3(:xgp 2filename*)*, specifying where to write the spool file.
+
+.xitem :press-file printer-type
+This printer type is used in a list together with a file name, as in
+3(:press-file "OZ:<RMS>FOO.PRESS")*.  Something is ``printed'' on such
+a printer by being converted to a press file and written under that
+name.
+.end_table
+
+.defun hardcopy-file filename &rest options
+Print the file 2filename* in hard copy on the specified printer or the
+default printer.  2options* is a list of keyword argument names and
+values.  There are only two keywords that are always meaningful:
+3:format* and 3:printer*.  Everything else is up to the individual
+printer to interpret.  The list here is only a paradigm or suggestion.
+
+.table 3
+.kitem :printer
+The value is the printer to use.  The default is the value of
+3si:*default-printer**.
+
+.kitem :format
+The value is a keyword that specifies the format of file to be parsed.
+The standard possibilities are 3:text* (an ordinary file of text),
+3:xgp* (a file of the sort once used by the XGP at MIT), 3:press* (a
+Xerox-style press file) and 3:suds-plot* (a file produced by the
+Stanford drawing program).  However, each kind of printer may define its
+own format keywords.
+
+.kitem :font
+.xitem :font-list hardcopy-file
+The value of 2font* is the name of a font to print the file in (a
+string).  Alternatively, you can give 3:font-list* and specify a list
+of such font names, for use if the file contains font-change commands.
+The interpretation of a font name is dependent on the printer being
+used.  There is no necessary relation to Lisp machine display fonts.
+However, printers are encouraged to use, by default, fonts that are
+similar in appearance to the Lisp machine fonts listed in the file's
+attribute list, if it is a text file.
+
+.kitem :heading-font
+The value is the name of the font for use in page headers, if there are
+any.
+
+.kitem :vsp
+The value is the extra spacing to use between lines, in over and beyond
+the height of the fonts.
+
+.kitem :page-headings
+If the value is non-3nil*, a heading is added to each page.
+
+.kitem :copies
+The value is the number of copies to print.
+
+.kitem :spool
+If the printer provides optional spooling, this argument says whether to
+spool (default is 3nil*).  Some printers may intrinsically always
+spool; others may have no way to spool.
+.end_table
+.end_defun
+
+.defun set-printer-default-option printer-type option value
+Sets a default for 2option* for printers of type
+2printer-type*.  Any use of the hardcopy functions
+with a printer of that type and no value specified for 2option*
+will use the value 2value*.  For example,
+.lisp
+(set-printer-default-option :dover :spool t)
+.end_lisp
+causes output to Dover printers to be spooled unless the
+3:spool* option is explicitly specified with value 3nil*.
+
+Currently defaultable options are 3:font*, 3:font-list*,
+3:heading-font*, 3:page-headings*, 3:vsp*, 3:copies*, and
+3:spool*.
+.end_defun
+
+.defun hardcopy-stream stream &rest options
+Like 3hardcopy-file* but uses the text read from 2stream* rather
+than opening a file.  The 3:format* option is not allowed (since
+implementing it requires the ability to open the file with unusual
+3open* options).
+.end_defun
+
+.defun hardcopy-bit-array array left top right bottom &rest options
+Print all or part of the bit-array 2array* on the specified or default
+printer.  2options* is a list of keyword argument names and values;
+the only standard option is 3:printer*, which specifies the printer to
+use.  The default printer is 3si:*default-bit-array-printer**, or, if
+that is 3nil*, 3si:*default-printer*.
+
+2left*, 2top*, 2right* and 2bottom* specify the subrectangle of
+the array to be printed.  All four numbers measure from the top left
+corner (which is element 0, 0).
+.end_defun
+
+.defun hardcopy-status &optional printer (stream 3*standard-output**)
+Prints the status of 2printer*, or the default printer.
+This should include if possible such things as whether the printer has
+paper and what is in the queue.
+.end_defun
+
+.defvar si:*default-printer*
+This is the default printer.  It is set from the 3:default-printer*
+site option.
+.end_defvar
+
+.defvar si:*default-bit-array-printer*
+If non-3nil*, this is the default printer for printing bit arrays,
+overriding 3si:*default-printer**.  A separate default is provided for
+bit arrays since some printers that can print files cannot print bit
+arrays.  This variable is set initially from the
+3:default-bit-array-printer* site option.
+.end_defvar
+
+.need 1500
+.nopara
+Defining a printer type:
+
+A printer type is any keyword that has suitable functions on the
+appropriate properties.
+
+To be used with the function 3hardcopy-file*, the printer type must
+have a 3si:print-file* property.  To be used with 3hardcopy-stream*,
+the printer type must have a 3si:print-stream* property.
+3hardcopy-bit-array* uses the 3si:print-bit-array* property.
+3hardcopy-status* uses the 3si:print-status* property.
+(The hardcopy functions' names are not themselves used simply to avoid
+using a symbol in the global package as a property name of a symbol
+that might be in the global package as well).
+
+Each property, to be used, should be a function whose first argument
+will be the printer and whose remaining arguments will fit the same
+pattern as those of the hardcopy function the user called.  (They will
+not necessarily be the same arguments, as some additional keywords may be
+added to the list of keyword arguments; but they will fit the same
+description.)
+
+For example,
+.lisp
+(hardcopy-file "foo" :printer '(:press-file "bar.press"))
+.end_lisp
+results in the execution of
+.lisp
+(funcall (get :press-file 'si:print-file)
+         '(:press-file "bar.press")
+	 "foo" :printer '(:press-file "bar.press"))
+.end_lisp
+
+A printer type need not support operations that make no sense on it.
+For example, there is no 3si:print-status* property on
+3:press-file*.
+
+.section Metering
+.setq meter-section section-page
+
+The metering system is a way of finding out what parts of your program
+use up the most time.  When you run your program with metering, every
+function call and return is recorded, together with the time at which it
+took place.  Page faults are also recorded.  Afterward, the metering
+system analyzes the records and tells you how much time was spent
+executing withain each function.  Because the records are stored in the disk
+partition called 3METR*, there is room for a lot of data.
+
+Before you meter a program, you must enable metering in some or all
+stack groups.  3meter:enable* is used for this.  Then you evaluate one
+or more forms with metering, perhaps by using 3meter:test* or
+3meter:run*.  Finally, you use 3meter:analyze* to summarize and
+print the metering data.
+
+There are two parameters that control whether metering data are
+recorded.  First of all, the variable 3sys:%meter-microcode-enables*
+contains bits that enable recording of various kinds of events.  Secondly,
+each stack group has a flag that controls whether events are recorded
+while running in that stack group.
+
+.defvar sys:%meter-microcode-enables
+Enables recording of metering data.
+Each bit controls recording of one kind of event.
+.table 3
+.item 1
+This bit enables recording of page faults.
+.item 2
+This bit enables recording of consing.
+.item 4
+This bit enables recording of function entry and exit.
+.item 8
+This bit enables recording of stack group switching.
+.end_table
+
+The value is normally zero, which turns off all recording.
+.end_defvar
+
+.need 1500
+.nopara
+These are the functions used to control which stack groups do metering:
+
+.defun meter:enable &rest things
+Enables metering in the stack groups specified by 2things*.
+Each thing in 2things* may be a stack group, a process (which
+specifies the process's stack group), or a window (which specifies the
+window's process's stack group).  3t* is also allowed.  It enables
+metering in all stack groups.
+.end_defun
+
+.defun meter:disable &rest things
+Disables metering in the stack groups specified by 2things*.
+The arguments allowed are the same as for 3meter:enable*.
+3(meter:disable t)* turns off 3(meter:enable t)*, but does not
+disable stack groups enabled individually.  3(meter:disable)* disables
+all stack groups no matter how you specified to enable them.
+.end_defun
+
+.defvar meter:metered-objects
+This is a list of all the 2things* you have enabled with
+3meter:enable* and not disabled.
+.end_defvar
+
+.need 1500
+.nopara
+These are the functions to evaluate forms with metering:
+
+.defun meter:run forms
+Clears out the metering data and evaluates the 2forms* with
+3sys:%meter-microcode-enables* bound to 14 octal (record function
+entry and exit, and stack group switching).  Any of the evaluation that
+takes place in enabled stack groups will record metering data.
+.end_defun
+
+.defun meter:test form (enables 3#o14*)
+Clears out the metering data, enables metering for the current
+stack group only, and evaluates 2form* with
+3sys:%meter-microcode-enables* bound to 2enables*.
+.end_defun
+
+.need 1500
+.nopara
+This is how you print the results:
+
+.defun meter:analyze &key analyzer stream file buffer return info &allow-other-keys
+Analyzes the data recorded by metering.
+2analyzer* is a keyword specifies a kind of analysis.  3:tree*
+is the default.  Another useful alternative is 3:list-events*.
+Particular analyzers handle other keyword arguments in addition
+to those listed above.
+
+The output is printed on 2stream*, written to a file named
+2file*, or put in an editor buffer named 2buffer* (at most one of
+these three arguments should be specified).  The default is to print on
+3*standard-output**.
+
+Analyzing the metering data involves creating a large intermediate data
+base.  Normally this is created afresh each time 3meter:analyze* is
+called.  If you specify a non-3nil* value for 2return*, the
+intermediate data structure is returned by 3meter:analyze*, and can be
+passed in on another call as the 2info* argument.  This can save time.
+But you can only do this if you use the same 2analyzer* each time,
+as different analyzers use different termporary data structures.
+.end_defun
+
+The default analyzer 3:tree* prints out the amount of run time and
+real time spent executing each function that was called.  The real time
+includes time spend waiting and time spent writing metering data to disk;
+for computational tasks, the latter makes the real time less useful
+than the run time.
+3:tree* handles these additional keyword arguments to 3meter:analyze*:
+.table 3
+.xitem :find-callers "meter:analyze"
+The argument for this keyword is a function spec or a list of function specs.
+A list of who called the specified functions,
+and how often, is printed instead of the usual output.
+
+.xitem :stack-group "meter:analyze"
+The argument is a stack group or a list of them;
+only the activities in those stack groups are printed.
+
+.xitem :sort-function "meter:analyze"
+The argument is the name of a suitable sorting function that is used to
+sort the items for the various functions that were called.  Sorting
+functions provided include 3meter:max-page-faults*,
+3meter:max-calls*, 3meter:max-run-time* (the default),
+3meter:max-real-time*, and 3meter:max-run-time-per-call*.
+
+.xitem :summarize "meter:analyze"
+The argument is a function spec or a list of function specs;
+only those functions' statistics are printed.
+
+.xitem :inclusive "meter:analyze"
+If this is non-3nil*, the times for each function include
+the time spent in executing subroutines called from the function.
+
+Note: if a function is called recursively, the time spent in the inner
+call(s) is counted twice (or more).
+.end_table
+
+The analyzer 3:list-events* prints out one line about each event
+recorded.  The line contains the run time and real time (in
+microseconds), the running count of page faults, the stack group name,
+the function that was running, the stack depth, the type of event, and a
+piece of data.  For example:
+
+.lisp
+   0   0    0 ZMACS-WINDOWS  METER:TEST   202 CALL SI:EVAL
+ 115  43    0 ZMACS-WINDOWS  METER:TEST   202 RET  SI:EVAL
+ 180  87    0 ZMACS-WINDOWS  METER:TEST   202 RET  CATCH
+
+real run   pf  stack-group    function  stack event data
+time time                               level type
+.end_lisp
+
+3:list-events* is often useful with recording of page faults
+(3sys:%meter-microcode-enables* set to 1).
+
+.defun meter:reset
+Clears out all metering data.
+.end_defun
+
+Because metering records pointers to Lisp objects in a disk partition
+which is not part of the Lisp address space, garbage collection is
+inhibited (by arresting the gc process) when you turn on metering.
+
+.defun meter:resume-gc-process
+Allows garbage collection to continue (if it is already turned on) by
+unarresting it.
+.end_defun
+
+.section Poking Around in the Lisp World
+
+.defun who-calls x &optional package (inheritors 3t*) (inherited 3t*)
+2x* must be a symbol or a list of symbols.
+3who-calls* tries
+to find all of the functions in the Lisp world
+that call 2x* as a function, use 2x* as a variable,
+or use 2x* as a constant.  (Constants which are lists
+containing 2x* are not found.)  It tries to find all of the functions
+by searching all of the function cells of
+all of the symbols in 2package* and packages that inherit
+from 2package* (unless 2inheritors* is 3nil*) and packages
+2package* inherits from (unless 2inherited* is 3nil*).
+2package* defaults to the 3global* package, which means that
+all normal packages are checked.
+
+If 3who-calls* encounters an interpreted function definition, it
+simply tells you if 2x* appears anywhere in the interpreted code.
+3who-calls* is smarter about compiled code, since it has been
+nicely predigested by the compiler.  Macros expanded in the compilation
+of the code can be found because they are recorded in the caller's
+debugging info alist, even though they are not actually referred to
+by the compiled code.
+
+If 2x* is a list of symbols, 3who-calls* does them all simultaneously,
+which is faster than doing them one at a time.
+
+3who-uses* is an obsolete name for 3who-calls*.
+
+The editor has a command,3 Meta-X List Callers*, which is similar to 3who-calls*.
+
+The symbol 3:unbound-function* is treated specially by 3who-calls*.
+3(who-calls :unbound-function)* searches all the compiled
+code for any calls through a symbol that is not currently
+defined as a function.  This is useful for finding errors such
+as functions you misspelled the names of or forgot to write.
+
+3who-calls* prints one line of information for each caller it finds.  It also
+returns a list of the names of all the callers.
+.end_defun
+
+.defun what-files-call x &optional package (inheritors 3t*) (inherited 3t*)
+Similar to 3who-calls* but returns a list of the pathnames of all the files
+that contain functions that 3who-calls* would have printed out.  This is useful
+if you need to recompile and/or edit all of those files.
+.end_defun
+
+.defun apropos substring &optional package &key (inheritors 3t*) inherited dont-print predicate boundp fboundp
+3(apropos 2substring*)* tries to find all symbols whose print-names
+contain 2substring* as a substring.  Whenever it finds a symbol, it
+prints out the symbol's name; if the symbol is defined as a function
+and/or bound to a value, it tells you so and prints the names of the
+arguments (if any) to the function.
+
+If 2predicate* is non-3nil*, it should be a function; only symbols
+on which the function returns non-3nil* are counted.  In addition, 2fboundp*
+non-3nil* means only symbols with function definitions are considered,
+and 2boundp* non-3nil* means that only symbols with values are considered.
+
+3apropos* looks for symbols on 2package*, and all packages that use
+2package* (unless 2inheritors* is 3nil*).  If 2inherited* is
+non-3nil*, all packages used by 2package* are searched as well.
+2package* can be a package or a symbol or string naming a package.  It
+can also be a list of packages, symbols and strings; all of the packages
+thus specified are searched.  2package* defaults to a list of all
+packages except invisible ones.
+
+3apropos* returns a list of all the symbols it finds.
+If 2dont-print* is non-3nil*, that is all it does.
+.end_defun
+
+.defun sub-apropos substring starting-list &key predicate dont-print
+Finds all symbols in 2starting-list* whose names contain
+2substring*, and that satisfy 2predicate*.  If 2predicate* is
+3nil*, the substring is the only condition.  The symbols are printed
+if 2dont-print* is 3nil*.  A list of the symbols found is returned,
+in any case.
+
+This function is most useful when applied to the value of 7**, after
+3apropos* has returned a long list.
+.end_defun
+
+.defun where-is pname &optional package
+Prints the names of all packages that contain a symbol with the
+print-name 2pname*.  If 2pname* is a string it gets upper-cased.
+The package 2package* and all packages that inherit from it are
+searched.  2package* can be a package or the name of a package, or a
+list of packages and names.  It defaults to a list of all packages
+except invisible ones.  3where-is* returns a list of all the symbols
+it finds.
+.end_defun
+
+.defun describe x
+3describe* tries to tell you all of the interesting information
+about any object 2x* (except for array contents).  3describe* knows
+about arrays, symbols, floats, packages, stack groups, closures, and FEFs, and prints
+out the attributes of each in human-readable form.  Sometimes
+objects found inside 2x* are described also;
+such recursive descriptions are indented appropriately.  For instance,
+3describe* of a symbol also describes the symbol's value,
+its definition, and each of its properties.  3describe* of a float
+(full-size or short) shows you its internal representation in a way
+that is useful for tracking down roundoff errors and the like.
+
+If 2x* is a named-structure, 3describe* invokes the 3:describe*
+operation to print the description, if that is supported.
+To understand this, you should read the section on named structures
+(see (named-structure)).  If the 3:describe* operation is not
+supported, 3describe* looks on the named-structure symbol for information
+that might have been left by 3defstruct*; this information would
+tell it what the symbolic names for the entries in the structure are,
+and 3describe* knows how to use the names to print out what each field's
+name and contents is.
+
+3describe* of an instance always invokes the 3:describe* operation.
+All flavors support it, since 3si:vanilla-flavor* defines a method for it.
+
+3describe* always returns its argument, in case you want to do something else to it.
+.end_defun
+
+.defun inspect x
+A window-oriented version of 3describe*.  See the window system documentation
+for details, or try it and type 3Help*.
+.end_defun
+
+.defun disassemble function
+Prints out a human-readable version of the macro-instructions in
+2function*.  2function* should be a FEF, or a function spec whose
+definition is a FEF.  The macro-code instruction set is explained in
+(macro-code).
+.end_defun
+
+.nopara
+The 3grindef* function (see (grindef-fun)) may be used to display the definition
+of a non-compiled function.
+
+.defun room &rest areas
+Prints a summary of memory usage.
+
+The first line of output tells you the amount of physical memory on the
+machine, the amount of available virtual memory not yet filled with data
+(that is, the portion of the available virtual memory that has not yet
+been allocated to any region of any area), and the amount of wired
+physical memory (i.e. memory not available for paging). 
+
+Following lines tell you how much room is left in some areas.  For each
+area it tells you about, it prints out the name of the area, the number
+of regions that currently make up the area, the current size of the area in kilowords,
+and the amount of the area that has been allocated, also in kilowords.
+If the area cannot grow, the percentage that is free is displayed.
+
+3(room)* tells you about those areas that are in the list that is the value
+of the variable 3room*.  These are the most interesting ones.
+
+3(room 2area1* 2area2*...)* tells you about those areas, which can
+be either the names or the numbers.
+
+3(room t)* tells you about all the areas.
+
+3(room nil)* does not tell you about any areas; it only prints the
+first line of output.
+.end_defun
+
+.defvar room
+The value of 3room* is a list of area names and/or area numbers,
+denoting the areas that the function 3room* should describe if given
+no arguments.  Its initial value is:
+.lisp
+(working-storage-area macro-compiled-program)
+.end_lisp
+.end_defvar
+
+
+.section Utility Programs
+
+.defun ed &optional x
+3ed* is the main function for getting into the editor, Zmacs.
+The commands of Zmacs are very similar to those of Emacs.
+
+3(ed)* or 3(ed nil)* simply enters the editor, leaving you in the same
+buffer as the last time you were in the editor.  It has the same effect
+as typing 3System E*.
+
+3(ed t)* puts you in a fresh buffer with a generated name (like BUFFER-4).
+
+3(ed 2pathname*)* edits that file.  2pathname* may be an actual pathname
+or a string.
+
+3(ed 'foo)* tries hard to edit the definition of the 3foo* function.
+It can find a buffer or file containing the source code for 3foo*
+and position the cursor at the beginning of the code.  In general, 3foo*
+can be any function-spec (see (function-spec)).
+
+3(ed 'zwei:reload)* reinitializes the editor.  It forgets about all
+existing buffers, so use this only as a last resort.
+.end_defun
+
+.defun zwei:save-all-files
+This function is useful in emergencies in which you have modified material
+in Zmacs buffers that needs to be saved, but the editor is partially broken.
+This function does what the editor's 3Save All Files* command does, but
+it stays away from redisplay and other advanced facilities so that
+it might work if other things are broken.
+.end_defun
+
+.defun dired &optional pathname
+Puts up a window and edits the directory named by 2pathname*, which
+defaults to the last file opened.  While editing a directory you may
+view, edit, compare, hardcopy, and delete the files and subdirectories
+it contains.  While in the directory editor type the 3Help* key for
+further information.
+.end_defun
+
+.defun mail &optional user text call-editor-anyway
+Sends the string 2text* as mail to 2user*.  2user* should also be
+a string, of the form 3"2username7@*hostname*"*.  Multiple
+recipients separated by commas are also allowed.
+
+If you do not provide two arguments, 3mail* puts up an editor window
+in which you may compose the mail.  Type the 3End* key to send the
+mail and return from the 3mail* function.
+
+The window is also used if 2call-editor-anyway* is non-3nil*.
+.end_defun
+
+.defun bug &optional topic text call-editor-anyway
+Reports a bug.  2topic* is the name of the faulty program (a symbol or
+a string).  It defaults to 3lispm* (the Lisp Machine system itself).
+2text* is a string which contains the information to report.  If you
+do not provide two arguments, or if 2call-editor-anyway* is
+non-3nil*, a window is put up for you to compose the mail.
+
+3bug* is like 3mail* but includes information about the system version
+and what machine you are on in the text of the message.  This information is
+important to the maintainers of the faulty program; it aids them in reproducing
+the bug and in determining whether it is one that is already being worked on
+or has already been fixed.
+.end_defun
+
+.defun print-notifications &optional (from 30*) to
+Reprints any notifications that have been received.  3from*
+and 3to* are used to restrict which notifications are printed;
+both count from the most recent notification as number 0.  Thus,
+3(print-notifications 2 8)* prints six notifications after skipping
+the two most recent.
+
+The difference between notifications and sends is that sends come from
+other users, while notifications are usually asynchronous messages from
+the Lisp Machine system itself.  However, the default way for the system
+to inform you about a send is to make a notification!  So
+3print-notifications* 2normally* includes all sends as well.
+
+Typing 3Terminal 1 N* pops up a window and calls 3print-notifications*
+to print on it.
+.end_defun
+
+.defun si:print-disk-error-log
+Prints information about the half dozen most recent disk errors (since the last cold boot).
+.end_defun
+
+.defun peek &optional character
+Selects the PEEK utility, which displays various information about the
+system, periodically updating it.  PEEK has several modes, which are
+entered by typing a single key which is the name of the mode or by
+clicking on the menu at the top.  The initial mode is selected by the
+argument, 2character*.  If no argument is given, PEEK starts out
+by explaining what its modes are.
+.end_defun
+
+.setq time-fun-2 page
+.defun time form
+Evaluates 2form* and prints the length of time that the evaluation
+took.  The values of 2form* are returned.
+
+Note that 3time* with no argument is a function to return
+a time value counting in 60ths of a second; see (time-fun-1).  This unfortunate
+collision is a consequence of Common Lisp.
+.end_defun
+
+.section The Lisp Listen Loop
+
+	These functions constitute the Lisp top level read-eval-print
+loop or 2listen loop* and its associated functions.
+
+.cindex lisp top level
+.cindex read-eval-print loop
+.cindex listen loop
+
+.defun si:lisp-top-level
+This is the first function called in the initial Lisp environment.
+It calls 3lisp-reinitialize*, clears the screen, and calls 3si:lisp-top-level1*.
+.end_defun
+
+.defun lisp-reinitialize
+This function does a wide variety of things, such as resetting the values
+of various global constants and initializing the error system.
+.end_defun
+
+.defun si:lisp-top-level1 *terminal-io*
+This is the actual listen loop.  Within it, 3*terminal-io** is bound
+to the argument supplied.  This is the stream used for reading and printing
+if 3*standard-input** and 3*standard-output** are synonyms for 3*terminal-io**,
+as they normally are.
+
+The listen loop reads a form from 3*standard-input**, evaluates it,
+prints the result (with escaping) to 3*standard-output**, and repeats
+indefinitely.  If several values are returned by the form all of them
+are printed.  Also the values of 3**, 3+*, 3-*, 3//*, 3++*,
+3***, 3+++*, 3**** and 3*values** are maintained (see below).
+.end_defun
+
+.cindex break loop
+
+.defun break format-string &rest format-args
+Enters a breakpoint loop, which is similar
+to a Lisp top level loop.    2format-string* and the 2format-args*
+are passed to 3format* to print a message.
+.lisp
+;Breakpoint 2message*; Resume to continue, Abort to quit.
+.end_lisp
+and then enters a loop reading, evaluating, and printing forms.  A
+difference between a break loop and the top level loop is that when
+reading a form, 3break* checks for the following special cases: If the
+3Abort* key is typed, control is returned to the previous break or
+error-handler, or to top-level if there is none.  If the 3Resume* key is
+typed, 3break* returns 3nil*.  If the list 3(return 2form*)* is typed,
+3break* evaluates 2form* and returns the result, without ever
+calling the function 3return*.
+
+Inside the 3break* loop, the streams 3*standard-output**,
+3*standard-input**, and 3query-io* are bound to be synonymous
+to 3*terminal-io**; 3*terminal-io** itself is not rebound.  Several
+other internal system variables are bound, and you can add your
+own symbols to be bound by pushing elements onto the
+value of the variable 3sys:*break-bindings**
+(see (sys:*break-bindings*-var)).
+
+3break* used to be a special form whose first argument was a string
+or symbol which was simply printed 2without evaluating it*.
+In order to facilitate conversion, 3break* really still is a special form.
+If the call appears to use the old conventions, it behaves in the old way,
+but the compiler issues a warning if it sees such code.
+.end_defun
+
+.defvar prin1
+The value of this variable is normally 3nil*.  If it is non-3nil*,
+then the read-eval-print loop uses its value instead of the
+definition of 3prin1* to print the values returned by functions.
+This hook lets you control how things are printed by all read-eval-print
+loops--the Lisp top level, the 3break* function, and any utility
+programs that include a read-eval-print loop.  It does not affect output
+from programs that call the 3prin1* function or any of its relatives such
+as 3print* and 3format*; if you want to do that, read about
+customizing the printer, on (customizing-the-printer).  If you
+set 3prin1* to a new function, remember that the read-eval-print loop
+expects the function to print the value but not to output a 3return*
+character or any other delimiters.
+.end_defvar
+
+.defvar -
+While a form is being evaluated by a read-eval-print loop,
+3-* is bound to the form itself.
+.end_defvar
+
+.defvar +
+While a form is being evaluated by a read-eval-print loop,
+3+* is bound to the previous form that was read by the loop.
+.end_defvar
+
+.defvar *
+.defvar1 //
+While a form is being evaluated by a read-eval-print loop,
+3** is set to the result printed the last time through
+the loop.  If there were several values printed (because
+of a multiple-value return), 3** is bound to the first
+value.  3//* is bound to a list of all the values of the
+previous form.
+
+If evaluation of a form is aborted, 3** and 3//* remain set to
+the results of the last successfully completed form.  If evaluation
+is successful but printing is aborted, 3** and 3//* are already
+set for the following form.
+
+Note that when using Common Lisp syntax you would type just 3/*.
+.end_defvar
+
+.defvar ++
+3++* holds the previous value of 3+*, that is, the form evaluated
+two interactions ago.
+.end_defvar
+
+.defvar +++
+3+++* holds the previous value of 3++*.
+.end_defvar
+
+.defvar **
+.defvar1 ////
+Hold the previous values of 3** and 3//*, that is, the results of
+the form evaluated two interactions ago.  Only forms whose evaluation
+is successful cause the values of 3** and 3//* to move into
+3*** and 3////*.
+
+Note that when using Common Lisp syntax you would type just 3//*.
+.end_defvar
+
+.defvar ***
+.defvar1 //////
+Hold the previous values of 3*** and 3////*, that is, the results of
+the form evaluated three interactions ago.
+Note that when using Common Lisp syntax you would type just 3///*.
+.end_defvar
+
+.defvar *values*
+3*values** holds a list of all lists of values produced by evaluation
+in this Lisp listener.  3(car *values*)* is nearly equivalent to 3//*,
+3(cadr *values*)* to 3////*, and so on.  The difference is that
+an element is pushed on 3*values** for each form whose evaluation
+is started.  If evaluation is aborted, the element of 3*values** is 3nil*.
+.end_defvar
+
+.defvar sys:*break-bindings*
+When 3break* is called, it binds some special variables under control of
+the list which is the value of 3sys:*break-bindings**.  Each element of the
+list is a list of two elements: a variable and a form that is evaluated to
+produce the value to bind it to.  The bindings happen sequentially.  Users may
+3push* things on this list (adding to the front of it), but should not replace
+the list wholesale since several of the variable bindings on this list are
+essential to the operation of 3break*.
+.end_defvar
+
+.defvar lisp-crash-list
+The value of 3lisp-crash-list* is a list of forms.
+3lisp-reinitialize* sequentially evaluates these
+forms, and then sets 3lisp-crash-list* to 3nil*.
+
+In most cases, the 2initialization* facility should be used rather than
+3lisp-crash-list*.  Refer to (initialization).
+.end_defvar
+
+
+.section The Garbage Collector
+.cindex garbage collector
+.setq garbage-collector page
+
+.defun gc-on
+Turns automatic garbage collection on.  Garbage collection will happen when
+and as needed.  Automatic garbage collection is off by default.
+
+Since garbage collection works by copying, you are asked for
+confirmation if there may not be enough space to complete a garbage
+collection even if it is started immediately.
+.end_defun
+
+.defun gc-off
+Turns automatic garbage collection off.
+.end_defun
+
+.defvar gc-on
+3t* when garbage collection is on, 3nil* when it is not.
+You cannot control garbage collection by setting this variable;
+it exists so you can examine it.  In particular, you can tell
+if the system found it necessary to turn off garbage collection
+because it was close to running out of virtual memory.
+.end_defvar
+
+Normally, automatic garbage collection happens in incremental mode; that
+is, scavenging happens in parallel with computation.  Each consing
+operation scavenges or copies four words per word consed.  In addition,
+scavenging goes on whenever the machine appears idle.
+
+.defvar si:inhibit-idle-scavenging-flag
+If this is non-3nil*, scavenging is not done during idle time.
+.end_defvar
+
+If you are running a noninteractive crunching program, the incremental
+nature of garbage collection may not be helpful.  Then you can make
+garbage collection more efficient by making it a batch process.
+
+.defvar si:gc-reclaim-immediately
+If this variable is non-3nil*,
+automatic garbage collection is done as a batch operation:
+when the garbage collection process decides that the time has come,
+it copies all the useful data and discards the old address space,
+running full blast.  (It is still possible to use the machine while this is
+going on, but it is slow.)  More specifically, the
+garbage collection process scavenges and reclaims oldspace immediately
+right after a flip happens, using all of the machine's
+physical memory.  This variable is only relevant if you have turned on
+automatic garbage collection with 3(gc-on)*.
+
+A batch garbage collection requires less free space than an incremental
+one.  If there is not enough space to complete an incremental garbage
+collection, you may be able to win by selecting batch garbage collection
+instead.
+.end_defvar
+
+.defvar si:gc-reclaim-immediately-if-necessary
+If this variable is non-3nil*, then automatic garbage collection is
+done in batch mode if, when the flip is done, there does not seem to
+be enough space left to do it incrementally.  This variable's value is
+relevant only if 3si:gc-reclaim-immediately* is 3nil*.
+.end_defvar
+
+.defvar si:gc-flip-ratio
+This variable tells the garbage collector what fraction of the data it
+should expect to have to copy, after each flip.  It should be a positive
+number no larger than one.  By default, it is one.  But if your program
+is consing considerable amounts of garbage, a value less than one may be
+safe.  The garbage collector uses this variable to figure how much space
+it will need to copy all the living data, and therefore indirectly how often
+garbage collection must be done.
+.end_defvar
+
+.defvar si:gc-flip-minimum-ratio
+This value is used, when non-3nil*, to control warnings about having
+too little space to garbage collect.  Its value is a positive number
+no greater than one, just like that of 3si:gc-flip-ratio*.  The
+difference between the two is that 3si:gc-flip-ratio* controls when
+garbage collection is 2recommended*, whereas
+3si:gc-flip-minimum-ratio* controls when the system considers the
+last possible time to do so.  If 3si:gc-flip-minimum-ratio* is
+3nil*, 3si:gc-flip-ratio* serves both purposes.
+.end_defvar
+
+Garbage collection is turned off if it appears to be about to run out of
+memory.  You get a notification if this happens.  You also get a
+notification when you are nearly at the point of not having enough space
+to guarantee garbage collecting successfully.
+
+In addition to turning on automatic garbage collection, you can also
+manually request one immediate complete collection with the function
+3si:full-gc*.  The usual reason for doing this is to make a band smaller
+before saving it.  3si:full-gc* also resets all temporary areas (see
+3si:reset-temporary-area*, (si:reset-temporary-area-fun)).
+
+.defun si:full-gc
+Performs a complete garbage collection immediately.
+This does not turn automatic garbage collection on or off;
+it performs the garbage collection in the process you call it in.
+A full gc of the standard system takes about 7 minutes, currently.
+.end_defun
+
+.defun si:clean-up-static-area area-number
+This is a more selective way of causing static areas to be garbage
+collected once.  The argument is the area number of a static area; that
+particular area will be garbage collected the next time a garbage
+collection is done (more precisely, it will be copied and discarded after the next
+flip).  If you then call 3si:full-gc*, it will happen then.
+.end_defun
+
+.defun gc-status
+The function 3gc-status* prints information related to garbage
+collection.  When scavenging is in progress, it tells you how the task is
+progressing.  While scavenging is not in progress and
+oldspace does not exist, it prints information about how soon a new flip
+will be required.
+.end_defun
+
+While a garbage collection is not in progress, the output from
+3gc-status* looks like this:
+.lisp
+Dynamic (new+copy) space 557,417, Old space 0, Static 3,707,242,
+Free space 10,453,032, with 10,055,355 needed for garbage collection
+ assuming 100% live data (SI:GC-FLIP-RATIO = 1).
+If GC is turned on, a flip will happen in 397,677 words.
+Scavenging during cons Off, Idle scavenging On,
+Automatic garbage collection Off.
+GC Flip Ratio 1, GC Reclaim Immediately Off
+.end_lisp
+.lisp
+.exdent 96 or
+Dynamic (new+copy) space 561,395, Old space 0, Static 3,707,242,
+Free space 10,453,032, with 10,058,670 needed for garbage collection
+ assuming 100% live data (SI:GC-FLIP-RATIO = 1).
+A flip will happen in 394,362 words.
+Scavenging during cons On, Idle scavenging On,
+Automatic garbage collection On.
+GC Flip Ratio 1, GC Reclaim Immediately Off
+.end_lisp
+
+The ``dynamic space'' figure is the amount of garbage collectable space
+and the ``static'' figure is the amount of static space used.
+There is no old space since an old space only exists during garbage collection.
+
+The amount of space needed for garbage collection represents an estimate
+of how much space user programs will use up while scavenging is in
+progress.  It includes a certain amount of padding.  The difference
+between the free space and that amount is how much consing you can do
+before a garbage collection will begin (if automatic garbage collection
+is on).
+
+The amount needed for a garbage collection depends on the value of
+3si:*gc-reclaim-immediately**; more if it is 3nil*.
+
+While a garbage collection is in progress, the output looks like this:
+.lisp
+Incremental garbage collection now in progress.
+Dynamic (new+copy) space 45,137, Old space 972,514, Static 3,707,498,
+Between 3,701,440 and 4,629,998 words of scavenging left to do.
+Free space 9,289,795 (of which 928,558 might be needed for copying).
+Ratio scavenging work/free space = 0.55.
+Scavenging during cons On, Idle scavenging On,
+Automatic garbage collection On.
+GC Flip Ratio 1, GC Reclaim Immediately Off
+.end_lisp
+
+Notice that most of the dynamic space has become old space and new
+space is small.  Not much has been copied since the flip took place.
+The maximum and minimum estimates for the amount of scavenging are based
+on different limits for how much of old space may need to be copied; as
+scavenging progresses, the maximum decreases steadily, but the
+minimum may increase.  The free space is smaller now, but it will get
+larger when scavenging is finished and old space is freed up.  (The total
+amounts are not the same now because unused parts of regions may not be
+included in any of the figures.)
+
+.defun si:set-scavenger-ws number-of-pages
+Incremental scavenging is restricted to a fixed
+amount of physical memory to reduce its interference with your other
+activities.
+
+This function specifies the number of pages of memory that incremental garbage
+collection can use.  256 is a good value for a 256k machine.  If
+the garbage collector gets very poor paging performance, use of this
+function may fix it.
+.end_defun
+
+.section Logging In
+.setq lispm-init-file section-page
+
+	Logging in tells the Lisp Machine who you are, so that
+other users can see who is logged in, you can receive messages,
+and your INIT file can be run.  An INIT file is a Lisp program
+which gets loaded when you log in; it can be used to set up
+a personalized environment.
+
+	When you log out, it should be possible to undo any
+personalizations you have made so that they do not affect the next user
+of the machine.  Therefore, anything done by an INIT file should be
+undoable.  In order to do this, for every form in the INIT file, a Lisp
+form to undo its effects should be added to the list that is the value
+of 3logout-list*.  The 3login-forms* construct
+helps make this easy; see below.
+
+.defvar user-id
+The value of 3user-id* is either the name of the logged in user, as a string,
+or else an empty string if there is no user logged in.
+It appears in the who-line.
+.end_defvar
+
+.defvar logout-list
+The value of 3logout-list* is a list of forms to be evaluated
+when the user logs out.
+.end_defvar
+
+.defun login name &optional host inhibit-init-file
+Sets your name (the variable 3user-id*) to 2name* and logs in a file
+server on 2host*.  2host* also becomes your default file host.  The default
+value of 2host* depends on which Lisp Machine you use using; it is
+called the associated machine (see (si:associated-machine-var)).
+3login* also runs the 3:login* initialization list (see
+(login-init-list)).
+
+If 2host* requires passwords for logging in you are asked for a
+password.  Adding an asterisk at the front of your password enables any
+special capabilities you may be authorized to use, by calling
+3fs:enable-capabilities* ((fs:enable-capabilities-fun)).
+
+Unless 2inhibit-init-file* is specified as non-3nil*, 3login* loads
+your init file if it exists.  On ITS, your init file is 2name* 3LISPM*
+on your home directory.  On TOPS-20 your init file is 3LISPM.INIT* on your
+directory.  On VMS, it is 3LISPM.INI*.  On Unix, it is 3lispm.init*.
+
+If anyone is logged into the machine already, 3login* logs him out
+before logging in 2name*.  (See 3logout*.)  Init files should be
+written using the 3login-forms* construct so that 3logout* can undo
+them.  Usually, however, you cold-boot the machine before logging in, to
+remove any traces of the previous user.  3login* returns 3t*.
+.end_defun
+
+.defun log1 &rest options
+Like 3login* but the arguments are specified differently.
+2options* is a list of keywords and values; the keywords
+3:host* and 3:init* specify the host to log in on and whether
+to load the init file if any.  Any other keywords are also allowed.
+3log1* itself ignores them, but the init file can act on them.
+The purpose of 3log1*, as opposed to 3login*, is to enable you
+to specify other keywords for your init file's sake.
+.end_defun
+
+.defvar si:user-init-options
+During the execution of the user's init file, inside 3log1*,
+this variable contains the arguments given to 3log1*.
+Options not meaningful to 3log1* itself can be specified, so that
+the init file can find them here and act on them.
+.end_defvar
+
+.defun logout
+First, 3logout* evaluates the forms on 3logout-list*.
+Then it sets 3user-id* to an empty string and 3logout-list*
+to 3nil*.  Then it runs the 3:logout* initialization list
+(see (login-init-list)), and returns 3t*.
+.end_defun
+
+.defmac login-forms undoable-forms...
+The body of a 3login-forms* is composed of forms to be evaluated,
+whose effects are to be undone if you log out.  For example,
+.lisp
+(login-forms
+  (setq fs:*defaults-are-per-host* t))
+.end_lisp
+would set the variable immediately but arrange for its previous value
+to be restored if you log out.
+
+3login-forms* is not an AI program; it must be told how to undo each
+function that will be used immediately inside it.  This is done by
+giving the function name (such as 3setq*) a 3:undo-function*
+property which is a function that takes a form as an argument and
+returns a form to undo the original form.  For 3setq*, this is done as
+follows:
+.lisp
+(defun (setq :undo-function) (form &aux results)
+  (do ((l (cdr form) (cddr l)))
+      ((null l))
+    (cond ((boundp (car l))
+	   (push `(setq ,(car l) ',(symeval (car l))) results))
+	  (t (push `(makunbound ',(car l)) results))))
+  `(progn . ,results))
+.end_lisp
+
+Undo functions are standardly provided for the functions 3setq*,
+3pkg-goto-globally*, 3setq-globally*, 3add-initialization*,
+3deff*, 3defun*, 3defsubst*, 3macro*, 3advise* and
+3zwei:set-comtab*.  Constructs which macroexpand into uses of those
+functions are also supported.
+
+Note that setting 3*read-base** and 3*print-base** should be done with 3setq-globally*
+rather than 3setq*, since those variables are likely to be bound by the
+3load* function while the init file is executed.
+.end_defmac
+
+.defmac login-setq {variable value}...
+3login-setq* is like 3setq* except that it puts
+a 3setq* form on 3logout-list* to set the variables
+to their previous values.  3login-setq* is obsolete; use 3login-forms*
+around a 3setq* instead.
+.end_defmac
+
+.defun login-eval x
+3login-eval* is used for functions that are ``meant to be called''
+from INIT files, such as 3zwei:set-comtab-return-undo*, which conveniently
+return a form to undo what they did.  3login-eval* pushes
+the result of the form 2x* onto 3logout-list*.  It is obsolete now
+because 3login-forms* is a cleaner interface.
+.end_defun
+
+.defun si:undoable-forms-1 undo-list-name forms &optional complaint-string
+This is what 3login-forms* uses.
+2forms* is a list of forms; they are evaluated and forms for
+undoing their effects are pushed onto the value of the symbol
+2undo-list-name*.  If an element of 2forms* has no known
+way to be undone, a message is printed using the string 2complaint-string*.
+For 3login-forms*, the string supplied is 3"at logout"*.
+.end_defun
+
+.section Dribble Files
+.cindex dribble file
+
+.defun dribble &optional filename
+With an argument, 3dribble* opens 2filename* as a `dribble file' (also
+known as a `wallpaper file') and then enters a Lisp listen loop
+in which 3*standard-input**
+and 3*standard-output** are rebound to direct all the output and
+echoing they do to the file as well as to the terminal.
+
+Dribble output can be sent to an editor buffer by using a suitable
+pathname; see (editor-hosts).
+
+Calling 3dribble* with no arguments terminates dribbling; it throws to
+the original call to 3dribble*, which closes the file and returns.
+.end_defun
+
+.defun dribble-all &optional filename
+Like 3dribble* except that all input and
+output goes to the dribble file, including break loops, queries,
+warnings and sessions in the debugger.  This works by binding
+3*terminal-io** instead of 3*standard-output** and 3*standard-input**.
+.end_defun
+
+.section Version Information
+
+Common Lisp defines several standard ways of inquiring about
+the identity and capabilities of the Lisp system you are using.
+
+.defvar *features*
+A list of atoms which describe the software and hardware features
+of the Lisp implementation.  By default, this is
+.lisp
+(:loop :defstruct :lispm :cadr :mit :chaos :sort :fasload :string
+ :newio :roman :trace :grindef :grind :common)
+.end_lisp
+Most important is the symbol 3:lispm*; this indicates that the program
+is executing on the Lisp Machine.  3:cadr* indicates the type of
+hardware, 3:mit* which version of the Lisp Machine operating system,
+and 3:chaos* that the Chaosnet protocol is available.  3:common*
+indicates that Common Lisp is supported.
+
+Most of the other elements are for Maclisp compatibility.  Common Lisp
+defines the variable 3*features** but does not define what should
+appear in the list.  The order of elements in the list has no
+significance.  Membership checks should use 3string-equal* so that
+packages are not significant
+
+The 7#+* and 7#-* read constructs ((sharp-plus)) check for the
+presence of an element in this list.  Thus, 7#+*3lispm* when read by
+a Lisp Machine causes the following expression to be significant,
+because 3:lispm* is present in the features list.
+.end_defvar
+
+The remaining standard means of inquiry are specified by Common Lisp to
+be functions rather than variables, for reasons that seem poorly thought
+out.
+
+.defun lisp-implementation-type
+Returns a string saying what kind of Lisp implementation you are using.
+On the Lisp Machine it is always 3"Zetalisp"*.
+.end_defun
+
+.defun lisp-implementation-version
+Returns a string saying the version numbers of the Lisp implementation.
+On the Lisp Machine it looks something like
+.lisp
+3"System 98.3, CADR 3.0, ZMAIL 52.2"*.
+.end_lisp
+.end_defun
+
+.defun machine-type
+Returns a string describing the kind of hardware in use.
+It is 3"CADR"* or 3"LAMBDA"*.
+.end_defun
+
+.defun machine-version
+Returns a string describing the kind of hardware and microcode version.
+It starts with the value of 3machine-type*.
+It might be 3"CADR Microcode 309"*.
+.end_defun
+
+.defun machine-instance
+Returns a string giving the name of this machine.  Do not be confused;
+the value is a string, not an instance.  Example:  3"CADR-18"*.
+.end_defun
+
+.defun software-type
+Returns a string describing the type of operating system software that Lisp
+is working with.  On the Lisp Machine, it is always 3"Zetalisp"*, since the
+Lisp Machine Lisp software is the operating system.
+.end_defun
+
+.defun software-version
+Returns a string describing the version numbers of the operating system software
+in use.  This is the same as 3lisp-implementation-version* on the Lisp Machine
+since the same software is being described.
+.end_defun
+
+.defun short-site-name
+Returns a string giving briefly the name of the site you are at.
+A site is an institution which has a group of Lisp Machines.
+The string you get is the value of the 3:short-site-name* site option
+as given in 3SYS: SITE; SITE LISP*.  See (site-files) for more
+information.  Example: 3"MIT AI Lab"*.
+.end_defun
+
+.defun long-site-name
+Returns a string giving a verbose name for the site you are at.  This
+string is specified by the site option 3:long-site-name*.  Example:
+3"Massachusetts Institute of Technology, Artificial Intelligence
+Laboratory"*.
+.end_defun
+
+.section Booting and Disk Partitions
+.setq disk-partition section-page
+.cindex band
+.cindex partition
+.cindex booting
+
+A Lisp Machine disk is divided into several named 2partitions* (also
+called 2bands* sometimes).  Partitions can be used for many things.
+Every disk has a partition named 3PAGE*, which is used to implement
+the virtual memory of the Lisp Machine.  When you run Lisp, this is
+where the Lisp world actually resides.  There are also partitions that
+hold saved images of the Lisp Machine microcode, conventionally named
+3MCR2n** (where 2n* is a digit), and partitions that hold saved
+images of Lisp worlds, conventionally named 3LOD2n**.  A saved image
+of a Lisp world is also called a 2virtual memory load* or 2system load*.
+The microcode and system load are stored separately so that the
+microcode can be changed without going through the time-consuming
+process of generating a new system load.
+
+The directory of partitions is in a special block on the disk called the
+label.  The label names one of the partitions as the current microcode
+and one as the current system load.  When you cold-boot, the contents
+of the current microcode band are loaded into the microcode memory, and
+then the contents of the current saved image of the Lisp world is copied
+into the 3PAGE* partition.  Then Lisp starts running.  When you
+warm-boot, the contents of the current microcode band are loaded, but
+Lisp starts running using the data already in the 3PAGE* partition.
+
+For each partition, the directory of partitions contains a brief textual
+description of the contents of the partition.  For microcode partitions,
+a typical description might be 3"UCADR 310"*; this means that version
+3310* of the microcode is in the partition.  For saved Lisp images, it
+is a little more complicated.  Ideally, the description would say which
+versions of which systems are loaded into the band.  Unfortunately,
+there isn't enough room for that in most cases.  A typical description
+is 3"99.4 Daed 5.1"*, meaning that this band contains version
+399.4* of 3System* and version 35.1* of 3Daedalus*.  The description
+is created when a Lisp world is saved away by 3disk-save* (see below).
+
+.subsection Manipulating the Label
+
+.defun print-disk-label &optional (unit 30*) (stream 3*standard-output**)
+Prints a description of the label of the disk specified by 2unit* onto
+2stream*.  The description starts with the name of the disk pack,
+various information about the disk that is generally uninteresting, and
+the names of the two current load partitions (microcode and saved Lisp
+image).  This is followed by one line of description for each
+partition.  Each one has a name, disk address, size, and textual
+comment.  The current microcode partition and the current system
+load partition are marked with asterisks, each at the beginning of the line.
+
+2unit* may be the unit number of the disk (most Lisp machines just
+have one unit, number 0), or the host name of another Lisp Machine on
+the Chaosnet, as a string (in which case the label of unit 30* on that
+machine is printed, and the user of that machine is notified that you
+are looking at his label), or, for CADRs only, the string 3"CC"*
+(which prints the label of unit 0 of the machine connected to this
+machine's debugging hardware).
+
+Use of 3"CC"* as the 2unit* is the way to examine or fix up
+the label of a machine which cannot work because of problems with the
+label.  On a Lambda, this must be done through the SDU.
+.end_defun
+
+.defun set-current-band partition-name &optional (unit 30*)
+Sets the current saved Lisp image partition to be 2partition-name*.
+If 2partition-name* is a number, the name 3LOD2n** is used.
+
+2unit* can be a disk drive number, the host name of another Lisp
+Machine, or the string 3"CC"*.  See the comments under
+3print-disk-label*, above.
+
+If the partition you specify goes with a version of microcode different
+from the one that is current, this function offers to select the
+an appropriate microcode partition as well.  Normally you should
+answer 3Y*.
+.end_defun
+
+.defun set-current-microload partition-name &optional (unit 30*)
+Sets the current microcode partition to be 2partition-name*.
+If 2partition-name* is a number, the name 3MCR2n** is used.
+
+2unit* can be a disk drive number, the host name of another Lisp
+Machine, or the string 3"CC"*.  See the comments under
+3print-disk-label*, above.
+.end_defun
+
+.defun si:current-band &optional (unit 30*)
+.defun1 si:current-microload &optional (unit 30*)
+Return, respectively, the name of the current band and the current microload on the
+specified unit.
+.end_defun
+
+When using the functions to set the current load partitions, be extra
+sure that you are specifying the correct partition.  Having done it,
+cold-booting the machine will reload from those partitions.  Some
+versions of the microcode will not work with some versions of the Lisp
+system, and if you set the two current partitions incompatibly,
+cold-booting the machine will fail.  To fix this, on a CADR, use
+another CADR's debugging hardware, running
+3print-disk-label* and 3set-current-band* on the other CADR and
+giving 3"CC"* as the 2unit* argument.  On a Lambda, this is done
+via the SDU.
+
+.defun si:edit-disk-label unit &optional init-p
+Runs an interactive label editor on the specified unit.
+This editor allows you to change any field in the label.  The
+3Help* key documents the commands.  You have to be an expert
+to need this and to understand what it does, so the commands
+are not documented here.  Ask someone if you need help.
+You can screw yourself very badly with this function.
+.end_defun
+
+.defun disk-restore &optional partition
+Allows booting from a band other than the current one.  2partition*
+may be the name or the number of a disk partition containing a
+virtual-memory load, or 3nil* or omitted, meaning to use the current
+partition.  The specified partition is copied into the paging area of
+the disk and then started.
+
+Although you can use this to boot a different Lisp image than the installed
+one, this does not provide a way to boot a different microcode image.
+3disk-restore* brings up the new band with the currently running microcode.
+
+3disk-restore* asks the user for confirmation before doing it.
+.end_defun
+
+.defun describe-partition partition &optional unit
+Tells you various useful things about a partition; including where on
+disk the partition begins, and how long it is.
+
+If you specify a saved Lisp system partition, such as 3LOD3*, it also
+tells you important information about the contents of the partition: the
+microcode version which the partition goes with, the size of the data in
+the partition and the highest virtual address used.  The size of the partition
+tells how large a partition you need to make a copy of this one, and the
+highest virtual address used (which is measured in units of disk
+blocks) tells you how large a 3PAGE* partition you need in order to run
+this partition.
+.end_defun
+
+.subsection Updating Software
+
+Of all the procedures described in this section, the most common one is
+to take a partition containing a Lisp image, update it to have all the
+latest patches (see (patch-facility)), and save it away in a disk
+partition.  The function 3load-and-save-patches* does it all
+conveniently for you.
+
+.defun load-and-save-patches
+Loads patches and saves a band, with a simple user interface.  Run this
+function immediately after cold booting, without logging in first; it
+logs in automatically as 3LISPM* (or whatever is specified in the site files).
+The first thing it does is print the list of disk partitions and ask you
+which one to save in.  Answer 3LOD2n**, using the name of a partition
+from the printed list.  You must then confirm.  Then the patches are loaded
+and the resulting world is saved with no further user interaction, as long
+as no problem arises.
+
+It is convenient to use this function just before you depart, allowing
+it to finish unattended.
+.end_defun
+
+If you wish to do something other than loading all and only the latest
+patches, you must perform the steps by hand.  Start by cold-booting the
+machine, to get a fresh, empty system.  Next, you must log in as
+something whose INIT file does not affect the Lisp world noticably (so
+that when you save away the Lisp image, the side-effects of the INIT
+file won't get saved too); on MIT-OZ, for example, you can log in as
+3LISPM* with password 3LISPM*.  Now you can load in any new software
+you want; usually you should also do 3(load-patches)* for good
+measure.  You may also want to call 3si:set-system-status* to change
+the release status of the system.
+
+When you're done loading everything, do 3(print-disk-label)* to find
+a band in which to save your new Lisp world.  It is best not to reuse
+the current band, since if something goes wrong during the saving of
+the partition, while you have written, say, half of the band that is
+current, it may be impossible to cold-boot the machine.  Once you have
+found the partition, you use the 3disk-save* function to save
+everything into that partition.
+
+.defun disk-save partition-name &optional no-query incremental
+Saves the current Lisp world in the designated partition.
+2partition-name* may be a partition name (a string), or it may be a
+number in which case the name 3LOD2n** is used.
+
+The user is first asked for yes-or-no confirmation that he really wants to
+reuse the named partition.  A non-3nil* value for 2no-query* prevents
+this question.  This is only for callers that have already asked.
+
+Next it is necessary to figure out what to put into the textual
+description of the band, for the disk label.  This starts with the brief
+version of 3si:system-version-info* (see
+(si:system-version-info-fun)).  Then comes a string of additional
+information; if 2no-query* is 3nil*, the user is offered the chance
+to provide a new string.  The current value of this string is returned
+by 3si:system-version-info* and printed by booting.  The version info
+and the string both go in the comment field of the disk label for this
+band.  If they don't together fit into the fixed size available, the
+user is asked to retype the whole thing (the version info as well as
+your comment) in a compressed form that does fit.
+
+The Lisp environment is then saved away into the designated partition,
+and then the equivalent of a cold-boot from that partition is done.
+.end_defun
+
+Once the patched system has been successfully saved and the system
+comes back up, you can make it current with 3set-current-band*.
+
+When you do a 3disk-save*, it may tell you that the band you wish to save
+in is not big enough to hold all the data in your current world.  It may be
+possible for you to reduce the size of the data so that it will fit in that
+band, by garbage collecting.  Simply do 3(si:full-gc)*.
+
+Try to avoid saving patched systems after running the editor or the
+compiler.  This works, but it makes the saved system a lot bigger.  In
+order to produce a clean saved environment, you should try to do as
+little as possible between the time you cold-boot and the time you save
+the partition.
+
+.defvar si:login-history
+The value of 3si:login-history* is a list of entries, one for each person who
+has logged into this world since it was created.  This makes it possible to
+tell who 3disk-saved* a band with something broken in it.  Each entry is
+a list of the user ID, the host logged into, the Lisp Machine on which the
+world was being executed, and the date and time.
+.end_defvar
+
+.subsection Saving Personal Software
+
+If you have a large application system which takes a while to load,
+you may wish to save a band containing it.
+
+To do this, boot a fresh band, log in without running your init file,
+do 3make-system* to load the application system, and then invoke
+3disk-save*.  When 3disk-save* asks for an additional comment,
+give your name or the name of the application system you loaded,
+and a date.  This will tell other people who to ask whether the
+band is still in use if they would like to save other things.
+
+You can greatly reduce the amount of disk space needed for the saved
+band by making it an 2incremental* band; that is, a band which
+contains the differences between the Lisp world you want to save and the
+system band you originally loaded.  Since all the pages of the system
+which your application program did not change do not have to be saved,
+an incremental band is generally much smaller--perhaps by a factor of ten.
+
+To make an incremental band, give a non-3nil* third argument to
+3disk-save*, as in
+.lisp
+(disk-save "lod4" nil t)
+.end_lisp
+Figuring out which pages need to be saved in the incremental band
+takes a couple of extra minutes.
+
+You can restore the incremental band with 3disk-restore* or boot it like
+any other band.  This works by first booting the original band and then
+copying in the differences that the incremental band records.  It takes
+only a little longer than booting the original system band.
+
+The original band to which an incremental band refers must be a complete load.
+When you update a standard system band (loading patches, for instance) you
+should always make a complete load, so that the previous system band is not
+needed for the new one to function.
+
+The incremental band records the partition name of the original system
+band.  That original band must still exist, with the same contents, in
+order for the incremental band to work properly.  The incremental band
+contains some error check data which is used to verify this.  The error checking is
+done by the microcode when the incremental band is booted, but it is
+also done by 3set-current-band*, so that you are not permitted to select
+an incremental band if it is not going to work.
+
+When using incremental bands, it is important to preserve the system bands
+that they depend on.  Therefore, system bands should not be updated too
+frequently.  3describe-partition* on an incremental band says which
+full band it depends on; you can use this to determine which bands should
+be kept for the sake of incremental bands that depend on them.
+
+In order to realize the maximum savings in disk space possible because
+of incremental bands, you must make the partition you saved in smaller
+once the save is finished and you know how much space was actually used.
+This is done with 3si:edit-disk-label*.
+The excess space at the end of the partition can be used to make another
+partition which is used for the next incremental band saved.  Eventually
+when some of the incremental bands are no longer needed the rest must
+be shuffled so that the free space can be put together into larger partitions.
+This can be done with 3si:copy-disk-partition*.
+
+An easier technique is to divide a couple of the initial partitions into
+several equal-sized partitions of about 4000 pages, and use these for
+all incremental saving.  You can easily provide room for 12 incremental
+bands this way in addition to a few system bands and file system.
+
+You must not do a garbage collection to reduce the size of the world
+before you make an an incremental band.  This is because garbage
+collection alters so many pages that an incremental band would be as big
+as a complete band.
+
+.subsection Copying Bands
+
+The normal way to install new software on a machine is
+to copy the microcode and world load bands from another machine.
+
+The first step is to find a machine that is not in use and has the
+desired system.  Let us call this the source machine.  The machine
+where the new system is to be installed is the target machine.  You
+can use 3finger* to see which machines are free, and use
+3print-disk-label* with an argument to examine the label of that
+machine's disk and see if it has the system you want.
+
+Then you should do a 3(print-disk-label)* to find suitable
+partitions to copy them into.  It is advisable not to copy them
+into the selected partitions; if you did that, and the machine
+crashed in the middle, you would be unable to boot it.
+
+Before copying a band from another machine, double-check the partition
+names by printing the labels of both machines, and make sure no one is
+using the other machine.  Also double-check with
+3describe-partition* that the world load and microcode go together.
+Then use this function:
+
+.defun si:receive-band source-host source-band target-band &optional subset-start subset-size
+Copies the partition on 2source-host*'s partition named
+2source-band* onto the local machine's partition named
+2target-band*.  This takes about ten minutes.  It types out the size
+of the partition in pages, and types a number every 100 pages telling
+how far it has gotten.  It displays an entry in the who line on the
+remote machine saying what's going on.
+
+The 2subset-start* and 2subset-size* arguments can be used to
+transfer only part of a partition.  They are measured in blocks.
+The default for the first is zero, and the default for the second is
+to continue to the end of the data in the band.  These arguments are useful for
+restarting a transfer that was aborted due to network problems or a crash,
+based on the count of hundreds of blocks that was printed out before
+the crash.
+.end_defun
+
+To go the other direction, use 3si:transmit-band*.
+
+.defun si:transmit-band source-band target-host target-band &optional subset-start subset-size
+This is just like 3si:receive-band*, except you use it on
+the source machine instead of the target machine.  It copies
+the local machine's partition named 2source-band* onto
+2target-machine*'s partition named 2target-band*.
+
+It is preferable to use 3si:receive-band* so that you are present
+at the machine being written on. 
+.end_defun
+
+After transferring the band, it is good practice to make sure that it really
+was copied successfully by comparing the original and the copy.  All of the
+known reasons for errors during band transfer have (of course) been corrected,
+but peace of mind is valuable.  If the copy was not perfectly faithful, you
+might not find out about it until a long time later, when you use whatever part
+of the system that had not been copied properly.
+
+.defun si:compare-band source-host source-band target-band &optional subset-start subset-size
+This is like 3si:receive-band*, except that it does not change anything.
+It compares the two bands and complains about any differences.
+.end_defun
+
+Having gotten the current microcode load and system load copied into
+partitions on your machine, you can make them current for booting using
+3set-current-band*.
+
+.section Site Options and Host Table
+.setq site-files section-page
+.cindex site options
+
+The Lisp Machine system has options that are set at each site.  These
+include the network addresses of other hosts, which hosts have file
+servers, which host to find the system source files and patch files on,
+where to send bug reports, what timezone the site is located in, and many
+other things.
+
+The per-site information is defined by three files: 3SYS: SITE; SITE LISP*,
+3SYS: SITE; LMLOCS LISP*, and 3SYS: CHAOS; HOSTS TXT*.
+.setq host-table page
+.cindex host table
+
+3SYS: CHAOS; HOSTS TXT* is the network host table.  It gives the names
+and addresses of all hosts that are to be known to the Lisp Machine for any
+purposes.  It also says what type of machine the host is, and what operating
+system runs on it.
+
+3SYS: SITE; LMLOCS LISP* specifies various information about the Lisp
+Machines at your site, including its name, where it is physically located,
+and what the default machine for logging in should be.
+
+3SYS: SITE; SITE LISP* specifies all other site-specific information.
+Primarily, this is contained in a call to the special form 3defsite*.
+
+.defmac defsite site-name (site-option value)...
+This special form defines the values of site-specific options, and also
+gives the name of the site.  Each 2site-option* is a symbol, normally in
+the keyword package, which is the name of some site option.  2value* is
+the value for that option; it is evaluated.  Here is a list of
+standardly defined site options:
+
+.table 3
+.kitem :sys-host
+The value is a string, the name of the host on which the system source
+files are stored.  This host becomes the translation of logical host 3SYS*.
+
+.kitem :sys-host-translation-alist
+The value is an alist mapping host names into translation-list variables.
+Each translation list variable's value should be an alist suitable for being
+the third argument to 3fs:add-logical-pathname-host* (see
+(fs:add-logical-pathname-host-fun)).  The car of an element may be 3nil*
+instead of a host name; then this element applies to all hosts not
+mentioned.
+
+The normal place to find the system sources is on the host specified by the
+3:sys-host* keyword, in the directories specified by the translation list
+variable found by looking that host up in the value of the
+3:sys-host-translation-alist* keyword.  If you specify a different host
+as the system host with 3si:set-sys-host*, that host is also looked
+up in this alist to find out what directories to use there.
+
+.lisp
+.exdent 96 Here is what is used at MIT:
+
+(defsite :mit
+  ...
+  (:sys-host-translation-alist
+    '(("AI" . its-sys-pathname-translations)
+      ("OZ" . oz-sys-pathname-translations)
+      ("FS" . its-sys-pathname-translations)
+      ("LM" . its-sys-pathname-translations)
+      (nil . its-sys-pathname-translations)))
+  ...)
+.end_lisp
+.lisp
+(defconst oz-sys-pathname-translations
+  '(("CC;" "<L.CC>")
+    ("CHAOS;" "<L.CHAOS>")
+    ("DEMO;" "<L.DEMO>")
+    ...
+    ("SITE;" "<L.SITE>")
+    ("SYS;" "<L.SYS>")
+    ("SYS2;" "<L.SYS2>")
+    ...
+    ("ZMAIL;" "<L.ZMAIL>")
+    ("ZWEI;" "<L.ZWEI>")
+    ))
+.end_lisp
+
+.kitem :sys-login-name
+.xitem1 :sys-login-password defsite
+These specify the username and password to use to log in automatically to read system
+patch files, microcode symbol tables and error tables.
+The values should be strings.
+
+.kitem :chaos
+3nil* if the site has no Chaosnet; otherwise, a string,
+the name of the Chaosnet that the site is on.  Names for Chaosnets
+will eventually be used to permit communication between Chaosnets,
+probably through special gateway servers.  Except when multiple
+sites are on a single Chaosnet, normally the Chaosnet name
+should be the same as the site name (but as a string, not a symbol).
+
+.kitem :standalone
+The value should be 3t* for a Lisp Machine that is operated without
+a network connection.  This causes the Lisp Machine to not to try to
+use the Chaosnet for getting the time.  On the Lambda, the time will
+obtained from the SDU's clock.  On the CADR, the time will be obtained
+from the user.
+
+.kitem :default-associated-machine
+This should be a string which is the name of a host to use as the
+associated host for any Lisp Machine not mentioned in the LMLOCS file.
+
+.kitem :usual-lm-name-prefix
+This should be a string which is the typical beginning of host names of
+Lisp Machines at your site.  At MIT, it is 3"CADR-"*.
+
+.kitem :chaos-file-server-hosts
+This should be a list of names of hosts that have file servers, including
+Lisp Machines which other Lisp Machines should know about.
+
+.kitem :lmfile-server-hosts
+This should be a list of names of Lisp Machines that provide servers for
+the LMFILE file system.  The entry for such a machine should be one of
+the nicknames of that machine.  By virtue of its presence in this list,
+it becomes the name by which the LMFILE file system there can be
+accessed remotely.
+
+.kitem :chaos-time-server-hosts
+This should be a list of names of hosts that support TIME servers.
+These are hosts that the Lisp Machine can ask the time of day from
+when you boot.
+
+.kitem :chaos-host-table-server-hosts
+This should be a list of names of hosts that support host-table servers,
+which can be used to inquire about hosts on networks that the Lisp Machine
+does not know about in its own host table.
+
+.kitem :chaos-mail-server-hosts
+This should be a list of names of hosts that support mail servers which are
+capable of forwarding mail to any known host.
+
+.kitem :timezone
+This should be a number, the number of hours earlier than GMT of standard
+time in the timezone where this site is located.
+
+.kitem :host-for-bug-reports
+This should be a string, the name of the host at which bug-report mailboxes
+are located.
+
+.kitem :local-mail-hosts
+This should be a list of names of hosts that ZMail should consider ``local''
+and omit from its summary display.
+
+.kitem :spell-server-hosts
+This should be a list of hosts that have spelling corrector servers.
+
+.kitem :comsat
+This should be 3t* if mail can be sent through the COMSAT mail demon.
+This is true only at MIT.
+
+.kitem :default-mail-mode
+This should be the default mode for use in sending mail.
+The options are 3:file* (use COMSAT), 3:chaos* (use one of the
+3:chaos-mail-server-hosts*), or 3:chaos-direct* (like 3:chaos*, but
+go direct to the host that the mail is addressed to whenever possible).
+
+.kitem :gmsgs
+This should be 3t* if GMSGS servers are available.
+
+.kitem :arpa-gateways
+This should be a list of names of hosts that can be used as gateways to the
+Arpanet.  These hosts must provide a suitable Chaosnet server which will
+make Arpanet connections.  It should be 3nil* if your site does not have
+an Arpanet connection.
+
+.kitem :arpa-contact-name
+If you have Arpanet gateways, this is the Chaosnet contact name to use.
+Nowadays, it should be 3"TCP"*.
+
+.kitem :dover
+This should be 3t* if your site has a Dover printer.
+
+.kitem :default-printer
+This should be a keyword which describes
+the default printer for hardcopy
+commands and functions to use.  Possible values include 3:dover*,
+3nil*, or any other printer type that you define (see (hardcopy)).
+
+.kitem :default-bit-array-printer
+Like 3:default-printer*, but this is the default for only 3hardcopy-bit-array* to use.
+
+.kitem :esc-f-arg-alist
+This says what various numeric arguments to the 3Terminal F* command
+mean.  It is a list of elements, one for each possible argument.
+The car of an element is either a number or 3nil* (which applies to
+3Terminal F* with no argument).  The cdr is either 3:login*
+(finger the login host), 3:lisp-machines* (finger all Lisp Machines at
+this site), 3:read* (read some hosts from the keyboard), or a list of
+host names.
+
+.kitem :verify-lm-dumps
+If the value is 3t*, Lisp Machine file system dump tapes are
+verified.
+.end_table
+
+Other site options are allowed, and your own software can look for them.
+.end_defmac
+
+.subsection Updating Site Information
+
+To update the site files, you must first recompile the sources.
+Do this by
+.lisp
+(make-system 'site 'compile)
+.end_lisp
+This also loads the site files.
+
+To just load the site files, assuming they are compiled, do
+.lisp
+(make-system 'site)
+.end_lisp
+
+3load-patches* does that automatically.
+
+You should never load any site file directly.  All the files must be loaded
+in the proper fashion and sequence, or the machine may stop working.
+
+.subsection Accessing Site Options
+
+Programs examine the site options using these variables and functions:
+
+.defvar site-name
+The value of this variable is the name of the site you are running at, as
+defined in the 3defsite* in the 3SITE* file.  You can use this in run-time
+conditionals for various sites.
+.end_defvar
+
+.defun get-site-option keyword
+Returns the value of the site option 2keyword*.
+The value is 3nil* if 2keyword* is not mentioned in the 3SITE* file.
+.end_defun
+
+.defmac define-site-variable variable keyword [documentation]
+Defines a variable named 2variable* whose value is always the same as
+that of the site option 2keyword*.  When new site files are loaded,
+the variable's value is updated.  2documentation* is the variable's
+documentation string, as in 3defvar*.
+.end_defmac
+
+.defmac define-site-host-list variable keyword [documentation]
+Defines a variable named 2variable* whose value is a list of host objects
+specified by the site option 2keyword*.  The value actually specified in
+the 3SITE* file should be a list of host names.  When new site files are
+loaded, the variable's value is updated.  2documentation* is the
+variable's documentation string, as in 3defvar*.
+.end_defmac
+
+.subsection The LMLOCS File
+
+The 3LMLOCS* file contains an entry for each Lisp Machine at your
+site, and tells the system whatever it needs to know about the
+particular machine it is running on.  It contains one form, a
+3defconst* for the variable 3machine-location-alist*.  The value
+should have an element for each Lisp Machine, of this form:
+
+.lisp
+("MIT-LISPM-1"  "Lisp Machine One"
+ "907 [Son of CONS] CADR1's Room x6765"
+ (MIT-NE43 9) "OZ" ((:default-printer :dover)))
+
+.exdent 96 The general pattern is
+
+(2host-full-name* 2pretty-name*
+ 2location-string*
+ (2building* 2floor*) 2associated-machine* 2site-options*) 
+.end_lisp
+
+The 2host-full-name* is the same as in the host table.
+
+The 2pretty-name* is simply for printing out for users on certain occasions.
+
+The 2location-string* should say where to find the machine's console,
+preferably with a telephone number.  This is for the 3FINGER* server
+to provide to other hosts.
+
+The 2building* and 2floor* are a somewhat machine-understandable
+version of the location.
+
+The 2associated-machine* is the default file server host name for
+login on this Lisp Machine.
+
+2site-options* is a list of site options, just like what goes in the
+3defsite*.  These site options apply only to the particular machine,
+overriding what is present in the 3SITE* file.  In our example, the
+site option 3:default-printer* is specified as being 3:dover*, on
+this machine only.
+
+.defvar si:associated-machine
+The host object for the associated machine of this Lisp Machine.
+.end_defvar

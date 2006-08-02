@@ -1,0 +1,927 @@
+.c  This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c  Function Description: Data Type Predicates. >
+
+.chapter Primitive Object Types
+.setq predicate-chapter chapter-number
+.setq object-chapter chapter-number
+
+.section Data Types
+
+This section enumerates some of the various different primitive types of
+objects in Zetalisp.  The types explained below include
+symbols, conses, various types of numbers, two kinds of compiled code
+objects, locatives, arrays, stack groups, and closures.
+.cindex symbol
+.cindex print name
+.cindex definition
+.cindex property list
+
+	A 2symbol* (these are sometimes called ``atoms'' or ``atomic
+symbols'' by other texts) has a 2print name*, a 2value*, a
+2definition*, a 2property list*, and a 2package*.
+
+	The print name is a string, which may be obtained by the
+function 3symbol-name* ((symbol-name-fun)).  This string serves as the
+2printed representation* (see (printer)) of the symbol.
+
+Each symbol
+has a 2value*, which may be any
+Lisp object.  This is the value of the symbol when regarded as a dynamic variable.
+It is also referred to sometimes as the ``contents of the
+value cell'', since internally every symbol has a cell called the 2value
+cell*, which holds the value.  It is accessed by the 3symeval*
+function ((symeval-fun)), and updated by the 3set* function
+((set-fun)).  (That is, given a symbol, you use 3symeval* to find out
+what its value is, and use 3set* to change its value.)
+
+Each
+symbol has a 2definition*, which may also be any Lisp object.  It is
+also referred to as the ``contents of the function cell'', since
+internally every symbol has a cell called the 2function cell*, which
+holds the definition.  The definition can be accessed by the
+3fsymeval* function ((fsymeval-fun)), and updated with 3fset*
+((fset-fun)), although usually the functions 3fdefinition* and
+3fdefine* are employed ((fdefine-fun)).
+
+The property list is a list of an even number of
+elements; it can be accessed directly by 3plist* ((plist-fun)), and
+updated directly by 3setplist* ((setplist-fun)), although usually the
+functions 3get*, 3putprop*, and 3remprop* ((get-fun)) are used.
+The property list is used to associate any number of additional
+attributes with a symbol--attributes not used frequently enough to
+deserve their own cells as the value and definition do.
+
+  Symbols also have a
+package cell, which indicates which package of names the symbol
+belongs to.  This is explained further in the section on packages
+(chapter (package-chapter)) and can be disregarded by the casual user.
+
+	The primitive function for creating symbols is
+3make-symbol* ((make-symbol-fun)), although most symbols
+are created by 3read*, 3intern*, or
+3fasload* (which call 3make-symbol* themselves.)
+
+	A 2cons* is an object that cares about two
+other objects, arbitrarily named the 2car* and the 2cdr*.
+These objects can be accessed with 3car* and 3cdr* ((car-fun)), and updated
+with 3rplaca* and 3rplacd* ((rplaca-fun)).  The primitive function for creating
+conses is 3cons* ((cons-fun)).
+
+	There are several kinds of numbers in Zetalisp.  2Fixnums*
+represent integers in the range of -2^24 to 2^24-1.  2Bignums*
+represent integers of arbitrary size, but they are more expensive to use
+than fixnums because they occupy storage and are slower.  The system
+automatically converts between fixnums and bignums as required.
+2Floats* are floating-point numbers.  2Short floats* are another
+kind of floating-point numbers, with less range and precision, but less
+computational overhead.  2Ratios* are exact rational numbers that are
+represented with a numerator and a denominator, which are integers.
+2Complexnums* are numbers that have explicitly represented real and
+imaginary parts, which can be any real numbers of the same type.  See
+(number) for full details of these types and the conversions between
+them.
+
+.cindex character object
+A 2character object* is much like a fixnum except that its type
+is distinguishable.  Common Lisp programs use character objects to
+represent characters.  Traditional programs usually use fixnums to
+represent characters, although they can create an manipulate character
+objects when they desire.  Character objects behave like fixnums
+when used in arithmetic; only a few operations make any distinction.
+They do, however, print distinctively.  See (characters) for more information.
+
+.cindex FEF
+	The usual form of compiled, executable code is a Lisp object,
+called a ``Function Entry Frame'' or ``FEF'' for historical reasons.  A FEF
+contains the code for one function.  This is analogous to what Maclisp
+calls a ``subr pointer''.  FEFs are produced by the Lisp Compiler
+((compiler)), and are usually found as the definitions of symbols.  The
+printed representation of a FEF includes its name so that it can be
+identified.
+	Another kind of Lisp object that represents executable code is
+a ``microcode entry''.
+These are the microcoded primitive functions of the Lisp system,
+and any user functions compiled into microcode.
+
+	About the only useful thing to do with any of these compiled code objects
+is to 2apply* it to arguments.  However, some functions are
+provided for examining such objects, for user convenience.  See
+3arglist* ((arglist-fun)),
+3args-info* ((args-info-fun)),
+3describe* ((describe-fun)),
+and 3disassemble* ((disassemble-fun)).
+
+	A 2locative* (see (locative)) is a kind of a pointer to a single memory cell
+anywhere in the system.  The contents of this cell can be accessed by 3cdr*
+(see (cdr-fun)) and updated by 3rplacd* (see (rplacd-fun)).
+
+	An 2array* (see (array))
+is a set of cells indexed by a tuple of integer subscripts.
+The contents of the cells may be accessed and changed individually.  There are several
+types of arrays.  Some have cells that may contain any object, while others (numeric
+arrays) may only contain small positive numbers.  Strings are a type of array;
+the elements are character objects.
+
+	A 2list* is not a primitive data type, but rather a data structure
+made up out of conses and the symbol 3nil*.  See (list-and-tree).
+
+.section Data Type Predicates
+.cindex predicate
+	A 2predicate* is a function that tests for some condition involving
+its arguments and returns the symbol 3t* if the condition is true, or
+the symbol 3nil* if it is not true.  The following predicates are for
+testing what data type an object has.
+
+	By convention, the names of predicates usually end in the letter `p' (which
+stands for `predicate').
+'c (See [section on naming conventions]).
+.cindex naming convention
+
+	The following predicates are for testing data types.  These predicates
+return 3t* if the argument is of the type indicated by the name of the function,
+3nil* if it is of some other type.
+'cindex "data type"
+
+.defun symbolp object
+'cindex "symbol"
+3t* if 2object* is a symbol, otherwise 3nil*.
+.end_defun
+
+.defun nsymbolp object
+3nil* if 2object* is a symbol, otherwise 3t*.
+.end_defun
+
+.defun listp object
+'cindex "cons"
+3t* if 2object* is a cons, otherwise 3nil*.
+Note that this means 3(listp nil)* is 3nil* even though 3nil* is the empty list.
+
+[This may be changed in the future to work like 3cli:listp*.
+Since the current definition of 3listp* is identical to that of 3consp*,
+all uses of 3listp* should be changed to 3consp* unless the
+treatment of 3nil* is not of concern.]
+.end_defun
+
+.defun cli:listp object
+The Common Lisp version of 3listp* returns 3t* if 2object*
+is 3nil* or a cons.
+.end_defun
+
+.defun nlistp object
+3t* if 2object* is anything besides a cons,
+otherwise 3nil*.  3(nlistp nil)* returns 3t*.
+
+[This may be changed in the future, if and when 3listp* is changed.
+Since the current definition of 3nlistp* is identical to that of 3atom*,
+all uses of 3nlistp* should be changed to 3atom* unless the
+treatment of 3nil* is not of concern.]
+.end_defun
+
+.defun atom object
+'cindex "atom"
+3t* if 2object* is not a cons,
+otherwise 3nil*.  This is the same as 3(not (consp 2object*))*.
+.end_defun
+
+.defun consp object
+3t* if 2object* is a cons, otherwise 3nil*.  At the
+moment, this is the same as 3listp*; but while 3listp* may be
+changed, 3consp* will 2never* be true of 3nil*.
+.end_defun
+
+.defun numberp object
+'cindex "number"
+3t* if 2object* is any kind of number,
+otherwise 3nil*.
+.end_defun
+
+.defun integerp object
+.defun1 fixp object
+Return 3t* if 2object* is a representation of an integer, i.e. a
+fixnum or a bignum, otherwise 3nil*.
+.end_defun
+
+.defun floatp object
+3t* if 2object* is a floating-point number,
+i.e. a full-size or short float, otherwise 3nil*.
+.end_defun
+
+.defun fixnump object
+3t* if 2object* is a fixnum, otherwise 3nil*.
+.end_defun
+
+.defun bigp object
+3t* if 2object* is a bignum, otherwise 3nil*.
+.end_defun
+
+.defun flonump object
+3t* if 2object* is a full-size float, otherwise 3nil*.
+.end_defun
+
+.defun small-floatp object
+3t* if 2object* is a short float, otherwise 3nil*.
+.end_defun
+
+.defun rationalp object
+3t* if 2object* is an exact representation of a rational number;
+that is, if it is a fixnum, a bignum or a ratio.  Otherwise 3nil*.
+.end_defun
+
+.defun complexp object
+3t* if 2object* is a complexnum, a number explicitly
+represented as complex.  Otherwise 3nil*.
+.end_defun
+
+.defun realp object
+3t* if 2object* is a number whose value is real,
+otherwise 3nil*.  Any fixnum, bignum, float (of either format) or
+ratio satisfies this predicate.  So does a complexnum whose imaginary
+part is zero.
+.end_defun
+
+.defun characterp object
+3t* if 2object* is a character object, otherwise 3nil*.
+.end_defun
+
+.defun stringp object
+'cindex "string"
+3t* if 2object* is a string, otherwise 3nil*.
+.end_defun
+
+.defun arrayp object
+'cindex "array"
+3t* if 2object* is an array, otherwise 3nil*.
+Note that strings are arrays.
+.end_defun
+
+.defun vectorp object
+3t* if 2object* is an array of rank 1.
+.end_defun
+
+.defun bit-vector-p object
+3t* if 2object* is an array of rank 1 that allows only 0 and 1 as elements.
+.end_defun
+
+.defun simple-vector-p object
+3t* if 2object* is an array of rank 1, with no fill pointer and not displaced,
+that can have any Lisp object as an element.
+.end_defun
+
+.defun simple-bit-vector-p object
+3t* if 2object* is an array of rank 1, with no fill pointer and not displaced,
+that allows only 0 and 1 as elements.
+.end_defun
+
+.defun simple-string-p object
+3t* if 2object* is a string with no fill pointer and not displaced.
+.end_defun
+
+.defun functionp object &optional allow-special-forms
+'cindex "function"
+'cindex "applicable function"
+3t* if 2object* is a function (essentially, something
+that is acceptable as the first argument to 3apply*), otherwise 3nil*.
+In addition to interpreted, compiled, and microcoded functions, 3functionp*
+is true of closures, select-methods (see (select-method)), and symbols whose function
+definition is 3functionp*.
+
+3functionp* is not true of objects that can be called as functions but
+are not normally thought of as functions: arrays, stack groups,
+entities, and instances.  As a special case, 3functionp* of a symbol
+whose function definition is an array returns 3t*, because in this
+case the array is being used as a function rather than as an object.
+
+If 2allow-special-forms* is specified and non-3nil*, then
+3functionp* will be true of macros and special-form functions (those
+with quoted arguments).  Normally 3functionp* returns 3nil* for
+these since they do not behave like functions.
+.end_defun
+
+.defun compiled-function-p object
+.defun1 subrp object
+3t* if 2object* is any compiled code object, otherwise 3nil*.
+The name 3subrp* is for Maclisp compatibility.
+.end_defun
+
+.defun special-form-p symbol
+3t* if 2symbol* is defined as a function that takes some
+unevaluated args.  Macros do not count as special forms.
+.end_defun
+
+3macro-function* can be used to test whether a symbol is defined as a
+macro, but you must be careful because it also returns a non-3nil* value
+for certain special forms.  See the definition 3macro-function*
+((macro-function-fun)) to find out how to do this properly.
+
+.defun closurep object
+'cindex "closure"
+3t* if 2object* is a closure, otherwise 3nil*.
+.end_defun
+
+.defun entityp object
+'cindex "entity"
+3t* if 2object* is an entity, otherwise 3nil*.
+See (entity) for information about entities.
+.end_defun
+
+.defun locativep object
+'cindex "locative"
+3t* if 2object* is a locative, otherwise 3nil*.
+.end_defun
+
+.defun commonp object
+3t* if 2object* is of a type that Common Lisp defines operations on.
+See the type specifier 3common* ((common-type-spec)).
+.end_defun
+
+Other standard type predicates include 3packagep* (see (packagep-fun)),
+3random-state-p* (see (random-state-p-fun)), 3hash-table-p*
+((hash-table-p-fun)), 3pathnamep* ((pathnamep-fun)),
+3streamp* ((streamp-fun)) and 3readtablep* ((readtablep-fun)).
+3defstruct* can define additional type predicates automatically
+((defstruct-predicates)).
+
+.section Type Specifiers
+.setq type-specifiers section-page
+.cindex type specifiers
+
+Data types can be represented symbolically by Lisp objects called 2type
+specifiers*.  A type specifier describes a class of possible Lisp
+objects; the function 3typep* tells whether a given object matches a
+given type specifier.
+
+Built-in type specifiers exist for the
+actual Lisp Machine data types.  The user can define additional
+type specifiers to represent arbitrary classifications of data.
+Type specifiers can also be combined into specifiers for more
+complex types.
+
+Some type specifiers are symbols: for example, 3number*, 3cons*,
+3symbol*, 3integer*, 3character*, 3compiled-function*,
+3array*, 3vector*.  Their meanings are mostly obvious, but a table
+follows below.  Type specifiers that are symbols are called 2simple*
+type specifiers.
+
+Lists can also be type specifiers.  They are usually combinations or
+restrictions of other type specifiers.  The car of the list is the key
+to understanding what it means.  An example of a combination is 3(or
+array symbol)*, which matches any array or any symbol.  An example of a
+restriction type is 3(integer 0 6)*, which matches only integers
+between 0 and 6 (inclusive).
+
+.subsection Standard Type Specifiers
+
+.nopara
+Basic Data Types
+
+.table 3
+.item cons
+non-3nil* lists.
+.item symbol
+symbols.
+.item array
+all arrays, including strings.
+.item number
+numbers of all kinds.
+.item instance
+all instances of any flavor.
+.item structure
+named structures of any structure type.
+.item locative
+locatives.
+.item closure
+closures.
+.item entity
+entities.
+.item stack-group
+stack groups.
+.item compiled-function
+macrocode functions such as the compiler makes.
+.item microcode-function
+built-in functions implemented by the microcode.
+.item select
+select-method functions (defined by 3defselect* or 3defselect-incremental*).
+.item character
+character objects.
+.end_table
+
+.need 1800
+.nopara
+Other Useful Simple Types
+
+.table 3
+.item t
+all Lisp objects belongs to this type.
+.item nil
+nothing belongs to this type.
+.item string-char
+characters that can go in strings.
+.item standard-char
+characters defined by Common Lisp.
+These are the 95 ASCII printing characters (including 3Space*),
+together with 3Return*.
+.item null
+3nil* is
+the only object that belongs to type 3null*.
+.item list
+lists, including 3nil*.  This type is the union of the types 3null* and 3cons*.
+.item sequence
+lists and vectors.  Many Common Lisp functions accept either a list or a
+vector as a way of describing a sequence of elements.
+.item keyword
+keywords (symbols belonging to package 3keyword*).
+.item atom
+anything but conses.
+.end_table
+
+.need 1800
+.nopara
+Simple Number Types
+
+.table 3
+.item integer
+fixnums and bignums.
+.item ratio
+explicit rational numbers, such as 31\2* (31/2* in Common Lisp syntax).
+.item rational
+integers and ratios.
+.item fixnum
+small integers, whose 3%data-type* is 3dtp-fix* and which occupy no storage.
+.item bignum
+larger integers, which occupy storage.
+.item bit
+very small integers--only 30* and 31* belong to this type.
+.item float
+any floating point number regardless of format.
+.item short-float
+short floats
+.item single-float
+full-size floats
+.item double-float
+.item1 long-float
+defined by Common Lisp, but on the Lisp Machine synonymous with 3single-float*.
+.item real
+any number whose value is real.
+.item complex
+a number explicitly stored as complex.
+It is possible for such a number to have zero as an imaginary part
+but only if it is a floating point zero.
+.item noncomplex
+a number which is not explicitly stored as complex.
+This is a subtype of 3real*.
+.end_table
+
+.need 1800
+.nopara
+Restriction Types for Numbers
+
+.table 3
+.item (complex 2type-spec*)
+complex numbers whose components match 2type-spec*.
+Thus, 3(complex rational)* is the type of complex numbers with
+rational components.  3(complex t)* is equivalent to 3complex*.
+
+.item (integer 2low* 2high*)
+integers between 2low* and 2high*.
+2low* can be:
+.table 3
+.item 2integer*
+2integer* is an inclusive lower limit
+.item (2integer*)
+2integer* is an exclusive lower limit.
+.item *
+There is no lower limit.
+.end_table
+
+2high* has the same sorts of possibilities.
+If 2high* is omitted, it defaults to 3**.  If both 2low* and 2high* are omitted,
+you have 3(integer)*, which is equivalent to plain 3integer*.  Examples:
+.lisp
+(integer 0 *)      1matches any nonnegative integer.*
+(integer 0)        1matches any nonnegative integer.*
+(integer -4 3)     1matches any integer between -4 and 3, inclusive.*
+(integer -4 (4))   1matches any integer between -4 and 3, inclusive.*
+.end_lisp
+3bit* is equivalent to 3(integer 0 1)*.
+
+.item (rational 2low* 2high*)
+.item1 (float 2low* 2high*)
+.item1 (short-float 2low* 2high*)
+.item1 (single-float 2low* 2high*)
+.item1 (double-float 2low* 2high*)
+.item1 (long-float 2low* 2high*)
+.item1 (noncomplex 2low* 2high*)
+These specify restrictive bounds for the types 3rational*, 3float* and so on.
+The bounds work on these types just the way they do on 3integer*.
+Exclusive and inclusive bounds make a useful difference here:
+.lisp
+(float (-4) (3))    1matches any float between -4 and 3, exclusive.*
+.end_lisp
+No possible inclusive bounds could provide the same effect.
+
+.item (mod 2high*)
+nonnegative integers less than 2high*.  2high* should be an integer.
+3(mod)*, 3(mod *)* and plain 3mod* are allowed, but are equivalent
+to 3(integer 0)*.
+
+.item (signed-byte 2size*)
+integers that fit into a byte of 2size* bits, of which one bit is the sign bit.
+3(signed-byte 4)* is equivalent to 3(integer -8 7)*.
+3(signed-byte *)* and plain 3signed-byte* are equivalent to 3integer*.
+
+.item (unsigned-byte 2size*)
+nonnegative integers that fit into a byte of 2size* bits, with no sign bit.
+3(unsigned-byte 3)* is equivalent to 3(integer 0 7)*.
+3(unsigned-byte *)* and plain 3unsigned-byte* are equivalent to 3(integer 0)*.
+.end_table
+
+.need 1800
+.nopara
+Simple Types for Arrays
+
+.table 3
+.item array
+all arrays.
+.item simple-array
+arrays that are not displaced and have no fill pointers.
+(Displaced arrays are defined in (displaced-array) and fill pointers on (fill-pointer)).
+.item vector
+arrays of rank one.
+.item bit-vector
+3art-1b* arrays of rank one.
+.item string
+strings; 3art-string* and 3art-fat-string* arrays of rank one.
+.item simple-bit-vector
+bit vectors that are simple arrays.
+.item simple-string
+strings that are simple arrays.
+.item simple-vector
+simple-arrays of rank one, whose elements' types are unrestricted.
+This is not the same as 3(and vector simple-array)*!
+.end_table
+
+.need 1800
+.nopara
+Restriction Types for Arrays
+
+.table 3
+.item (array 2element-type* 2dimensions*)
+arrays whose
+rank and dimensions fit the restrictions described by 2dimensions*
+and whose nature restricts possible elements to match 2element-type*.
+
+The array elements condition has nothing to do with the actual values of
+the elements.  Rather, it is a question of whether the array's own type
+permits exactly such elements as would match 2element-type*.  If
+anything could be stored in the array that would not match
+2element-type*, then the array does not match.  If anything that
+would match 2element-type* could not be stored in the array, then the
+array does not match.
+
+For example, if 2element-type* is 3(signed-byte 4)*, the array must
+be an 3art-4b* array.  An 3art-1b* array will not do, even though
+its elements all do match 3(signed-byte 4)*, because some objects such
+as the number 12 match 3(signed-byte 4)* but could not be stored in an
+3art-1b* array.  Likewise an 3art-q* array whose elements all happen
+to match 3(signed-byte 4)* will not do, since new elements such as
+3nil* or 231 which fail to match could potentially be stored in the
+array.
+
+If 2element-type* is 3t*, the type to which all objects belong,
+then the array must be one in which any object can be stored:
+3art-q* or 3art-q-list*.
+
+3** as 2element-type* means ``no restriction''.  Any type of
+array is then allowed, whether it restricts its elements or not.
+
+2dimensions* can be 3**, an integer or a list.
+If it is 3**, the rank and dimensions are not restricted.
+If it is an integer, it specifies the rank of the array.
+Then any array of that rank matches.
+
+If 2dimensions* is a list, its length specifies the rank,
+and each element of 2dimensions* restricts one dimension.
+If the element is an integer, that dimension's length must equal it.
+If the element is *, that dimension's length is not restricted.
+
+.item (simple-array 2element-type* 2dimensions*)
+the restrictions work as in 3(array 2element-type* 2dimensions*)*,
+but in addition the array must be a simple array.
+
+.item (vector 2element-type* 2size*)
+2element-type* works as above.  The array must be a vector.
+2size* must be an integer or *;
+if it is an integer, the array's length must equal 2size*.
+
+.item (bit-vector 2size*)
+.item1 (simple-vector 2size*)
+.item1 (simple-bit-vector 2size*)
+.item1 (string 2size*)
+.item1 (simple-string 2size*)
+These require the array to match type 3bit-vector*, 3simple-vector*, etc.
+This implicitly restricts the element type, so there is no point
+in allowing an 2element-type* to be given in the type specifier.
+2size* works as in 3vector*.
+.end_table
+
+.need 1800
+.nopara
+More Obscure Types
+
+.table 3
+.item package
+packages, such as 3find-package* might return.
+.item readtable
+structures such as can be the value of 3readtable*.
+.item pathname
+pathnames (instances of the flavor 3pathname*).
+.item hash-table
+hash-tables (instances of the flavor 3hash-table*).
+.item 2flavor-name*
+instances of that flavor, or of any flavor that contains it.
+.item 2defstruct-name*
+named structures of that type, or of any structure that includes
+that one using 3:include*.
+.end_table
+
+.need 1800
+.nopara
+Common Lisp Compatibility Types
+
+.table 3
+.item random-state
+random-states.  See 3random* ((random-fun)).
+This is actually a special case of using a defstruct name
+as a type specifier, but it is mentioned specifically because
+Common Lisp defines this type.
+.item common
+'setq common-type-spec page
+All objects of types defined by Common Lisp.  This is all Lisp objects
+except closures, entities, stack groups, locatives, instances,
+select-methods, and compiled and microcode functions.  (A few kinds
+of instances, such as pathnames, are 3common*, because Common Lisp does
+define how to manipulate pathnames, and it is considered irrelevant that
+the Lisp Machine happens to implement pathnames using instances.)
+.item stream
+Anything that looks like it might be a valid I/O stream.
+It is impossible to tell for certain whether an object
+is a stream, since any function with proper behavior
+may be used as a stream.  Therefore, use of this
+type specifier is discouraged.  It exists for the sake
+of Common Lisp.
+.end_table
+
+.need 1800
+.nopara
+Combination Type Specifiers
+
+.table 3
+.item (member 2objects*)
+any one of 2objects*, as compared with 3eql*.
+Thus, 3(member t nil x)* is matched only by
+3t*, 3nil* or 3x*.
+
+.item (satisfies 2predicate*)
+objects on which the function 2predicate* returns a non-3nil* value.
+Thus, 3(satisfies numberp)* is equivalent
+as a type specifier to 3number* (though the system could not tell that this is so).
+2predicate* must be a symbol, not a 3lambda*-expression.
+
+.item (and 2type-specs*...)
+objecs that match all of the 2type-specs* individually.  Thus, 3(and
+integer (satisfies oddp))* is the type of odd integers.
+
+.item (or 2type-specs*...)
+objects that match at least one of the 2type-specs* individually.
+Thus, 3(or number array)* includes all numbers and all arrays.
+
+.item (not 2type-spec*)
+objects that do not match 2type-spec*.
+.end_table
+
+.subsection User-Defined Type Specifiers
+
+.defmac deftype type-name lambda-list body...
+Defines 2type-name* as a type specifier by providing code to expand it into
+another type specifier--a sort of type specifier macro.
+
+When a list starting with 2type-name* is encountered as a type
+specifier, the 2lambda-list* is matched against the cdr of the type
+specifier just as the lambda-list of an ordinary 3defmacro*-defined
+macro is matched against the cdr of a form.  Then the 2body* is
+executed and should return a new type specifier to be used instead of
+the original one.
+
+If there are optional arguments in 2lambda-list* for which no default value
+is specified, they get 3** as a default value.
+
+If 2type-name* by itself is encountered as a type specifier, it is
+treated as if it were 3(2type-name*)*; that is to say, the
+2lambda-list* is matched against no arguments and then the 2body*
+is executed.  So each argument in the 2lambda-list* gets its
+default value, and there is an error if they are not all optional.
+
+.lisp
+.exdent 96 Example:
+(deftype vector (element-type size)
+  `(array ,element-type (,size)))
+1could have been used to define 3vector*.*
+
+(deftype odd-natural-number-below (n)
+  `(and (integer 0 (,n)) (satisfies oddp)))
+
+(typep 5 '(odd-natural-number-below 6)) => t
+(typep 7 '(odd-natural-number-below 6)) => nil
+.end_lisp
+.end_defmac
+
+.subsection Testing Types with Type Specifiers
+
+.defun type-of object
+Returns a type specifier which 2object* matches.
+Any given 2object* matches many different type specifiers,
+including 3t*, so you should not attempt to rely on knowing
+which type specifier would be returned for any particular object.
+The one actually returned is chosen so as to be informative
+for a human.  Programs should generally use 3typep* rather than 3type-of*.
+
+See also 3data-type*, (data-type-fun).
+.end_defun
+
+.defun typep object type-spec
+3t* if 2object* matches 2type-spec*.  The fundamental
+purpose of type specifiers is to be used in 3typep* or other
+functions and constructs that use 3typep*.  Examples:
+.lisp
+(typep 5 'number) => t
+(typep 5 '(integer 0 7)) => t
+(typep 5 'bit) => nil
+(typep 5 'array) => nil
+(typep "foo" 'array) => t
+(typep nil 'list) => t
+(typep '(a b) 'list) => t
+(typep 'lose 'list) => nil
+(typep 'x '(or symbol number)) => t
+(typep 5 '(or symbol number)) => t
+.end_lisp
+
+If the value of 2type-spec* is known at compile time, the compiler
+optimizes 3typep* so that it does not decode the argument at run
+time.
+
+In Maclisp, 3typep* is used with one argument.  It returns a symbol
+describing the type of the object it is given.  This is somewhat like
+what 3type-of* does, except in Maclisp the intention was to compare
+the result with 3eq* to test the type of an object.  The Lisp Machine
+supports this usage of 3typep* for compatibility, but the returned
+symbol is a keyword (such as 3:list*, for conses) which makes it
+actually incompatible.  This usage is considered obsolete and should
+be removed from programs.
+.end_defun
+
+.defmac typecase key-form clauses...
+Computes the value of 2key-form* and then executes one (or none) of
+the 2clauses* according to the type of the value (call it 2key*).
+
+Each clause starts with a type specifier, not evaluated, which
+could be the second argument to 3typep*.  In fact, that is how it is used.
+The rest of the clause is composed of forms.  The type specifiers of the
+clauses are matched sequentially against 2key*.  If there is a match,
+the rest of that clause is executed and the values of the last form in it
+are returned from the 3typecase* form.  If no clause matches,
+the 3typecase* form returns 3nil*.
+
+3typecase*, like 3typep* is optimized carefully by the compiler.
+
+Note that 3t*, the type specifier that matches all objects, is useful
+in the last clause of a 3typecase*.  3otherwise* is also permitted
+instead of 3t* by special dispensation, with the same meaning.
+
+.lisp
+.exdent 96 Example:
+(typecase foo
+  (symbol (get-pname foo))
+  (string foo)
+  (list (apply 'string-append (mapcar 'hack foo)))
+  ((integer 0) (hack-positive-integer foo))
+  (t (princ-to-string foo)))
+.end_lisp
+.end_defmac
+
+.defmac etypecase key-form clauses...
+Like 3typecase* except that an uncorrectable error is signaled if every clause fails.
+3t* or 3otherwise* clauses are not allowed.
+.end_defmac
+
+.defmac ctypecase place clauses...
+Like 3etypecase* except that the error is correctable.  The first
+argument is called 2place* because it must be 3setf*'able (see
+(setf-fun)).  If the user proceeds from the error, a new value is read
+and stored into 2place*; then the clauses are tested again using the
+new value.  Errors repeat until a value is specified that makes some
+clause succeed.
+.end_defmac
+
+.subsection Coercion with Type Specifiers
+
+.defun coerce object type-spec
+Converts 2object* to an ``equivalent'' object that matches 2type-spec*.
+Common Lisp specifies exactly which types can be converted to
+which other types.  In general, a conversion that would lose information,
+such as turning a float into an integer, is not allowed as a coercion.
+Here is a complete list of types you can coerce to.
+
+.table 3
+.item complex
+.item1 (complex 2type*)
+Real numbers can be coerced to complex.  If a rational is coerced to
+type 3complex*, the result equals the rational, and is not complex at
+all.  This is because complex numbers with rational components are
+canonicalized to real if possible.  However, if a rational is coerced to
+3(complex float)* or 3(complex single-float)* then an actual complex
+number does result.
+
+It is permissible of course to coerce a complex number to a complex type.
+The real and imaginary parts are coerced individually to 2type*
+if 2type* is specified.
+
+.item short-float
+.item1 single-float
+Rational numbers can be coerced to floating point numbers
+and any kind of floating point number can be coerced to
+any other floating point format.
+
+.item float
+Rational numbers are converted to 3single-float*'s;
+floats of all kinds are left alone.
+
+.item character
+Strings of length one can be coerced to characters.
+Symbols whose print-names have length one can also be.
+An integer can be coerced to a character; this results in a
+character whose character code is the specified integer.
+
+.item list
+Any vector can be coerced to type 3list*.
+The resulting list has the same elements as the vector.
+
+.item 13vector* or 3array* or any restricted array type.*
+Any sequence (list or vector) can be coerced to any array or vector type.
+The new array has rank one and the same elements as the original sequence.
+
+If you specify a type of array with restricted element type, you may
+actually get an array which can hold other kinds of things as well.  For
+example, the Lisp Machine does not provide anything of type 3(array
+symbol)*, but if you specify that, you will get an array which at least
+can hold symbols (but can hold other things as well).  If an element of
+the original sequence does not fit in the new array, an error is
+signaled.
+
+.item t
+Any object can be coerced to type 3t*, without change
+to the object.
+.end_table
+
+If the value of 2type-spec* is known at compile time, the compiler
+optimizes 3coerce* so that it does not decode the argument at run
+time.
+.end_defun
+
+.subsection Comparing Type Specifiers
+
+Since a type describes a set of possible objects, it is possible
+to ask whether one type is contained in another type.  Another way
+to say this is, is one type a 2subtype* of another?
+
+.defun subtypep type1 type2
+3t* if 2type1* is a subtype of 2type2*.
+
+The system cannot always tell whether 2type1* is a subtype of
+2type2*.  When 3satisfies* type specifiers are in use, this question
+is mathematically undecidable.  Because of this, it has not been
+considered worthwhile to make the system able to answer obscure subtype
+questions even when that is theoretically possible.  If the answer is
+not known, 3subtypep* returns 3nil*.
+
+Thus, 3nil* could mean that 2type1* is certainly not a subtype of
+2type2*, or it could mean that there is no way to tell whether it is a
+subtype.  3subtypep* returns a second value to distinguish these two
+situations: the second value is 3t* if 3subtypep*'s first value is
+definitive, 3nil* if the system does not know the answer.
+
+Examples:
+.lisp
+(subtypep 'cons 'list) => t t
+(subtypep 'null 'list) => t t
+(subtypep 'symbol 'list) => nil t
+
+(subtypep 'list 'number) => nil t
+1because not all lists are numbers (in fact, no lists are numbers).*
+
+(subtypep 'number 'rational) => nil t
+1because not all numbers are rational.*
+
+(subtypep '(satisfies foo) '(satisfies bar)) => nil nil
+1because the system does not attempt to figure out your code*.
+.end_lisp
+.end_defun

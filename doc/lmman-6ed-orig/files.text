@@ -1,0 +1,1940 @@
+.c This file is part of the Lisp Machine manual.	-*-Bolio-*-
+
+.chapter Accessing Files
+.setq file-io-chapter chapter-number
+.setq file-stream section-page
+.cindex file
+
+The Lisp Machine can access files on a variety of remote file servers,
+which are typically (but not necessarily) accessed through the Chaosnet,
+as well as accessing files on the Lisp Machine itself, if the machine
+has its own file system.  You are not allowed to refer to files
+without first logging in, and you may also need to specify a username
+and password for the host on which the file is stored; see (login-fun).
+
+The way to read or write a file's contents is to 2open* the file to
+get an input or output stream, use the standard stream I/O functions or
+operations described in chapters (io-chapter) and
+(expression-io-chapter), and then close the stream.  The first section
+of this chapter tells how to open and close the stream.  The rest of the
+chapter describes things specific to files such as deleting and
+renaming, finding out the true name of the file that has been opened,
+and listing a directory.
+
+Files are named with 2pathnames*.  There is much to know about
+pathnames aside from accessing files with them; all this is described
+in the previous chapter.
+
+Many functions in this chapter take an argument called 2file* which
+is intended to specify a file to be operated on.  This argument may be
+given as a pathname (which is defaulted), a namestring (which is
+parsed into a pathname and then defaulted), or a stream open to a file
+(the same file is used).
+
+.section Opening and Closing File Streams
+
+.defmac with-open-file (stream file options...) body...
+Evaluates the 2body* forms with the variable 2stream* bound to a stream that
+reads or writes the file named by the value of 2file*.  The 2options*
+forms evaluate to the file-opening options to be used; see (file-opening-options).
+
+When control leaves the body, either normally or abnormally (via 3throw*),
+the file is closed.  If a new output file is being written and control leaves
+abnormally, the file is aborted and it is as if it were never written.  Because
+it always closes the file, even when an error exit is taken, 3with-open-file*
+is preferred over 3open*.  Opening a large number of files and forgetting to
+close them tends to break some remote file servers, ITS's for example.
+
+If an error occurs in opening the file, the result depends on the
+values of the 2error* option, the 2if-exists* option, and the
+2if-does-not-exist* option.  An error may be signaled (and possibly
+corrected with a new pathname), or 2stream* may be bound to a condition
+object or even 3nil*.
+.end_defmac
+
+.defmac with-open-file-case (stream file options...) clauses...
+This opens and closes the file like 3with-open-file*, but what happens
+afterward is determined by 2clauses* that are like the clauses of a
+3condition-case* ((condition-case-fun)).  Each clause begins with a
+condition name or a list of condition names and is executed if 3open*
+signals a condition that possesses any of those names.  A clause
+beginning with the symbol 3:no-error* is executed if the file is
+opened successfully.  This would be where the reading or writing of the
+file would be done.
+.lisp
+.exdent 96 Example:
+(with-open-file-case (stream (send generic-pathname
+				   :source-pathname))
+  (sys:remote-network-error (format t "~&Host down."))
+  (fs:file-not-found (format t "~&(New file)"))
+  (:no-error (setq list (read stream))))
+.end_lisp
+.end_defmac
+
+.defmac file-retry-new-pathname (pathname-var condition-names...) body...
+.defmac1 file-retry-new-pathname-if cond-form (pathname-var condition-names...) body...
+3file-retry-new-pathname* executes 2body*.  If 2body* does not
+signal any of the conditions in 2condition-names*, 2body*'s values
+are simply returned.  If any of 2condition-names* is signaled,
+3file-retry-new-pathname* reads a new pathname, 3setq*'s
+2pathname-var* to it, and executes 2body* again.
+
+The user can type 3End* instead of a pathname if he wishes
+to let the condition be handled by the debugger.
+
+3file-retry-new-pathname-if* is similar, but the conditions are
+handled only if 2cond-form*'s value is non-3nil*.
+
+For an example, see the example of the following macro.
+.end_defmac
+
+.defmac with-open-file-retry (stream (pathname-var condition-names...) options...) body...
+Like 3with-open-file* inside of a 3file-retry-new-pathname*.  If an
+error occurs while opening the file and it has one of the specified
+2condition-names*, a new pathname is read, the variable
+2pathname-var* is 3setq*'d to it, and another attempt is made to
+open a file with the newly specified name.  Example:
+.lisp
+(with-open-file-retry (instream (infile fs:file-not-found))
+  ...)
+.end_lisp
+3infile* should be a variable whose value is a pathname or namestring.
+The example is equivalent to
+.lisp
+(file-retry-new-pathname (infile fs:file-not-found)
+  (with-open-file (instream infile)
+    ...))
+.end_lisp
+.end_defmac
+
+.defmac with-open-file-search
+Opens a file, trying various pathnames until one of them succeeds.  The
+pathnames tried differ only in their type components.  For example,
+3load* uses this macro to search for either a compiled file or a
+source file.  The calling sequence looks like
+.lisp
+(with-open-file-search
+   (2streamvar* (2operation* 2defaults* 2auto-retry*)
+	      2types-and-pathname* 2options*...)
+  2body*...)
+.end_lisp
+
+3with-open-file-search*
+tries opening various files until one succeeds; then binds 2streamvar* to the stream
+and executes 2body*, closing the stream on exit.  The values of 2body* are returned.
+
+2types-and-pathname* specifies which files to open.  It should be a form
+which evaluates to two values, the first being a list of types to try
+and the second being a pathname called the base pathname.  Each pathname to try
+is made by merging the base pathname with the defaults 2defaults* and one of the types.
+The types may be strings or canonical type keywords (see (canonical-types)).
+
+2options* are forms whose values should be alternating to keywords and
+values, which are passed to 3open* each time.
+
+If all the names to be tried fail, a 3fs:multiple-file-not-found* error is signaled.
+2operation* is provided just so that the 3:operation* operation on the condition
+object can return it.  Usually the value given for 2operation* should be the
+user-level function for which the 3with-open-file-search* is being done.
+
+If 2auto-retry* is non-3nil*, an error causes the user to be
+prompted for a new base pathname.  The entire set of types specified is
+tried anew with the new pathname.
+.end_defmac
+
+.defun open file &rest options
+Returns a stream that is connected to the specified file.  Unlike
+Maclisp, the 3open* function creates streams only for 2files*;
+streams of other kinds are created by other functions.  The 2file*
+and 2options* arguments are the same as in 3with-open-file*; see above.
+
+When the caller is finished with the stream, it should close the file by using
+the 3:close* operation or the 3close* function.  The 3with-open-file*
+special form does this automatically and so is usually preferred.  3open*
+should only be used when the control structure of the program necessitates opening
+and closing of a file in some way more complex than the simple way provided
+by 3with-open-file*.  Any program that uses 3open* should set up
+3unwind-protect* handlers (see (unwind-protect-fun)) to close its files
+in the event of an abnormal exit.
+.end_defun
+
+.defun close stream &optional option
+The 3close* function simply sends the 3:close* message to 2stream*.
+If 2option* is 3:abort* for a file output stream, the file is discarded.
+.end_defun
+
+.defun cli:close stream &key abort
+The Common Lisp version of 3close* is the same as 3close* except for
+its calling convention.  If 2abort* is non-3nil* for a file output
+stream, the file is discarded.
+.end_defun
+
+.defun fs:close-all-files
+Closes all open files.  This is useful when a program has run wild opening
+files and not closing them.  It closes all the files in 3:abort* mode
+(see (close-message)), which means that files open for output are
+deleted.  Using this function is dangerous, because you may close files
+out from under various programs like Zmacs and ZMail; only use it if you
+have to and if you feel that you know what you're doing.
+.end_defun
+
+.setq file-opening-options page
+The 2options* used when opening a file are normally alternating keywords and
+values, like any other function that takes keyword arguments.  In addition,
+for compatibility with the Maclisp 3open* function, if only a single option
+is specified it is either a keyword or a list of keywords (not alternating with
+values).
+
+The file-opening options control things like whether the stream is for input
+from a existing file or output to a new file, whether the file is text or binary, etc.
+
+The following keyword arguments are standardly recognized; additional keywords
+can be implemented by particular file system hosts.
+
+.table 2
+.item direction
+'setq probe-streams page
+'kindex :direction open
+Controls which direction of I/O can be done on the resulting stream.
+The possible values are 3:input* (the default), 3:output*, 3nil*,
+3:probe*, 3:probe-directory* and 3:probe-link*.  The first two
+should be self-explanatory.  3nil* or 3:probe* means that this is a
+``probe'' opening; no data are to be transferred, the file is being opened
+only to verify its existence or access its properties.  The stream
+created in this case does not permit any I/O.  3nil* and 3:probe*
+differ in causing different defaults for the argument 2if-does-not-exist*.
+If that argument is specified explicitly, 3nil* and 3:probe* are equivalent.
+
+3:probe-directory* is used to see whether a directory exists.  If the
+directory specified for the file to be opened is found, then the
+3open* completes (returning a non-I/O stream) as if the specified file
+existed whether it really exists or not.
+
+3:probe-link* is used to find out the truename of a link.  If the file
+specified exists as a link, then the 3open* completes returning a
+non-I/O stream which describes the link itself rather than the file
+linked to.  If the file exists and is not a link, the 3open* also
+completes for it as with any probe.
+
+Common Lisp defines the value 3:io* for this argument, requesting a stream
+that can do input and output, but no file system
+supported by the Lisp Machine has this capability.
+
+.item characters
+'kindex :characters open
+The possible values are 3t* (the default), 3nil*, which means that the
+file is a binary file, and 3:default*, which means that the file system should
+decide whether the file contains characters or binary data and open it in the
+appropriate mode.
+
+.item byte-size
+'kindex :byte-size open
+The possible values are 3nil* (the default), a number, which is the number
+of bits per byte, and 3:default*, which means that the file system should
+choose the byte size based on attributes of the file.  If the file is being
+opened as characters, 3nil* selects the appropriate system-dependent byte
+size for text files; it is usually not useful to use a different byte size.
+If the file is being opened as binary, 3nil* selects the default byte size
+of 16 bits.
+
+.item element-type
+This is the Common Lisp way to specify what kind of objects the stream wants to
+read or write.  This combines the effect of the 2characters* and 2byte-size*
+arguments.  The value is a type specifier; it must be one of the following:
+.table 3
+.item string-char
+Read or write characters as usual.  The default.
+.item character
+Read or write characters, dealing with characters
+that are more than 8 bits.  You can succeed in writing out any
+sequence of character objects and reading it back, but the file
+does not look anything like a text file.
+.item (unsigned-byte 2n*)
+Read or write 2n*-bit bytes.
+Like 2characters* = 3nil*, 2byte-size* = 2n*.
+.item unsigned-byte
+Similar, but uses the byte size that the file was originally written with.
+This is the same as 2characters* = 3nil*, 2byte-size* = 3:default*.
+.item (signed-byte 2n*)
+Read or write 2n*-bit bytes, sign-extending on input.
+Each byte read from the file is sign-extended so that its most
+significant bit serves as a sign bit.
+.item signed-byte
+Similar, but uses the byte size that the file was originally written with.
+.item (mod 2n*)
+Like 3unsigned-byte* for a big enough byte size to hold all numbers
+less than 2n*.  3bit* is also accepted, and means 3(mod 2)*.
+.item :default
+Is allowed, even though it is not a type specifier.
+It is the same as using 3:default* as the value of 2characters*.
+.end_table
+
+.item if-exists
+'kindex :if-exists open
+For output opens, 2if-exists* specifies what to do if a file with the specified
+name already exists.  There are several values you can use:
+.table 3
+.item :new-version
+Create a new version.  This makes sense only when the pathname has
+3:newest* as its version, and it is the default in that case.
+.item :supersede
+Make a new file which, when closed, replaces the old one.
+.item :overwrite
+Write over the data of the existing file, starting
+at the beginning, and set the file's length to the length of the
+newly written data.
+.item :truncate
+Like 3:overwrite* except that it discards the old contents
+of the file immediately, making it empty except for what is written into
+it this time.
+.item :append
+Add new data onto the existing file at the end.
+.item :rename
+Rename the existing file and then create a new one.
+.item :rename-and-delete
+Rename the existing file, create a new one,
+and delete the old file when the new one is closed.
+.item :error
+Signal an error (3fs:file-already-exists*).
+This is the default when the pathname's version is not 3:newest*.
+The further handling of the error is controlled by the 2error* argument.
+.item nil
+Return 3nil* from 3open* in this case.
+The 2error* argument is irrelevant in this case.
+.end_table
+
+.item if-does-not-exist
+Specifies what to do when the file requested does not
+exist.  There are three allowed values:
+.table 3
+.item :create
+Create a file.  This is the default for output opens, except when 2if-exists*
+is 3:append*, 3:overwrite* or 3:truncate*.  This silly exception
+is part of the Common Lisp specifications.
+.item :error
+Signal an error.  This is the default for input opens,
+and also for output opens when 2if-exists* is 3:append*, 3:overwrite*
+or 3:truncate*.
+The further handling of the error is controlled by the 2error* argument.
+.item nil
+Return 3nil* from 3open*.  This is the default for 3:probe* opens.
+The 2error* argument is irrelevant in this case.
+.end_table
+
+.item error
+'kindex :error open
+Specifies what to do if an error is signaled for any reason.
+(Note that the values of the 2if-exists* and 2if-does-not-exist* arguments
+control whether an error is signaled in certain circumstances.)
+The possible values are 3t* (the default), 3:reprompt* and 3nil*.
+3t* means that nothing special is done, so the error invokes the
+debugger if the caller does not handle it.  3nil* means that the
+condition object should be returned as the value of 3open*.  3:reprompt*
+means that a new file name should be read and opened.
+
+Any caller which need not know reliably which file was ultimately opened
+might as well specify 3:reprompt* for this argument.  Callers which
+need to know if a different file is substituted should never specify
+3:reprompt*; they may use 3with-open-file-retry* or
+3file-retry-new-pathname* (see (file-retry-new-pathname-fun)) if they
+wish to permit an alternative file name to be substituted.
+
+.item :submit
+'kindex :submit open
+If specified as 3t* when opening a file for output, the file is
+submitted as a batch job if it is closed normally.  The default is
+3nil*.  You must specify 3:direction* 3:output* as well.
+
+.item deleted
+'kindex :deleted open
+The default is 3nil*.  If 3t* is specified, and the file system has the
+concept of deleted but not expunged files, it is possible to open a deleted
+file.  Otherwise deleted files are invisible.
+
+.item temporary
+'kindex :temporary open
+If 3t* is specified, the file is marked as
+temporary, if the file system has that concept.  The default is 3nil*.
+
+.item preserve-dates
+'kindex :preserve-dates open
+If 3t* is specified, the file's reference and
+modification dates are not updated.  The default is 3nil*.
+
+.item flavor
+'kindex :flavor open
+This controls the kind of file to be opened.  The default is 3nil*, a
+normal file.  Other possible values are 3:directory* and 3:link*.
+Only certain file systems recognize this keyword.
+
+.item link-to
+'kindex :link-to open
+When creating a file with 2flavor* 3:link*, this argument must be
+specified; its value is a pathname or namestring that becomes the target of the link.
+
+.item submit
+'kindex :submit open
+The value can be either 3nil* (the default) or 3t*.
+If the value is 3t*, and the 3:direction* is 3:output*, the
+resulting file will be submitted as a batch job.
+Currently, this option is implemented only for Twenex and VMS.
+
+.item estimated-size
+'kindex :estimated-size open
+The value may be 3nil* (the default), which means there is no estimated
+size, or a number of bytes.  Some file systems use this to optimize disk
+allocation.
+
+.item physical-volume
+'kindex :physical-volume open
+The value may be 3nil* (the default), or a string that is the name
+of a physical volume on which the file is to be stored.  This is not meaningful
+for all file systems.
+
+.item logical-volume
+'kindex :logical-volume open
+The value may be 3nil* (the default), or a string that is the name
+of a logical volume on which the file is to be stored.  This is not meaningful
+for all file systems.
+
+.item super-image
+'kindex :super-image open
+The value may be 3nil* (the default), or 3t*, which
+disables the special treatment of rubout in ASCII files.  Normally, rubout is
+an escape which causes the following character to be interpreted specially,
+allowing all characters from 0 through 376 (octal) to be stored.  This applies to
+ASCII file servers only.
+
+.item raw
+'kindex :raw open
+The value may be 3nil* (the default), or 3t*, which
+disables all character set translation in ASCII files.  This applies to ASCII
+file servers only.
+
+.end_table
+
+In the Maclisp compatibility mode, there is only one 2option*, and it
+is either a symbol or a list of symbols.  These symbols are recognized no
+matter what package they are in, since Maclisp does not have packages.
+The following symbols are recognized:
+.table 3
+.item in, read
+Select opening for input (the default).
+
+.item out, write, print
+Select opening for output; a new file is to be created.
+
+.item binary, fixnum
+Select binary mode; otherwise character mode is used.  Note that fixnum mode
+uses 16-bit binary words and is not compatible with Maclisp fixnum mode, which
+uses 36-bit words.  On the PDP-10, fixnum files are stored with two 16-bit words
+per PDP-10 word, left-justified and in PDP-10 byte order.
+
+.item character, ascii
+The opposite of fixnum.  This is the default.
+
+.item single, block
+Ignored for compatibility with the Maclisp 3open* function.
+
+.item byte-size
+Must be followed by a number in the options list, and must be used in combination
+with 3fixnum*.  The number is the number of bits per byte, which can be from
+1 to 16.  On a PDP-10 file server these bytes will be packed into words in the
+standard way defined by the 3ILDB* instruction.  The 3:tyi* stream operation
+will (of course) return the bytes one at a time.
+
+.item probe, error, noerror, raw, super-image, deleted, temporary
+These are not available in Maclisp.  The corresponding keywords in the
+normal form of file-opening options are preferred over these.
+
+.end_table
+
+.section File Stream Operations
+.setq file-stream-operations-section section-page
+
+The following functions and operations may be used on file streams, in addition to the normal I/O
+operations which work on all streams.  Note that several of these operations are
+useful with file streams that have been closed.  Some operations
+use pathnames; refer to (pathname) for an explanation of pathnames.
+
+.defun file-length file-stream
+Returns the length of the file open on 2file-stream*, in terms of the units
+in which I/O is being done on that stream.  (A stream is needed, rather than
+just a pathname, in order to specify the units.)
+.end_defun
+
+.defun file-position file-stream &optional new-position
+With one argument, returns the current position in the file of 2file-stream*,
+using the 3:read-pointer* stream operation.  It may return 3nil* meaning that
+the position cannot be determined.  In fact, it always returns 3nil*
+for a stream open in character mode and not at the beginning of the file.
+
+With two arguments, sets the position using the 3:set-pointer* stream
+operation, if possible, and returns 3t* if the setting was possible
+and 3nil* if not.  You can specify 3:start* as the 2new-position*
+to position to the beginning of the file, or 3:end* to position to the
+end.
+.end_defun
+
+.defmetamethod "file streams" :pathname
+Returns the pathname that was opened to get this stream.  This may not be
+identical to the argument to 3open*, since missing components will have been
+filled in from defaults.  The pathname may have been replaced wholesale if
+an error occurred in the attempt to open the original pathname.
+.end_defmetamethod
+
+.defmetamethod "file streams" :truename
+Returns the pathname of the file actually open on this stream.  This can be
+different from what 3:pathname* returns because of file links, logical
+devices, mapping of version 3:newest* to a particular version number, etc.  For
+an output stream the truename is not meaningful until after the stream has been
+closed, at least when the file server is an ITS.
+.end_defmetamethod
+
+.defmetamethod "file streams" :generic-pathname
+Returns the generic pathname of the pathname that was opened to get this
+stream.  Normally this is the same as the result of sending the
+3:generic-pathname* message to the value of the 3:pathname*
+operation on the stream; however, it does special things when the Lisp
+system is bootstrapping itself.
+.end_defmetamethod
+
+.defmetamethod "file streams" :qfaslp
+Returns 3t* if the file has a magic flag at the front that says it is a QFASL file,
+3nil* if it is an ordinary file.
+.end_defmetamethod
+
+.defmetamethod "file streams" :length
+Returns the length of the file, in bytes or characters.  For text files on
+ASCII file servers, this is the number of ASCII characters, not Lisp Machine
+characters.  The numbers are different because of character-set translation;
+see (character-set-differences) for a full explanation.
+For an output stream the length is not meaningful until after the stream has
+been closed, at least when the file server is an ITS.
+.end_defmetamethod
+
+.defmetamethod "file streams" :creation-date
+Returns the creation date of the file, as a number that is a universal time.
+See the chapter on the time package ((time)).
+.end_defmetamethod
+
+.defmetamethod "file streams" :info
+Returns a cons of the file's truename and its creation date.  This can
+be used to tell if the file has been modified between two 3open*'s.
+For an output stream the information is not guaranteed to be correct
+until after the stream has been closed.
+.end_defmetamethod
+
+.c .defmessage :status
+.c Returns the status of the file stream.  This usually 3:open* or 3:closed*
+.c (which should be self-explanatory).  3:eof* means that the file is open but
+.c no more data are available.  There are other states associated with error handling.
+.c [Maybe this shouldn't be documented.]
+.c .end_defmessage
+
+.defmetamethod "file streams" :properties &optional (error-p 3t*)
+This returns two values: a property list (like an element of the list
+returned by 3fs:directory-list*), and a list of the settable
+properties.   See the section on standard file properties ((directory-list)) for a
+description of the ones that may possible found in the list.
+.end_defmetamethod
+
+.defmetamethod "file streams" :set-byte-size new-byte-size
+This is only allowed on binary file streams.  The byte size
+can be changed to any number of bits from 1 to 16.
+.end_defmetamethod
+
+.defmetamethod "file streams" :delete &optional (error-p 3t*)
+Deletes the file open on this stream.  For the meaning of 2error-p*, see the 3deletef*
+function.  The file doesn't really go away until the stream is closed.
+.end_defmetamethod
+
+.defmetamethod "file streams" :undelete &optional (error-p 3t*)
+If you have used the 3:deleted* option in 3open* to open a deleted
+file, this operation undeletes the file.
+.end_defmetamethod
+
+.defmetamethod "file streams" :rename new-name &optional (error-p 3t*)
+Renames the file open on this stream.  For the meaning of 2error-p*, see the 3renamef*
+function.
+.end_defmetamethod
+
+.c .defmessage :command mark-p command &rest strings
+.c [Should this be documented?]
+.c .end_defmessage
+.c 
+.c .defmessage :continue
+.c [Should this be documented?]
+.c .end_defmessage
+
+.nopara
+File output streams implement the 3:finish* and 3:force-output* operations.
+
+.section Manipulating Files
+
+This section describes functions for doing things to files aside from
+reading or writing their contents.
+
+.defun truename object
+Returns the truename of the file specified somehow by 2object*.  If
+2object* is a plausible stream, it is asked for the truename with the
+3:truename* operation.  Otherwise, 2object* is converted to a
+pathname and that pathname is opened to get its file's truename.
+.end_defun
+
+.defun delete-file file &key (error-p 3t*) query?
+.defun1 deletef file &optional (error-p 3t*) query?
+Both delete the specified file.  The two functions differ in accepting
+keyword arguments versus positional arguments.  2file* may contain
+wildcard characters, in which case multiple files are deleted.
+
+If 2query?* is non-3nil*, the user is queried about each file
+(whether there are wildcards or not).  Only the files that the user
+confirms are actually deleted.
+
+If 2error-p* is 3t*, then if an error occurs it is signaled as
+a Lisp error.  If 2error-p* is 3nil* and an error occurs, the error
+message is returned as a condition object.  Otherwise, the value is a list of
+elements, one for each file considered.  The car of each element is
+the truename of the file, and the cadr is non-3nil* if the file
+was actually deleted (it is always 3t* unless querying was done).
+.end_defun
+
+.defun undelete-file file &key (error-p 3t*) query?
+.defun1 undeletef file &optional (error-p 3t*) query?
+Both undelete the specified file.  Wildcards are allowed, just as in
+3deletef*.  The rest of the calling conventions are the same as well.
+The two functions differ in taking keyword arguments versus positional
+arguments.
+
+Not all file systems support undeletion, and if it is not supported on
+the one you are using, it gets an error or returns a string according to
+2error-p*.  To find out whether a particular file system supports
+this, send the 3:undeletable-p* operation to a pathname.  If it
+returns 3t*, the file system of that pathname supports undeletion.
+.end_defun
+
+.defun rename-file file new-name &key (error-p 3t*) query?
+.defun1 renamef file new-name &optional (error-p 3t*) query?
+Both rename the specified file to 2new-name* (a pathname or string).
+The two functions differ in taking keyword arguments versus positional
+arguments.  2file* may contain wildcards, in which case multiple files
+are renamed.  Each file's new name is produced by passing 2new-name*
+to 3merge-pathname-defaults* with the file's truename as the defaults.
+Therefore, 2new-name* should be a string in this case.
+
+If 2query?* is non-3nil*, the user is queried about each file
+(whether there are wildcards or not).  Only the files that the user
+confirms are actually renamed.
+
+If 2error-p* is 3t*, then if an error occurs it is signaled as
+a Lisp error.  If 2error-p* is 3nil* and an error occurs, the error
+message is returned as a condition object.  Otherwise, the value is a list of
+elements, one for each file considered.  The car of each element is
+the original truename of the file, the cadr is the name it was to be
+renamed to, and the caddr is non-3nil* if the file was renamed.
+The caddr is 3nil* if the user was queried and said no.
+.end_defun
+
+.defun copy-file file new-name &key (error 3t*) (copy-creation-date 3t*) (copy-author 3t*) report-stream (create-directories 3:query*) (characters 3:default*) (byte-size 3:default*)
+Copies the file specified by 2file* to the name 2new-name*.
+
+2characters* and 2byte-size* specify what mode of I/O to use to transfer the data.
+2characters* can be
+.table 3
+.item t
+to specify character input and output.
+.item nil
+for binary input and output,
+.item :ask
+meaning ask the user which one
+.item :maybe-ask
+meaning ask if it is not  possible to tell with certainty which method is best,
+.item :default
+meaning to guess as well as possible automatically.
+.end_table
+
+If binary transfer is done, 2byte-size* specifies the byte size to
+use; 3:default* means to ask the file system for the byte size that
+the old file is stored in, just as it does in 3open*.
+
+2copy-author* and 2copy-creation-date* say whether to set those
+properties of the new file to be the same as those of the old file.  If
+a property is not copied, it is set to your login name or the current
+date and time.
+
+2report-stream*, if non-3nil*, is a stream on which a message should
+be printed describing the file copied, where it is copied to, and which
+mode was used.
+
+2create-directories* says what to do if the output filename specifies a directory that
+does not exist.  It can be 3t* meaning create the directory, 3nil* meaning treat it as
+an error, or 3:query* meaning ask the user which one to do.  The default is 3:query*.
+
+2error*, if 3nil*, means that if an error happens then this function
+should just return an error indication.
+
+If the pathname to copy from contains wildcards, multiple files are
+copied.  The new name for each file is obtained by merging 2new-name*
+(parsed into a pathname) with that file's truename as a default.  The
+mode of copy is determined for each file individually, and each copy is
+reported on the 2report-stream* if there is one.  If 2error* is 3nil*,
+an error in copying one file does not prevent the others from being
+copied.
+
+There are four values.  If wildcards were used, each value is a list with
+one element describing each file that matched; otherwise, each value describes the
+single file specified (though the value may be a list anyway).  The values,
+for each file, are:
+.table 2
+.item output-file
+The defaulted pathname to be opened for output in copying this file.
+.item truename
+The truename of the file copied
+.item outcome
+The truename of the new file, If the file was successfully copied.
+A condition object, if there was an error and 2error* was 3nil*.
+3nil* if the user was asked whether to copy this file and said no.
+.item mode
+A Common Lisp type descriptor such as 3string-char* or 3(unsigned-byte 8)*
+saying how the file was copied.
+.end_table
+.end_defun
+
+.defun probe-file file
+.defun1 probef file
+Returns 3nil* if there is no file named 2file*; otherwise returns a
+pathname that is the true name of the file, which can be different from
+2file* because of file links, version numbers, etc.  If 2file* is
+a stream, this function cannot return 3nil*.
+
+Any problem in opening the file except for 3fs:file-not-found* signals
+an error.
+
+3probef* is the Maclisp name; 3probe-file* is the Common Lisp name.
+.end_defun
+
+.defun file-write-date file
+Returns the creation date/time of 2file*, as a universal time.
+.end_defun
+
+.defun file-author file
+Returns the name of the author of 2file* (the user who wrote it), as a
+string.
+.end_defun
+
+.defun viewf 2file* &optional (output-stream 3*standard-output**) leader
+Copies the contents of the specified file, opened in character
+mode, onto 3output-stream*.  Normally this has the effect of printing
+the file on the terminal.  2leader* is passed along to
+3stream-copy-until-eof* (see (stream-copy-until-eof-fun)).
+.end_defun
+
+.defun fs:create-link link-name link-to &key (error 3t*)
+Creates a link named 2link-name* which points to a file named 2link-to*.
+An error happens if the host specified in 2link-name* does not support links,
+or for any of the usual problems that can happen in creating a file.
+.end_defun
+
+.subsection Loading Files
+.cindex loading
+
+To 2load* a file is to read through the file, evaluating each form
+in it.  Programs are typically stored in files; the expressions in the file are mostly
+special forms such as 3defun* and 3defvar* which define the functions and
+variables of the program.
+
+Loading a compiled (or QFASL) file is similar, except that the file does not
+contain text but rather pre-digested expressions created by the
+compiler which can be loaded more quickly.
+
+These functions are for loading single files.  There is a system for keeping track
+of programs which consist of more than one file; for further information refer
+to (system-system).
+
+.defun load file &key verbose print (if-does-not-exist 3t*) set-default-pathname package
+Loads the specified file into the Lisp environment.  If
+2file* is a stream, 3load* reads from it; otherwise 2file*
+is defaulted from the default pathname defaults and the result
+specifies a file to be opened.  If the file is a QFASL file, 3fasload*
+is used; otherwise 3readfile* is used.  If 2file* specifies a name
+but no type, 3load* looks first for the canonical type 3:qfasl* and
+then for the canonical type 3:lisp*.
+
+Normally the file is read into the package specified in its attribute
+list, but if 2package* is supplied then the file is read in that
+package.  If 2package* is 3nil* and 2verbose* is 3nil*, 3load*
+prints a message saying what file is being loaded and what package is
+being used.  2verbose* defaults to the value of 3*load-verbose**.
+
+If 2if-does-not-exist* is 3nil*, 3load* just returns 3nil* if no
+file with the specified name exists.  Error conditions other than
+3fs:file-not-found* are not handled by this option.
+
+If a file is loaded, 3load* returns the file's truename.
+
+If 2print* is non-3nil*, the value of each expression evaluated from
+the file is printed on 3*standard-output**.
+
+2pathname* is defaulted from the default pathname defaults.  If
+2set-default-pathname* is non-3nil*, the pathname defaults are set
+to the name of the file loaded.  The default for
+2set-default-pathname* is 3t*.
+
+3load* used to be called with a different calling sequence:
+.lisp
+(load 2pathname* 2pkg* 2nonexistent-ok*
+      2dont-set-default*)
+.end_lisp
+This calling sequence is detected and still works, but it is obsolete.
+.end_defun
+
+.defvar *load-verbose*
+Is the default value for the 2verbose* argument to 3load*.
+.end_defvar
+
+.defun readfile file &optional pkg no-msg-p
+3readfile* is the version of 3load* for text files.  It reads and evaluates
+each expression in the file.  As with 3load*, 2pkg* can specify what package
+to read the file into.  Unless 2no-msg-p* is 3t*, a message is printed
+indicating what file is being read into what package.
+.end_defun
+
+.defun fasload file &optional pkg no-msg-p
+3fasload* is the version of 3load* for QFASL files.  It defines
+functions and performs other actions as directed by the specifications
+inserted in the file by the compiler.  As with 3load*, 2pkg* can
+specify what package to read the file into.  Unless 2no-msg-p* is
+3t*, a message is printed indicating what file is being read into what
+package.
+.end_defun
+
+.section Pathname Operations That Access Files
+.setq pathname-file-operations section-page
+
+Here are the operations that access files.  Many accept an argument
+2error* or 2error-p* which specifies whether to signal an error or
+to return a condition instance, if the file cannot be accessed.  For
+these arguments, 3nil* and non-3nil* are the only significant values.
+3:reprompt* has no special meaning as a value.  That value when passed
+to one of the file accessing functions (3open*, 3deletef*, etc.)
+has its special significance at a higher level.
+
+.defmethod pathname :truename
+Returns a pathname object describing the exact name of the file specified
+by the pathname the object is sent to.
+
+This may be different from the original pathname.  For example, the
+original pathname may have 3:newest* as the version, but the truename
+always has a number as the version if the file system supports versions.
+.end_defmethod
+
+.defmethod pathname :open pathname &rest options
+Opens a stream for the file named by the pathname.
+The argument 2pathname* is what the 3:pathname* operation on the
+resulting stream should return.  When a logical pathname is opened,
+2pathname* is that logical pathname, but 3self* is
+its translated pathname.
+
+2options* is a list of alternating keywords and values, as would be
+passed to 3open*.  The old style of 3open* keywords are not allowed;
+when they are used with 3open*, 3open* converts them to the new
+style before sending the 3:open* message.
+.end_defmethod
+
+.defmethod pathname :delete &optional (error-p 3t*)
+.defmethod1 pathname :undelete &optional (error-p 3t*)
+Respectively delete or undelete the file specified by the pathname.
+
+All file systems support 3:delete* but not all support 3:undelete*.
+
+If 2error-p* is 3nil*, problems such as nonexistent files cause a
+string describing the problem to be returned.  Otherwise, they signal an
+error.
+.end_defmethod
+
+.defmethod pathname :undeletable-p
+Returns 3t* if this pathname is for a file system which allows
+deletion to be undone.  Such pathnames support the 3:undelete*
+and 3:expunge* operations.
+.end_defmethod
+
+.defmethod pathname :rename new-name &optional (error-p 3t*)
+Renames the file specified by the pathname.  2new-name*, a string or
+pathname, specifies the name to rename to.  If it is a string, it is
+parsed using 3self* as the defaults.
+
+If 2error-p* is 3nil*, problems such as nonexistent files cause a
+string describing the problem to be returned.  Otherwise, they signal an
+error.
+.end_defmethod
+
+.defmethod pathname :complete-string string options
+Attempts to complete the filename 2string*, returning the results.
+This operation is used by the function 3fs:complete-pathname* (see
+(fs:complete-pathname-fun)).  The pathname the message is sent to is
+used for defaults.  2options* is a list whose elements may include
+3:deleted*, 3:read* (file is for input), 3:write* (it's for
+output), 3:old* (only existing files allowed), or 3:new-ok* (new files
+are allowed too).
+
+There are two values: a string, which is the completion as far as possible,
+and a flag, which can be 3:old*, 3:new* or 3nil*.
+3:old* says that the returned string names an existing file,
+3:new* says that the returned string is no file but some completion was done,
+3nil* says that no completion was possible.
+.end_defmethod
+
+.defmethod pathname :change-properties error-p &rest properties
+Changes the properties of the file specified by the
+pathname.  2properties* should be an
+alternating list of property names and values.
+.end_defmethod
+
+.defmethod pathname :directory-list options
+Performs the work of 3(fs:directory-list 2this-pathname* 2options*...)*.
+.end_defmethod
+
+.defmethod pathname :properties
+Returns a property list (in the form
+of a directory-list element) and a list of settable properties.
+See (directory-list) for more information on file properties.
+.end_defmethod
+
+.defmethod pathname :wildcard-map function plistp dir-list-options &rest args
+Maps 2function* over all the
+files specified by this pathname (which may contain wildcards).
+Each time 2function* is called, its first argument is a pathname
+with no wildcards, or else a directory-list element (whose car is a
+pathname and whose cdr contains property names and values).
+The elements of 2args* are given to 2function* as additional
+arguments.
+
+2plistp* says whether 2function*'s first argument should be a
+directory-list element or just a pathname.  3t* specifies a
+directory-list element.  That provides more information, but it makes it
+necessary to do extra work if the specified pathname does 2not*
+contain wildcards.
+
+2dir-list-options* is passed to 3fs:directory-list*.  You can use this
+to get deleted files mentioned in the list, for example.
+.end_defmethod
+
+.need 1500
+.nopara
+The remaining file-access operations are defined only on certain file
+systems.
+
+.defmethod pathname :expunge &key (error 3t*)
+Expunges the directory specified by the host, device and directory
+components of the pathname.
+
+The argument 2error* says whether to signal an error if the directory
+does not exist.  3nil* means just return a string instead.
+.end_defmethod
+
+.defmethod pathname :create-directory &key (error 3t*)
+Creates the directory specified in this pathname.
+.end_defmethod
+
+.defmethod pathname :remote-connect &key (error 3t*) access
+Performs the work of 3fs:remote-connect* with the same arguments
+on this pathname's host.
+.end_defmethod
+
+.section File Attribute Lists
+.cindex file attribute list
+.cindex attribute list, file
+.setq file-attribute-list section-page
+.setq file-attributes-list section-page
+
+Any text file can contain an 2attribute list* that specifies several attributes
+of the file.  The above loading functions, the compiler, and the editor look
+at this property list.  Attribute lists are especially useful in program
+source files, i.e. a file that is intended to be loaded (or compiled and
+then loaded).  QFASL files also contain attribute lists, copied from
+their source files.
+
+If the first non-blank line in a text file contains the three characters
+`7-*-*',
+some text, and `7-*-*' again, the text is recognized as the file's attribute list.
+Each attribute consists of the attribute name, a colon, and the attribute value.
+If there is more than one attribute they are separated by semicolons.  An example
+of such an attribute list is:
+.lisp
+; -*- Mode:Lisp; Package:Cellophane; Base:10 -*-
+.end_lisp
+This defines three attributes: mode, package, and base.
+The initial semicolon makes the line look like a comment rather than a Lisp expression.
+Another example is:
+.lisp
+.c Part of the Lisp Machine manual.  -*- Mode:Bolio -*-
+.end_lisp
+
+An attribute name is made up of letters, numbers, and otherwise-undefined
+punctuation characters such as hyphens.  An attribute value can be such a
+name, or a decimal number, or several such items separated by commas.
+Spaces may be used freely to separate tokens.  Upper and lower-case
+letters are not distinguished.  There is 2no* quoting convention for
+special characters such as colons and semicolons.
+
+If the attribute list text contains no colons, it is an old Emacs
+format, containing only the value of the 3Mode* attribute.
+
+The file attribute list format actually has nothing to do with Lisp; it
+is just a convention for placing some information into a file that is
+easy for a program to interpret.  The Emacs editor on the PDP-10 knows
+how to interpret these attribute lists (primarily in order to look at the
+3Mode* attribute).
+
+The Lisp Machine handles the attribute list stored in the file by
+parsing it into a Lisp data structure, a property list.  Attribute names
+are interpreted as Lisp symbols and are interned on the keyword package.
+Numbers are interpreted as Lisp fixnums and are read in decimal.  If a
+attribute value contains any commas, then the commas separate several
+expressions that are formed into a list.
+
+When a file is compiled, its attribute list data structure is stored in
+the QFASL file.  It can be loaded back from the QFASL file as well.
+The representation in the QFASL file resembles nothing described here,
+but when the attribute list is extracted from there, the same Lisp data
+structure described above is obtained.
+
+When a file is edited, loaded, or compiled, its file attribute list is
+read in and the properties are stored on the property list of the
+generic pathname (see (generic-pathname)) for that file, where they can
+be retrieved with the 3:get* and 3:plist* messages.  This is done
+using the function 3fs:read-attribute-list*, below.  So the way you
+examine the properties of a file is usually to use messages to a
+pathname object that represents the generic pathname of a file.  Note
+that there are other properties there, too.
+
+Here the attribute names with standard meanings:
+.table
+.item Mode
+The editor major mode to be used when editing this file.  This is typically
+the name of the language in which the file is written.  The most common values
+are 3Lisp* and 3Text*.
+
+.item Package
+This attribute specifies the package in which symbols in the file should
+be interned.  The attribute may be either the name of a package, or a
+list that specifies both the package name and how to create the package
+if it does not exist.  If it is a list, it should look like
+3(2name* 2superpackage* 2initial-size* 2...options...*)*.  See (package)
+for more information about packages.
+
+.item Base
+The number base in which the file is written (remember, it is
+always parsed in decimal).  This affects both 3*read-base** and 3*print-base**,
+since it is confusing to have the input and output bases be different.
+The most common values are 8 and 10.
+
+.item Readtable
+The value specifies the syntax (that is, the choice of readtable)
+to use for reading Lisp objects from this file.
+The defined values are 3t* or 3traditional* for traditional
+Lisp Machine syntax, and 3cl* or 3common-lisp* for Common Lisp syntax.
+If you do not specify this option, the objects in the file are read
+using whatever readtable is current in the program that reads them.
+
+.item Lowercase
+If the attribute value is not 3nil*, the file is written in lower-case letters
+and the editor does not translate to upper case.  (The editor does not translate
+to upper case by default unless the user enables Electric Shift Lock mode.)
+
+.item Fonts
+The attribute value is a list of font names, separated by commas.  The editor
+uses this for files that are to be displayed in a specific font, or
+contain multiple fonts.  If this attribute is present,
+the file is actually stored in the file system with font-change indicators.
+A font-change indicator is an epsilon (7*) followed by a digit or 7**.
+7*2n* means to enter font 2n*.  The previous font is saved on a stack
+and 7*2** means to pop the stack, returning to the previous font.
+If the file includes an epsilon as part of its contents, it is stored as
+7*.
+
+When expressions are read from such files, font-change indicators
+are ignored, and 7* is treated as a single 7*.
+
+.item Backspace
+If the attribute value is not 3nil*, 3Overstrike* characters in the
+file should cause characters to overprint on each other.  The default is
+to disallow overprinting and display 3Overstrike* the way other
+special function keys are displayed.  This default is to prevent the
+confusion that can be engendered by overstruck text.
+
+.item Patch-File
+If the attribute value is not 3nil*, the file is a 2patch file*.  When it is loaded
+the system will not complain about function redefinitions.  In a patch
+file, the 3defvar* special-form turns into 3defconst*; thus patch files
+always reinitialize variables.  Patch files are usually created by special
+editor commands described in (patch-facility).
+
+.item Cold-Load
+A non-3nil* value for this attribute identifies files that are part of
+the cold load, the core from which a new system version is built.
+Certain features that do not work in the cold load check this flag to
+give an error or a compiler warning if used in such files, so that the
+problem can be detected sooner.
+
+.end_table
+
+You are free to define additional file attributes of your own.  However,
+to avoid accidental name conflicts, you should choose names that are
+different from all the names above, and from any names likely to be
+defined by anybody else's programs.
+
+The following functions are used to examine file attribute lists:
+
+.defun fs:file-attribute-list pathname
+Returns the attribute list of the file specified by the pathname.
+This works on both text files and QFASL files.
+.end_defun
+
+.defun fs:extract-attribute-list stream
+Returns the attribute list read from the specified stream, which should
+be pointing to the beginning of a file.  This
+works on both text streams and QFASL file binary streams.
+After the attribute list is read, the stream's pointer is set back to
+the beginning of the file using the 3:set-pointer* file
+stream operation (see (streams-set-pointer-method)).
+.end_defun
+
+.defun fs:read-attribute-list pathname stream
+2pathname* should be a pathname object (2not* a string or namelist,
+but an actual pathname); usually it is a generic pathname (see
+(generic-pathname)).  2stream* should be a stream that has been
+opened and is pointing to the beginning of the file whose file attribute
+list is to be parsed.  The attribute list is read from the stream and
+then corresponding properties are placed on the specified 2pathname*.
+The attribute list is also returned.
+.end_defun
+
+The fundamental way that programs in the Lisp Machine notice the
+presence of properties on a file's attribute list is by examining the
+property list in the generic pathname.  However, there is another way
+that is more convenient for some applications.  File attributes can
+cause special variables to be bound whenever Lisp expressions are being
+read from the file--when the file is being loaded, when it is being
+compiled, when it is being read from by the editor, and when its QFASL
+file is being loaded.  This is how the 3Package* and 3Base* attributes work.
+You can also deal with attributes this way, by using the following function:
+
+.defun fs:file-attribute-bindings pathname
+Returns values describing the special variables that should be bound
+before reading expressions from file 2pathname*.
+It examines the property list of 2pathname* and finds all
+those property names that have 3fs:file-attribute-bindings* properties.
+Each such property name specifies a set of variables to bind and
+a set of values to which to bind them.  This function returns two values,
+a list of all the variables and a list of all the corresponding values.
+Usually you use this function by calling it on a generic pathname
+that has had 3fs:read-attribute-list* done on it, and then
+you use the two returned values as the first two arguments of a
+3progv*
+special form (see (progv-fun)).  Inside the body of the 3progv* the
+specified bindings will be in effect.
+
+2pathname* may be anything acceptable as the first argument of 3get*.
+Usually it is a generic pathname.
+
+Of the standard attribute names, the following ones have
+3fs:file-attribute-bindings*, with the following effects.  3Package*
+binds the variable 3package* (see (package-var)) to the package.
+3Base* binds the variables 3*print-base** (see (base-var)) and 3*read-base**
+(see (ibase-var)) to the value.  3Readtable* binds the variable 3readtable*
+to a value computed from the specified attribute.  3Patch-file* binds
+3fs:this-is-a-patch-file* to the value.  3Cold-load* binds
+3si:file-in-cold-load* to the value.  3Fonts* binds
+3si:read-discard-font-changes* to 3t*.
+
+Any properties whose names do not have 3fs:file-attribute-bindings*
+properties are ignored completely.
+
+You can also add your own attribute names that affect bindings.  If
+an indicator symbol has an 3fs:file-attribute-bindings* property, the
+value of that property is a function that is called when a file with a
+file attribute of that name is going to be read from.  The function is
+given three arguments: the file pathname, the attribute name, and the
+attribute value.  It must return two values: a list of variables to be
+bound and a list of values to bind them to.  The function for the
+3Base* keyword could have been defined by:
+.lisp
+(defun (:base file-attribute-bindings) (file ignore bse)
+  (if (not (and (typep bse 'fixnum)
+		(> bse 1)
+		(< bse 37.)))
+      (ferror 'fs:invalid-file-attrbute
+	      "File ~A has an illegal -*- Base:~D -*-"
+	      file bse))
+  (values (list 'base 'ibase) (list bse bse)))
+.end_lisp
+.end_defun
+
+.defun fs:extract-attribute-bindings stream
+Returns two values: a list of variables, and a corresponding list of values to bind them to,
+giving the attribute bindings of the attribute list found on 2stream*
+.end_defun
+
+.defcondition fs:invalid-file-attribute (3error*)
+An attribute in the file attribute list had a bad value.  This is detected within
+3fs:file-attribute-bindings*.
+.end_defcondition
+
+.section Accessing Directories
+
+To understand the functions in this section, it is vital to have read
+the chapter on 2pathnames*.  The 2filespec* argument in many of
+these functions may be a pathname or a namestring; its name, type and
+version default to 3:wild*.
+
+.cindex file directory
+.cindex directory (of files)
+
+.defun listf filespec
+Prints on 3*standard-output** the names of the files that match
+2filespec*, and their sizes, creation dates, and other information
+that comes in the directory listing.
+.end_defun
+
+.setq directory-list section-page
+.defun fs:directory-list filespec &rest options
+Finds all the files that match 2filespec* and returns a list with one
+element for each file.  Each element is a list whose car is the pathname
+of the file and whose cdr is a list of the properties of the file; thus the element
+is a disembodied property list and 3get* may be used to access the file's
+properties.  The car of one element is 3nil*; the properties in this element
+are properties of the file system as a whole rather than of a specific file.
+
+2filespec* normally contains wildcards, and the data returned
+describe all existing files that match it.  If it contains no wildcards,
+it specifies a single file and only that file is described
+in the data that are returned.
+
+The 2options* are keywords which modify the operation.  The following options
+are currently defined:
+.table 3
+.item :noerror
+'kindex :noerror fs:directory-list
+If a file-system error (such as no such directory) occurs during the operation,
+normally an error is signaled and the user is asked to supply a new pathname.
+However, if 3:noerror* is specified then, in the event of an error,
+a condition object describing the error is returned as the result of 3fs:directory-list*.
+This is identical to the 3:noerror* option to 3open*.
+
+.item :deleted
+'kindex :deleted fs:directory-list
+This is for file servers on which deletion is not permanent.  It specifies
+that deleted (but not yet expunged) files are to be included in the
+directory listing.
+
+.item :sorted
+'kindex :sorted fs:directory-list
+This requests that the directory list be sorted by filenames before it
+is returned.
+.end_table
+
+The properties that may appear in the list of property lists returned by
+3fs:directory-list* are host-dependent to some extent.  The following
+properties are those that are defined for both ITS and TOPS-20 file servers.  This set of
+properties is likely to be extended or changed in the future.
+.cindex file properties
+.table 3
+.item :length-in-bytes
+The length of the file expressed in terms of the basic units in which it is written
+(characters in the case of a text file).
+.item :byte-size
+The number of bits in one of those units.
+.item :length-in-blocks
+The length of the file in terms of the file system's unit of storage allocation.
+.item :block-size
+The number of bits in one of those units.
+.item :creation-date
+The date the file was created, as a universal time.  See (time).
+.item :reference-date
+The most recent date on which the file was used, as a universal time or
+3nil*, meaning the file was never referenced.
+.item :modification-date
+The most recent date on which the file's contents were changed, as a
+universal time.
+.item :author
+The name of the person who created the file, as a string.
+.item :reader
+The name of the person who last read the file, as a string.
+.item :not-backed-up
+3t* if the file exists only on disk, 3nil* if it has been backed up on magnetic tape.
+.item :directory
+3t* if this file is actually a directory.
+.item :temporary
+3t* if this file is temporary.
+.item :deleted
+3t* if this file is deleted.  Deleted files are included in the
+directory list only if you specify the 3:deleted* option.
+.item :dont-delete
+3t* indicates that the file is not allowed to be deleted.
+.item :dont-supersede
+3t* indicates that the file may not be superseded; that is, a file
+with the same name and higher version may not be created.
+.item :dont-reap
+3t* indicates that this file is not supposed to be deleted
+automatically for lack of use.
+.item :dont-dump
+3t* indicates that this file is not supposed to be dumped onto
+magnetic tape for backup purposes.
+.item :characters
+3t* indicates that this file contains characters (that is, text).
+3nil* indicates that the file contains binary data.
+This property, rather than the file's byte size, should be used to
+decide whether it is a text file.
+.item :link-to
+If the file is a link, this property is a string containing the name that
+the link points to.
+.item :offline
+3T* if the file's contents are not online.
+.item :incremental-dump-date
+The last time this file was dumped during an incremental dump (a
+universal time).
+.item :incremental-dump-tape
+The tape on which the last was saved in that incremental dump (a
+string).
+.item :complete-dump-date
+The last time this file was dumped during an full dump (a
+universal time).
+.item :complete-dump-tape
+The tape on which the last was saved in that full dump (a
+string).
+.item :generation-retention-count
+The number of files differing in version that are kept around.
+.item :default-generation-retention-count
+The generation-retention-count that a file ordinarily gets when it is
+created in this directory.
+.item :auto-expunge-interval
+The interval at which files are expunged from this directory, in
+seconds.
+.item :date-last-expunged
+The last (universal) time this directory was expunged, or 3nil*.
+.item :account
+The account to which the file belongs, a string.
+.item :protection
+A system-dependent description of the protection of this file as a
+string.
+.item :physical-volume
+A string naming the physical volume on which the file is found.
+.item :volume-name
+A string naming the logical volume on which the file is found.
+.item :pack-number
+A string describing the pack on which this file is found.
+.item :disk-space-description
+A system-dependent description of the space usage on the file system.
+This usually appears in the plist that applies to the entire directory
+list.
+.end_table
+
+The element in the directory list that has 3nil* instead of a file's
+pathname describes the directory as a whole.
+
+.table 3
+.item :physical-volume-free-blocks
+This property is an alist in which each element maps a physical volume
+name (a string) into a number, that is the number of free blocks on that volume.
+.item :settable-properties
+This property is a list of file property names that may be set.
+This information is provided in the directory list because it is
+different for different file systems.
+.item :pathname
+This property is the pathname from which this directory list was made.
+.item :block-size
+This is the number of words in a block in this directory.  It can be
+used to interpret the numbers of free blocks.
+.end_table
+.end_defun
+
+.defun fs:directory-list-stream filespec &rest options
+This is like 3fs:directory-list* but returns the information in a
+different form.  Instead of returning the directory list all at once, it
+returns a special kind of stream which gives out one element of the
+directory list at a time.
+
+The directory list stream supports two operations: 3:entry* and
+3:close*.  3:entry* asks for the next element of the directory
+stream.  3:close* closes any connection to a remote file server.
+
+The purpose of using 3fs:directory-list-stream* instead of
+3fs:directory-list* is that, when communicating with a remote file
+server, the directory list stream can give you some of the
+information without waiting for it to all be transmitted and parsed.
+This is desirable if the directory is being printed on the console.
+.end_defun
+
+.defun directory filespec
+Returns a list of pathnames (truenames) of the files in the directory specified
+by 2filespec*.  Wildcards are allowed.  This is the Common Lisp way
+to find the contents of a directory.
+.end_defun
+
+.defun fs:expunge-directory filespec &key (error 3t*)
+Expunges the directory specified in 2filespec*; that is, permanently
+eliminates any deleted files in that directory.  If 2error* is 3nil*,
+there is no error if the directory does not exist.
+
+Note that not all file systems support this function.  To find out
+whether a particular one does, send the 3:undeletable-p* operation to
+a pathname.  If it returns 3t*, the file system of that pathname
+supports undeletion (and therefore expunging).
+.end_defun
+
+.defun fs:create-directory filespec &key (error 3t*)
+Creates the directory specified in 2filespec*.
+If 2error* is 3nil*, there is no error if the directory cannot be
+created; instead an error string is returned.
+Not all file servers support creation of directories.
+.end_defun
+
+.defun fs:remote-connect filespec &key (error 3t*) access
+Performs the TOPS-20 ``connect'' or ``access'' function, or their
+equivalents, in a remote file server.  Access is done if
+2access* is non-3nil*; otherwise, connect is done.
+
+The connect operation grants you full access to the
+specified directory.  The access operation grants you whatever access
+to all files and directories you would have if logged in on the
+specified directory.  Both operations affect access only, since the connected
+directory of the remote server is never used by the Lisp Machine in
+choosing which file to operate on.
+
+This function may ask you for a password if one is required for the
+directory you specify.  If the operation cannot be performed, then if
+2error* is 3nil*, an error object is returned.
+.end_defun
+
+.need 1800
+.nopara
+File Properties:
+
+.defun fs:change-file-properties file error-p &rest properties
+Changes one or more properties of the
+file 2file*.  The 2properties* arguments are alternating keywords
+and values.  If an error occurs accessing the file or changing the
+properties, the 2error-p* argument controls what is done; if it is
+3nil*, a condition object describing the error is returned; if it is
+3t* a Lisp error is signaled.  If no error occurs,
+3fs:change-file-properties* returns 3t*.
+
+Only some of the properties of a file may be changed; for instance,
+its creation date or its author.  Exactly which properties may be
+changed depends on the host file system; a list of the changeable
+property names is the 3:settable-properties* property of the file
+system as a whole, returned by 3fs:directory-list* as explained
+above.
+.end_defun
+
+.defun fs:file-properties file &optional (error-p 3t*)
+Returns a disembodied property list for a single file (compare this to
+3fs:directory-list*).  The car of the returned list is the truename of
+the file and the cdr is an alternating list of indicators and values.
+The 2error-p* argument is the same as in 3fs:change-file-properties*.
+.end_defun
+
+.need 1800
+.nopara
+Filename Completion:
+.cindex filename completion
+
+.defun fs:complete-pathname defaults string type version &rest options
+2string* is a partially-specified file name.  (Presumably it was typed in by a user
+and terminated with the 3Altmode* key or the 3End* key to request completion.)
+3fs:complete-pathname* looks in the file system on the appropriate host and
+returns a new, possibly more specific string.  Any unambiguous abbreviations
+are expanded out in a host-dependent fashion.
+
+2defaults*, 2type*, and 2version* are the arguments to be given to
+3fs:merge-pathname-defaults* (see (fs:merge-pathname-defaults-fun)) when the
+user's input is eventually parsed and defaulted.
+
+2options* are keywords (without following values) that control how the
+completion is performed.  The following option keywords are allowed:
+.table 3
+.kitem :deleted
+Looks for files which have been deleted but not yet expunged.
+
+.item :read 1or* :in
+'kindex :read fs:complete-pathname
+'kindex :in fs:complete-pathname
+The file is going to be read.  This is the default.
+
+.item :print 1or* :write 1or* :out
+'kindex :print fs:complete-pathname
+'kindex :write fs:complete-pathname
+'kindex :out fs:complete-pathname
+The file is going to be written (i.e. a new version is going to be created).
+
+.kitem :old
+Looks only for files that already exist.  This is the default.
+
+.kitem :new-ok
+Allows either a file that already exists or a file that does not yet exist.
+An example of the use of this is the 3C-X* 3C-F* (Find File) command in the editor.
+
+.end_table
+
+The first value returned is always a string containing a file name, either the
+original string or a new, more specific string.  The second value returned
+indicates the success or failure of the completion.  It is 3nil* if an
+error occurred.  One possible error is that the file is on a file system that
+does not support completion, in which case the original string is returned
+unchanged.  Other possible second values are 3:old*, which means that the
+string completed to the name of a file that exists, 3:new*, which means that
+the string completed to the name of a file that could be created, and 3nil*
+again, which means that there is no possible completion.
+.end_defun
+
+.need 1800
+.nopara
+Balance Directories:
+.cindex balance directories
+
+.defun fs:balance-directories filespec1 filespec2 &rest options
+3fs:balance-directories* is a function for maintaining multiple copies
+of a directory.  Often it is useful to maintain copies of your files on
+more than one machine; this function provides a simple way of keeping
+those copies up to date.
+
+The function first parses 2filespec1*, filling in missing components
+with wildcards (except for the version, which is 3:newest*).  Then
+2filespec2* is parsed with 2filespec1* as the default.  The
+resulting pathnames are used to generate directory lists using
+3fs:directory-list*.  Note that the resulting directory lists need not
+be entire directories; any subset of a directory that
+3fs:directory-list* can produce will do.
+
+First the directory lists are matched up on the basis of file name and
+type.  All of the files in either directory list which have both the
+same name and the same type are grouped together.
+
+The directory lists are next analyzed to determine if the directories
+are consistent, meaning that two files with the same name and type have
+equal creation-dates when their versions match, and greater versions
+have later creation-dates.  If any inconsistencies are found, a warning
+message is printed on the console.
+
+If the version specified for both 2filespec1* and 2filespec2* was
+3:newest* (the default), then the newest version of each file in each
+directory is copied to the other directory if it is not already
+there.  The result is that each directory has the newest copy
+of every file in either of the two directories.
+
+If one or both of the specified versions is not 3:newest*, then 2every*
+version that appears in one directory list and not in the other is
+copied.  This has the result that the two directories are completely the
+same.  (Note that this is probably not the right thing to use to
+2copy* an entire directory.  Use 3copy-file* with a wildcard
+argument instead.)
+
+The 2options* are keywords arguments which modify the operation.  The
+following options are currently defined:
+
+.table 3
+.item :ignore
+'kindex :ignore fs:balance-directories
+This option takes one argument, which is a list of file names to ignore
+when making the directory lists.  The default value is 3nil*.
+
+.item :error
+'kindex :error fs:balance-directories
+This option is identical to the 3:error* option to 3open*.
+
+.item :query-mode
+'kindex :query-mode fs:balance-directories
+This option takes one argument, which indicates whether or not the user
+should be asked before files are transferred.  If the argument is
+3nil*, no querying is done.  If it is 3:1->2*, then only files
+being transferred from 2filespec2* to 2filespec1* are queried,
+while if it is 3:2->1*, then files transferred from 2filespec1* to
+2filespec2* are queried.  If the argument is 3:always*, then
+the user is asked about all files.
+
+.item :copy-mode
+'kindex :copy-mode fs:balance-directories
+This option is identical to the 3:copy-mode* option of 3copy-file*,
+and is used to control whether files are treated as binary or textual
+data.
+
+.kitem :direction
+This option specifies transfer of files in one direction only.
+If the value is 3:1->2* then files are transfered only from 2filespec1*
+to 2filespec2*, never in the other direction.  If the value is
+3:2->1* then files are transferred only from 2filespec2* to
+2filespec1*.  3nil*, the default, means transfer in either direction
+as appropriate.
+.end_table
+.end_defun
+
+.section Errors in Accessing Files
+
+.defcondition-flavor fs:file-error (3error*)
+This flavor is the basis for all errors signaled by the file system.
+
+It defines two special operations, 3:pathname* and 3:operation*.
+Usually, these return the pathname of the file being operated on, and
+the operation used.  This operation was performed either on the pathname
+object itself, or on a stream.
+
+It defines prompting for the proceed types 3:retry-file-operation* and
+3:new-pathname*, both of which are provided for many file errors.
+3:retry-file-operation* tries the operation again exactly as it was
+requested by the program; 3:new-pathname* expects on argument, a
+pathname, and tries the same operation on this pathname instead of the
+original one.
+.end_defcondition-flavor
+
+.defcondition fs:file-operation-failure (3fs:file-error*)
+This condition name signifies a problem with the file operation
+requested.  It is an alternative to 3fs:file-request-failure*
+((file-request-failure-page)), which means that the file system
+was unable to consider the operation properly.
+.end_defcondition
+
+All the following conditions in this section are always accompanied by
+3fs:file-operation-failure*, 3fs:file-error*, and 3error*, so they
+will not be mentioned.
+
+.defcondition fs:file-open-for-output
+The request cannot be performed because the file is open for output.
+.end_defcondition
+
+.defcondition fs:file-locked
+The file cannot be accessed because it is already being accessed.  Just
+which kinds of simultaneous access are allowed depends on the file
+system.
+.end_defcondition
+
+.defcondition fs:circular-link
+A link could not be opened because it pointed, directly or indirectly
+through other links, to itself.  In fact, some systems report this condition
+whenever a chain of links exceeds a fixed length.
+.end_defcondition
+
+.defcondition fs:invalid-byte-size
+In 3open*, the specified byte size was not valid for the particular
+file server or file.
+.end_defcondition
+
+.defcondition fs:no-more-room
+Processing a request requires resources not available, such as
+space in a directory, or free disk blocks.
+.end_defcondition
+
+.defcondition fs:filepos-out-of-range
+The 3:set-pointer* operation was used with a pointer value outside the bounds of the file.
+.end_defcondition
+
+.defcondition fs:not-available
+A requested pack, file, etc. exists but is currently off line or not available to users.
+.end_defcondition
+
+.defcondition fs:file-lookup-error
+This condition name categorizes all sorts of failure to find a specified file,
+for any operation.
+.end_defcondition
+
+.defcondition fs:device-not-found (3fs:file-lookup-error*)
+The specified device does not exist.
+.end_defcondition
+
+.defcondition fs:directory-not-found (3fs:file-lookup-error*)
+The specified directory does not exist.
+.end_defcondition
+
+.defcondition fs:file-not-found (3fs:file-lookup-error*)
+There is no file with the specified name, type and version.
+This implies that the device and directory do exist,
+or one of the errors described above would have been signaled.
+.end_defcondition
+
+.defcondition fs:multiple-file-not-found (3fs:file-lookup-error*)
+There is no file with the specified name and any of the
+specified types, in 3with-open-file-search*.
+Three special operations are defined:
+.table 3
+.item :operation
+Returns the function which used 3with-open-file-search*, such as 3load*.
+.item :pathname
+The base pathname used.
+.item :pathnames
+A list of all the pathnames that were looked for.
+.end_table
+.end_defcondition
+
+.defcondition fs:link-target-not-found (3fs:file-lookup-error*)
+The file specified was a link, but the link's target filename
+fails to be found.
+.end_defcondition
+
+.defcondition fs:access-error
+The operation is possible, but the file server is insubordinate and refuses to
+obey you.
+.end_defcondition
+
+.defcondition fs:incorrect-access-to-file (3access-error*).
+.defcondition1 fs:incorrect-access-to-directory (3access-error*).
+The file server refuses to obey you because of protection attached to
+the file (or, the directory).
+.end_defcondition
+
+.defcondition fs:invalid-wildcard
+A pathname had a wildcard in a place where the particular file server
+does not support them.  Such pathnames are not created by pathname
+parsing, but they can be created with the 3:new-pathname* operation.
+.end_defcondition
+
+.defcondition fs:wildcard-not-allowed
+A pathname with a wildcard was used in an operation that does not support it.
+For example, opening a file with a wildcard in its name.
+.end_defcondition
+
+.defcondition fs:wrong-kind-of-file
+An operation was done on the wrong kind of file.
+If files and directories share one name space and it is an error to open
+a directory, the error possesses this condition name.
+.end_defcondition
+
+.defcondition fs:creation-failure
+An attempt to create a file or directory failed for a reason
+specifically connected with creation.
+.end_defcondition
+
+.defcondition fs:file-already-exists (3fs:creation-failure*)
+The file or directory to be created already exists.
+.end_defcondition
+
+.defcondition fs:superior-not-directory (3fs:creation-failure* 3fs:wrong-kind-of-file*)
+In file systems where directories and files share one name space, this
+error results from an attempt to create a file using a filename
+specifying a directory whose name exists in the file system but is not
+a directory.
+.end_defcondition
+
+.defcondition fs:delete-failure
+A file to be deleted exists, but for some reason cannot be deleted.
+.end_defcondition
+
+.defcondition fs:directory-not-empty (3fs:delete-failure*)
+A file could not be deleted because it is a directory and has files in it.
+.end_defcondition
+
+.defcondition fs:dont-delete-flag-set (3fs:delete-failure*)
+A file could not be deleted because its ``don't delete'' flag is set.
+.end_defcondition
+
+.defcondition fs:rename-failure
+A file to be renamed exists, but the renaming could not be done.  The
+3:new-pathname* operation on the condition instance returns the
+specified new pathname, which may be a pathname or a string.
+.end_defcondition
+
+.defcondition fs:rename-to-existing-file (3fs:rename-failure*)
+Renaming cannot be done because there is already a file with the
+specified new name.
+.end_defcondition
+
+.defcondition fs:rename-across-directories (3fs:rename-failure*)
+Renaming cannot be done because the new pathname contains a different
+device or directory from the one the file is on.  This may not always be
+an error--some file systems support it in certain cases--but when
+it is an error, it has this condition name.
+.end_defcondition
+
+.defcondition fs:unknown-property (3fs:change-property-failure*)
+A property name specified in a 3:change-properties* operation is not
+supported by the file server.  (Some file servers support only a fixed
+set of property names.)  The 3:property* operation on the condition
+instance returns the problematical property name.
+.end_defcondition
+
+.defcondition fs:invalid-property-value (3fs:change-property-failure*)
+In a 3:change-properties* operation, some property was given a value
+that is not valid for it.  The 3:property* operation on the
+condition instance returns the property name, and the 3:value*
+operation returns the specified value.
+.end_defcondition
+
+.defcondition fs:invalid-property-name (3fs:change-property-failure*)
+In a 3:change-properties* operation, a syntactically invalid property
+name was specified.  This may be because it is too long to be stored.
+The 3:property* operation on the condition instance returns the
+property name.
+.end_defcondition
+
+.section File Servers
+.cindex file servers
+
+Files on remote file servers are accessed using 2file servers* over
+the Chaosnet.  Normally connections to servers are established
+automatically when you try to use them, but there are a few ways you can
+interact with them explicitly.
+
+.setq character-set-differences section-page
+
+	When characters are written to a file server computer that
+normally uses the ASCII character set to store text, Lisp Machine
+characters are mapped into an encoding that is reasonably close to an
+ASCII transliteration of the text.  When a file is written, the
+characters are converted into this encoding; the inverse
+transformation is done when a file is read back.  No information is
+lost.  Note that the length of a file, in characters, is not the
+same measured in original Lisp Machine characters as it is measured in
+the encoded ASCII characters.  In the currently implemented ASCII file
+servers, the following encoding is used.  All printing characters and
+any characters not mentioned explicitly here are represented as
+themselves.  Codes 010 (lambda), 011 (gamma), 012 (delta), 014
+(plus-minus), 015 (circle-plus), 177 (integral), 200 through 207
+inclusive, 213 (3Delete*), and 216 and anything higher, are preceded
+by a 177; that is, 177 is used as a quoting character for these codes.
+Codes 210 (3Overstrike*), 211 (3Tab*), 212 (3Line*), and 214 (3Page*), are
+converted to their ASCII cognates, namely 010 (backspace), 011
+(horizontal tab), 012 (line feed), and 014 (form feed) respectively.
+Code 215 (3Return*) is converted into 015 (carriage return) followed by
+012 (line feed).  Code 377 is ignored completely, and so cannot be
+stored in files.
+
+.cindex fascism
+.cindex passwords
+.setq passwords page
+
+When a file server is first created for you on a particular host, you
+must tell the server how to log in on that host.  This involves
+specifying a 2username*, and, if the obstructionists are in control
+of your site, a password.
+The Lisp Machine prompts you for these on the terminal when they are
+needed.
+
+Logging in a file server is not the same thing as logging in on the Lisp
+Machine (see 3login*, (login-fun)).  The latter identifies you as a
+user in general and involves specifying one host, your login host.  The
+former identifies you to a particular file server host and must be done
+for each host on which you access files.  However, logging in on the
+Lisp Machine does specify the username for your login host and logs in
+a file server there.
+
+The Lisp Machine uses your username (or the part that follows
+the last period) as a first guess for your password (this happens to
+take no extra time).  If that does not work, you are asked to type a
+password, or else a username and a password, on the keyboard.  You do
+not have to give the same user name that you are logged in as, since you
+may have or use different user names on different machines.
+
+Once a password is recorded for one host, the system uses that password
+as the guess if you connect to a file server on another host.
+
+.defvar fs:user-unames
+This is an alist matching host names with the usernames you have
+specified on those hosts.  Each element is the cons of a host object and
+the username, as a string.
+
+For hosts running ITS, the symbol 3fs:its* is used instead of a
+host object.  This is because every user has the same username on all
+ITS hosts.
+.end_defvar
+
+.defvar fs:user-host-password-alist
+Once you have specified a password for a given username and host, it
+is remembered for the duration of the session in this variable.
+The value is a list of elements, each of the form
+.lisp
+((2username* 2hostname*) 2password*)
+.end_lisp
+All three data are strings.
+.end_defvar
+
+The remembered passwords are used if more than one file server is needed
+on the same host, or if the connection is broken and a new file server
+needs to be created.
+
+.cindex paranoia
+If you are very scared of your password being known, you can turn off
+the recording by setting this variable:
+
+.defvar fs:record-passwords-flag
+Passwords are recorded when typed in if this variable is non-3nil*.
+.end_defvar
+
+You should set the variable at the front of your init file, and also set
+3fs:user-host-password-alist* to 3nil*, since it will already have
+recorded your password when you logged in.
+
+If you do not use a file server for a period of time, it is killed to
+save resources on the server host.
+
+.defvar fs:host-unit-lifetime
+This is the length of time after which an idle file server connection
+should be closed, in 60ths of a second.  The default is 20 minutes.
+.end_defvar
+
+Some hosts have a caste system in which all users are not equal.  It is
+sometimes necessary to enable one's privileges in order to exercise
+them.  This is done with these functions:
+.cindex capabilities
+
+.defun fs:enable-capabilities host &rest capabilities
+Enables the named capabilities on file servers for the specified host.
+2capabilities* is a list of strings, whose meanings depend on the
+particular file system that is available on 2host*.
+If 2capabilities* is 3nil*, a default list of capabilities is
+enabled; the default is also dependent on the operating system type.
+.end_defun
+
+.defun fs:disable-capabilities host &rest capabilities
+Disables the named capabilities on file servers for the specified host.
+2capabilities* is a list of strings, whose meanings depend on the
+particular file system that is available on 2host*.
+If 2capabilities* is 3nil*, a default list of capabilities is
+disabled; the default is also dependent on the operating system type.
+.end_defun
+
+The PEEK utility has a mode that displays the status of all your file
+connections, and of the 2host unit* data structures that record them.
+Clicking on a connection with the mouse gets a menu of operations, of
+which the most interesting is 3reset*.  Resetting a host unit may
+be useful if the connection becomes hung.
+
+.subsection Errors in Communication with File Servers
+.setq file-request-failure-page page
+
+.defcondition fs:file-request-failure (3fs:file-error* 3error*)
+This condition name categorizes errors that prevent the file system from
+processing the request made by the program.
+.end_defcondition
+
+The following condition names are always accompanied by the more general
+classifications 3fs:file-request-failure*, 3fs:file-error*, and 3error*.
+
+.defcondition fs:data-error
+This condition signifies inconsistent data found in the file system,
+indicating a failure in the file system software or hardware.
+.end_defcondition
+
+.defcondition fs:host-not-available
+This condition signifies that the file server host is up, but refusing
+connections for file servers.
+.end_defcondition
+
+.defcondition fs:network-lossage
+This condition signifies certain problems in the use of the Chaosnet by a file server,
+such as failure to open a data connection when it is expected.
+.end_defcondition
+
+.defcondition fs:not-enough-resources
+This condition signifies a shortage of resources needed to consider
+processing a request, as opposed to resources used up by the request
+itself.  This may include running out of network connections or job
+slots on the server host.  It does not include running out of space in a
+directory or running out of disk space, because these are resources
+whose requirements come from processing the request.
+.end_defcondition
+
+.defcondition fs:unknown-operation
+This condition signifies that the particular file system fails to
+implement a standardly defined operation; such as, expunging or
+undeletion on ITS.
+.end_defcondition

@@ -1,0 +1,1095 @@
+.c This file is part of the Lisp Machine Manual.		-*-Bolio-*-
+.c Function descriptions: FORMAT and OUTPUT packages
+
+.section Formatted Output
+.cindex formatted output
+
+There are two ways of doing general formatted output.  One is the
+function 3format*.  The other is the 3output* subsystem.
+3format* uses a control string written in a special format
+specifier language to control the output format.
+3format:output* provides Lisp functions to do
+output in particular formats.  
+
+For simple tasks in which only the most basic format specifiers are
+needed, 3format* is easy to use and has the advantage of brevity.
+For more complicated tasks, the format specifier language becomes
+obscure and hard to read.  Then 3format:output* becomes advantageous
+because it works with ordinary Lisp control constructs.
+
+.subsection The Format Function
+.setq format section-page
+
+.defun format destination control-string &rest args
+Produces formatted output.
+3format* outputs the characters of 2control-string*, except
+that a tilde (`3~*') introduces a directive.  The character after
+the tilde, possibly preceded by prefix parameters and modifiers, specifies
+what kind of formatting is desired.  Most directives use one or more
+elements of 2args* to create their output; the typical directive
+puts the next element of 2args* into the output, formatted in
+some special way.
+
+	The output is sent to 2destination*.  If 2destination* is
+3nil*, a string is created which contains the output; this string is
+returned as the value of the call to 3format*.  In all other cases
+3format* returns no interesting value (generally it returns 3nil*).
+If 2destination* is a stream, the output is sent to it.  If
+2destination* is 3t*, the output is sent to 3*standard-output**.  If
+2destination* is a string with an array-leader, such as would be
+acceptable to 3string-nconc* (see (string-nconc-fun)), the output is
+added to the end of that string.
+.end_defun
+
+	A directive consists of a tilde, optional prefix parameters
+separated by commas, optional colon (`3:*') and atsign (`3@*') modifiers,
+and a single character indicating what kind of directive this is.
+The alphabetic case of the character is ignored.
+The prefix parameters are generally decimal numbers.
+Examples of control strings:
+
+.lisp
+"~S"        ; 1This is an S directive with no parameters.*
+"~3,4:@s"   ; 1This is an S directive with two parameters, 3 and 4,*
+            ; 1   and both the colon and atsign flags.*
+"~,4S"      ; 1The first prefix parameter is omitted and takes*
+            ; 1   on its default value, while the second is 4.*
+.end_lisp
+
+3format* includes some extremely complicated and specialized
+features.  It is not necessary to understand all or even most of its
+features to use 3format* efficiently.  The beginner should
+skip over anything in the following documentation that is not
+immediately useful or clear.  The more sophisticated features are
+there for the convenience of programs with complicated formatting
+requirements.
+
+	Sometimes a prefix parameter is used to specify a character,
+for instance the padding character in a right- or left-justifying
+operation.  In this case a single quote ("3'*") followed by the
+desired character may be used as a prefix parameter, so that you don't
+have to know the decimal numeric values of characters in the character
+set.  For example, you can use 3"~5,'0d"* instead of 3"~5,48d"* to
+print a decimal number in five columns with leading zeros.
+
+In place of a prefix parameter to a directive, you can put the letter
+3V*, which takes an argument from 2args* as a parameter to the
+directive.  Normally this should be a number but it doesn't really have
+to be.  This feature allows variable column-widths and the like.  Also,
+you can use the character 3#* in place of a parameter; it represents the
+number of arguments remaining to be processed.
+
+.need 1800
+Here are some relatively simple examples to give you the general
+flavor of how 3format* is used.
+.lisp
+(format nil "foo") => "foo"
+(setq x 5)
+(format nil "The answer is ~D." x) => "The answer is 5."
+(format nil "The answer is ~3D." x) => "The answer is   5."
+.end_lisp
+.lisp
+(setq y "elephant")
+(format nil "Look at the ~A!" y) => "Look at the elephant!"
+(format nil "The character ~:@C is strange." #\meta-beta)
+      => "The character Meta- (Greek-b) is strange."
+.end_lisp
+.lisp
+(setq n 3)
+(format nil "~D item~:P found." n) => "3 items found."
+(format nil "~R dog~:[s are~; is~] here." n (= n 1))
+      => "three dogs are here."
+(format nil "~R dog~:*~[~1; is~:;s are~] here." n)
+      => "three dogs are here."
+(format nil "Here ~[~1;is~:;are~] ~:*~R pupp~:@P." n)
+      => "Here are three puppies."
+.end_lisp
+
+The directives will now be described.
+2arg* will be used to refer to the next argument from 2args*.
+.table 3 0 700
+.item ~A
+2arg*, any Lisp object, is printed without escaping (as by 3princ*).
+3~:A* prints 3()* if 2arg* is 3nil*; this is useful when printing
+something that is always supposed to be a list.
+3~2n*A* inserts spaces on the right, if necessary, to make the
+column width at least 2n*.  The 3@* modifier causes the spaces
+to be inserted on the left rather than the right.
+3~2mincol,colinc,minpad,padchar*A* is the full form of 3~A*,
+which allows elaborate control of the padding.
+The string is padded on the right with at least 2minpad* copies
+of 2padchar*; padding characters are then inserted 2colinc* characters
+at a time until the total width is at least 2mincol*.
+The defaults are 0 for 2mincol* and 2minpad*, 1 for 2colinc*,
+and space for 2padchar*.
+
+.item ~S
+This is just like 3~A*, but 2arg* is printed 2with* escaping
+(as by 3prin1* rather than 3princ*).
+
+.item ~D
+2arg*, a number, is printed in base ten.
+Unlike 3print*, 3~D* never puts a decimal point after the number.
+3~2n*D* uses a column width of 2n*; spaces are inserted on
+the left if the number requires less than 2n* columns for its digits
+and sign.  If the number doesn't fit in 2n* columns, additional columns
+are used as needed. 3~2n*,2m*D* uses 2m* as the pad character
+instead of space.  If 2arg* is not a number, it is printed
+in 3~A* format and decimal base.
+The 3@* modifier causes the number's sign to be printed always; the default
+is only to print it if the number is negative.
+The 3:* modifier causes commas to be printed between groups of three digits;
+the third prefix parameter may be used to change the character used as the comma.
+Thus the most general form of 3~D* is
+3~2mincol*,2padchar*,2commachar*D*.
+
+.item ~O
+This is just like 3~D* but prints in octal instead of decimal.
+
+.item ~X
+This is just like 3~D* but prints in hex instead of decimal.
+Note that 3~X* used to have a different meaning: print one or more spaces.
+Uses of 3~X* intended to have this meaning should be replaced with 3~@T*.
+
+.item ~B
+This is just like 3~D* but prints in binary instead of decimal.
+
+.item ~2w*,2d*,2k*,2ovfl*,2pad*F
+2arg* is printed in nonexponential floating point format, as in
+`10.5'.  (If the magnitude of 2arg* is very large or very small, it is
+printed in exponential notation.)  The parameters control the details of
+the formatting.
+.table 2 0 450
+.item w
+is the total field width desired.  If omitted, this is not constrained.
+.item d
+is the number of digits to print after the decimal point.
+If 2d* is omitted, it is chosen to do a good job based on 2w*
+(if specified) and the value of 2arg*.
+.item k
+is a scale factor.  2arg* is multiplied by 3(exp 10. 2k*)*
+before it is printed.
+.item ovfl
+is a character to use for overflow.  If 2arg*
+is too big to print and fit the constraints of field width, etc.,
+and 2ovfl* is specified then the whole field is filled with 2ovfl*.
+If 2ovfl* is not specified, 2arg* is printed using extra width as needed.
+.item pad
+is a character to use for padding on the left, when the field
+width is specified and not that many characters are really needed.
+.end_table
+
+.nopara
+If the 3@* modifier is used, a sign is printed even if 2arg* is positive.
+
+Rational numbers are converted to floats and then printed.
+Anything else is printed with 3~2w*D* format.
+
+.item ~2w*,2d*,2e*,2k*,2ovfl*,2pad*,2expt*E
+2arg* is printed in exponential notation, as in `.105e+2'.  The parameters control
+the details of the formatting.
+.table 2 0 450
+.item w
+is the total field width desired.  If omitted, this is not constrained.
+.item d 1and* k
+control the number of mantissa digits and their arrangement around the
+decimal point.  2d*+1 digits are printed.  If 2k* is positive, all
+of them are significant digits, and the decimal point is printed after
+the first 2k* of them.  If 2k* is zero or negative, the first
+|2k*|+1 of the 2d*+1 digits are leading zeros, and the decimal
+point follows the first zero.  (This zero can be omitted if necessary
+to fit the number in 2w* characters.)  So the number of significant
+figures is less than 2d* if 2k* is negative.
+
+The exponent printed always compensates for any powers of ten
+introduced according to 2k*, so 10.5 might be printed as
+30.105e+2* or as 31050.0e-2*.
+
+If 2d* is omitted, the system chooses enough significant figures
+to represent the float accurately.  If 2k* is omitted, the default is one.
+.item e
+is the number of digits to use for the exponent.  If it is not specified,
+however many digits are needed are used.
+.item ovfl
+is the overflow character.
+If the exponent doesn't fit in 2e* digits or the entire number
+does not fit in 2w* characters, then if 2ovfl* is specified,
+the field of 2w* characters is filled with 2ovfl*.  Otherwise
+more characters are used as needed.
+.item pad
+is a character to use for padding on the left, when the field
+width is specified and not that many characters are really needed.
+.item expt
+is a character to use to separate the mantissa from the exponent.
+The default is 3e* or 3s* or 3f*, whichever would be used
+in printing the number normally.
+.end_table
+
+.nopara
+If the 3@* modifier is used, a sign is printed even if 2arg* is positive.
+
+.item ~2w*,2d*,2e*,2k*,2ovfl*,2pad*,2expt*G
+Prints a floating point number 2arg* in either 3~F* or 3~E*
+format.  Fixed format is used if the absolute value of 2arg* is less
+than 3(expt 10. 2d*)*, and exponential format otherwise.  (If 2d*
+is not specified, it defaults based on the value of 2arg*.)  If fixed
+format is used, 2e*+2 blanks are printed at the end (where the
+exponent and its separator and sign would go, in exponential format).
+These count against the width 2w* if that is specified.  Four blanks
+are used if 2e* is omitted.  The diminished width available, 2d*,
+2ovfl* and 2pad* are used as specified.  The scale factor used in
+fixed format is always zero, not 2k*.
+
+If exponential format needs to be used, all the parameters are passed to
+the 3~E* directive to print the number.
+
+Rational numbers are converted to floats and then printed.
+Anything else is printed with 3~2w*D* format.
+
+.item ~$
+3~2rdig*,2ldig*,2field*,2padchar*$* prints
+2arg*, a float, with exactly 2rdig* digits after the decimal
+point.  The default for 2rdig* is 2, which is convenient for
+printing amounts of money.  At least 2ldig* digits are printed
+preceding the decimal point; leading zeros are printed if there would
+be fewer than 2ldig*.  The default for 2ldig* is 1.  The number is
+right justified in a field 2field*
+columns long, padded out with 2padchar*.  The colon modifier means
+that the sign character is to be at the beginning of the field, before
+the padding, rather than just to the left of the number.  The atsign modifier
+says that the sign character should always be output.
+
+If 2arg* is not a number, or is unreasonably large, it is printed
+in 3~2field*,,,2padchar*@A* format; i.e. it is 3princ*'ed
+right-justified in the specified field width.
+
+.item ~C
+3(character 2arg*)* is put in the output.  2arg* is treated as a
+keyboard character (see (%%kbd)), thus it may contain extra
+control-bits.  These are printed first by representing them with
+abbreviated prefixes: `3C-*' for 3Control*, `3M-*' for 3Meta*, `3H-*' for 3Hyper*,
+and `3S-*' for 3Super*.
+
+With the colon flag (3~:C*), the names of the control bits are spelled out
+(e.g. `3Control-Meta-F*') and non-printing characters
+are represented by their names (e.g. `3Return*') rather than being output
+as themselves.  The printing characters Space and Altmode are also represented
+as their names, but all others are printed directly.
+
+With both colon and atsign (3~:@C*), the colon-only format is printed, and then
+if the character requires the 3Top* or 3Greek* (3Front*) shift key(s) to type it,
+this fact is mentioned (e.g. `3 (Top-U)*').  This is the format
+used for telling the user about a key he is expected to type, for instance
+in prompt messages.
+
+For all three of these formats, if the character is a mouse character, it
+is printed as 3Mouse-*, the name of the button, `7-*', and the number
+of clicks.
+
+With just an atsign (3~@C*), the character is printed in such a way that
+the Lisp reader can understand it, using `3#\*' or `3#/*', depending
+on the escaping character of 3*readtable** (see (escape-characters)).
+
+.item ~%
+Outputs a carriage return.  3~2n*%* outputs 2n* carriage returns.
+No argument is used.  Simply putting a carriage return in the control string
+would work, but 3~%* is usually used because it makes the control string
+look nicer in the Lisp source program.
+
+.item ~&
+The 3:fresh-line* operation is performed on the output stream.
+Unless the stream knows that it is already at the front of a line,
+this outputs a carriage return.  3~2n*&* does a 3:fresh-line* operation
+and then outputs 2n*-1 carriage returns.
+
+.item ~|
+Outputs a page separator character (3#\page*).  3~2n*|* does this
+2n* times.  With a 3:* modifier, if the output stream supports the
+3:clear-screen* operation this directive clears the screen, otherwise
+it outputs page separator character(s) as if no 3:* modifier were
+present.  3|* is vertical bar, not capital I.
+
+.item ~~
+Outputs a tilde.  3~2n*~* outputs 2n* tildes.
+
+.item ~ <CR>
+Tilde immediately followed by a carriage return ignores the carriage return
+and any whitespace at the beginning of the next line.  With a 3:*, the whitespace
+is left in place.  With an 3@*, the carriage return is left in place.
+This directive is typically used when a format control string is too long
+to fit nicely into one line of the program.
+
+.item ~*
+2arg* is ignored.  3~2n*** ignores the next 2n* arguments.
+3~:** ``ignores backwards''; that is, it backs up in the list of
+arguments so that the argument last processed will be processed again.
+3~2n*:** backs up 2n* arguments.  3~2n*@** is absolute;
+it moves to argument 2n* (2n* = 0 specifies the first argument).
+
+When within a 3~{* construct (see below), the ignoring (in either
+direction) is relative to the list of arguments being processed by the
+iteration.
+
+.item ~P
+If 2arg* is not 31*, a lower-case `s' is printed.  (`3P*' is for `plural'.)
+3~:P* does the same thing, after doing a 3~:**; that is, it prints
+a lower-case s if the 2last* argument was not 1.  3~@P* prints `y'
+if the argument is 1, or `ies' if it is not.  3~:@P* does the same thing,
+but backs up first.
+
+.item ~T
+'setq format-t-operation page
+Spaces over to a given column.  3~2n*,2m*T* outputs
+sufficient spaces to move the cursor to column 2n*.  If the cursor
+is already past column 2n*, it outputs spaces to move it to
+column 2n*+2mk*, for the smallest integer value 2k* possible.
+2n* and 2m* default to 31*.  Without the colon flag, 2n* and
+2m* are in units of characters; with it, they are in units of pixels.
+
+Note: this operation works properly 2only* on streams that support
+the 3:read-cursorpos* and 3:increment-cursorpos* stream operations
+(see (read-cursorpos)).  On other streams, any 3~T* operation
+simply outputs two spaces.  When 3format* is creating
+a string, 3~T* works by assuming that the first character in the string
+is at the left margin.
+
+3~@T* simply outputs a space.
+3~2rel*T* simply outputs 2rel* spaces.
+3~2rel*, 2period*T* outputs 2rel* spaces and then
+additional spaces until it reaches a column which is a multiple
+of 2period*.  If the output stream does not support 3:read-cursorpos*
+then it simply outputs 2rel* spaces.
+
+.item ~R
+3~R* prints 2arg* as a cardinal English number, e.g. four.
+3~:R* prints 2arg* as an ordinal number, e.g. fourth.
+3~@R* prints 2arg* as a Roman numeral, e.g. 3IV*.
+3~:@R* prints 2arg* as an old Roman numeral, e.g. 3IIII*.
+
+3~2n*R* prints 2arg* in radix 2n*.
+The flags and any remaining parameters are used as for the 3~D* directive.
+Indeed, 3~D* is the same as 3~10R*.  The full form here is therefore
+3~2radix*,2mincol*,2padchar*,2commachar*R*.
+
+.item ~?
+Uses up two arguments, and processes the first one as a format control string
+using the second one's elements as arguments.  Thus,
+.lisp
+(format nil "~? ~D" "~O ~O" '(4 20.) 9)
+.end_lisp
+returns 3"4 24 9"*.
+
+3~@?* processes the following argument as a format control string,
+using all the remaining arguments.  Any arguments it does not use
+are left to be processed by the format directives following the 3~@?*
+in the original control string.
+.lisp
+(format nil "~@? ~D" "~O ~O" 4 20. 9)
+.end_lisp
+likewise returns 3"4 24 9"*.
+
+.item ~2str*~
+Performs the formatting specified by 2str*, with indentation on
+any new lines.  Each time a 3Return* is printed during the processing of 2str*,
+it is followed by indentation sufficient to line up underneath the place
+where the cursor was at the beginning of 2str*.  For example,
+.lisp
+(format t "Foo: ~8T~~A~" 2string*)
+.end_lisp
+prints 2string* with each line starting at column 8.  If 2string*
+is 3(string-append "This is" #\return "the string")* then the output is
+.lisp
+Foo:    This is
+	the string
+.end_lisp
+
+.item ~(2str*~)
+'setq format-case-convert page
+Performs output with case conversion.
+The formatting specified by 2str* is done, with all the letters in the
+resulting output being converted to upper or lower case according to
+the modifiers given to the 3~(* command:
+.table 3 0 550
+.item ~(  1without modifiers*
+Converts all the letters to lower case.
+.item ~:(
+Converts the first letter of each word to upper case and the rest to lower case.
+.item ~@(
+Converts the first letter of the first word to upper case, and all other letters
+to lower case.
+.item ~:@(
+Converts all the letters to upper case.
+.item ~1(
+Converts the first letter of the first word to upper case
+and does not change anything else.  If you arrange to generate
+all output in lower case except for letters that should be
+upper case regardless of context, you can use this directive
+when the output appears at the beginning of a sentence.
+.end_table
+.lisp
+.exdent 96 Example:
+"~(FoO BaR~) ~:(FoO BaR~) ~@(FoO BaR~) ~:@(FoO BaR~)
+~1(at the White Hart~)"
+.exdent 96 produces
+foo bar Foo Bar Foo bar FOO BAR
+At the White Hart
+.end_lisp
+
+.item ~[2str0*~;2str1*~;2...*~;2strn*~]
+This is a set of alternative control strings.  The alternatives
+(called 2clauses*)
+are separated by 3~;* and the construct is terminated by 3~]*.
+For example,
+.lisp
+"~[Siamese ~;Manx ~;Persian ~;Tortoise-Shell ~
+   ~;Tiger ~;Yu-Shiang ~]kitty"
+.end_lisp
+'cindex kitty, yu-shiang
+The 2arg*th
+alternative is selected; 30* selects the first.
+If a prefix parameter is given (i.e. 3~2n*[*),
+then the parameter is used instead of an argument
+(this is useful only if the parameter is `3#*').
+If 2arg* is out of range no alternative is selected.
+After the selected alternative has been processed, the control string
+continues after the 3~]*.
+
+3~[2str0*~;2str1*~;2...*~;2strn*~:;2default*~]* has a default case.
+If the 2last* 3~;* used to separate clauses
+is instead 3~:;*, then the last clause is an ``else'' clause,
+which is performed if no other clause is selected.
+For example,
+.lisp
+"~[Siamese ~;Manx ~;Persian ~;Tiger ~
+   ~;Yu-Shiang ~:;Bad ~] kitty"
+.end_lisp
+
+3~[~2tag00*,2tag01*,2...*;2str0*~2tag10*,2tag11*,2...*;2str1...*~]*
+allows the clauses to have explicit tags.  The parameters to each 3~;*
+are numeric tags for the clause which follows it.  That clause is processed
+which has a tag matching the argument.  If 3~2a1*,2a2*,2b1*,2b2*,2...*:;* (note the colon)
+is used, then the following clause is tagged not by single values but
+by ranges of values 2a1* through 2a2* (inclusive), 2b1* through 2b2*, etc.
+3~:;* with no parameters may be used at the end to denote a default clause.
+For example,
+.lisp
+"~[~'+,'-,'*,'//;operator ~'A,'Z,'a,'z:;letter ~
+   ~'0,'9:;digit ~:;other ~]"
+.end_lisp
+
+3~:[2false*~;2true*~]* selects the 2false* control string
+if 2arg* is 3nil*, and selects the 2true* control string otherwise.
+
+3~@[2true*~]* tests the argument.  If it is not 3nil*,
+then the argument is not used up, but is the next one to be processed,
+and the one clause is processed.
+If it is 3nil*, then the argument is used up, and the clause is not processed.  For example,
+.lisp
+(setq *print-level* nil *print-length* 5)
+(format nil
+        "~@[ *PRINT-LEVEL*=~D~]~@[ *PRINT-LENGTH*=~D~]"
+        prinlevel prinlength)
+   =>  " *PRINT-LENGTH*=5"
+.end_lisp
+
+The combination of 3~[* and 3#* is useful, for
+example, for dealing with English conventions for printing lists:
+.lisp
+(setq foo "Items:~#[ none~; ~S~; ~S and ~
+           ~S~:;~@{~#[~1; and~] ~S~^,~}~].")
+(format nil foo)
+	=>  "Items: none."
+(format nil foo 'foo)
+	=>  "Items: FOO."
+(format nil foo 'foo 'bar)
+	=>  "Items: FOO and BAR."
+(format nil foo 'foo 'bar 'baz)
+	=>  "Items: FOO, BAR, and BAZ."
+(format nil foo 'foo 'bar 'baz 'quux)
+	=>  "Items: FOO, BAR, BAZ, and QUUX."
+.end_lisp
+
+.item ~;
+Separates clauses in 3~[* and 3~<* constructions.  It is undefined elsewhere.
+
+.item ~]
+Terminates a 3~[*.  It is undefined elsewhere.
+
+.item ~{2str*~}
+This is an iteration construct.  The argument should be a list,
+which is used as a set of arguments as if for a recursive call to 3format*.
+The string 2str* is used repeatedly as the control string.
+Each iteration can absorb as many elements of the list as it likes;
+if 2str* uses up two arguments by itself, then two elements of the
+list get used up each time around the loop.
+If before any iteration step the list is empty, then the iteration is terminated.
+Also, if a prefix parameter 2n* is given, then there can be at most 2n*
+repetitions of processing of 2str*.  Here are some simple examples:
+.lisp
+(format nil "Here it is:~{ ~S~}." '(a b c))
+     => "Here it is: A B C."
+(format nil "Pairs of things:~{ <~S,~S>~}." '(a 1 b 2 c 3))
+     => "Pairs of things: <A,1> <B,2> <C,3>."
+.end_lisp
+
+Using 3~^* as well, to terminate 2str* if no arguments remain,
+we can print a list with commas between the elements:
+.lisp
+(format nil "Elements: ~{~S~^, ~}." '(a b c))
+     => "Elements: A, B, C."
+.end_lisp
+
+3~:{2str*~}* is similar, but the argument should be a list of sublists.
+At each repetition step one sublist is used as the set of arguments for
+processing 2str*; on the next repetition a new sublist is used, whether
+or not all of the last sublist had been processed.  Example:
+.lisp
+(format nil "Pairs of things:~:{ <~S,~S>~}."
+	    '((a 1) (b 2) (c 3)))
+     => "Pairs of things: <A,1> <B,2> <C,3>."
+.end_lisp
+
+3~@{2str*~}* is similar to 3~{2str*~}*, but instead of
+using one argument which is a list, all the remaining arguments
+are used as the list of arguments for the iteration.  Example:
+.lisp
+(format nil "Pairs of things:~@{ <~S,~S>~}."
+	    'a 1 'b 2 'c 3)
+     => "Pairs of things: <A,1> <B,2> <C,3>."
+.end_lisp
+
+3~:@{2str*~}* combines the features of 3~:{2str*~}* and 3~@{2str*~}*.
+All the remaining arguments
+are used, and each one must be a list.
+On each iteration the next argument is used as a list of arguments to 2str*.
+Example:
+.lisp
+(format nil "Pairs of things:~:@{ <~S,~S>~}."
+	    '(a 1) '(b 2) '(c 3))
+     => "Pairs of things: <A,1> <B,2> <C,3>."
+.end_lisp
+
+Terminating the repetition construct with 3~:}* instead of 3~}*
+forces 2str* to be processed at least once even if the initial
+list of arguments is null (however, it does not override an explicit
+prefix parameter of zero).
+
+If 2str* is empty, then an argument is used as 2str*.  It must be a string,
+and precedes any arguments processed by the iteration.  As an example,
+the following are equivalent:
+.lisp
+(apply #'format stream string args)
+(format stream "~1{~:}" string args)
+.end_lisp
+This uses 3string* as a formatting string.  The 3~1{* says it must
+be processed at most once, and the 3~:}* says it must be processed at least once.
+Therefore it is processed exactly once, using 3args* as the arguments.
+
+As another example, the 3format* function itself uses 3format-error*
+(a routine internal to the 3format* package) to signal
+error messages, which in turn uses 3ferror*, which uses 3format* recursively.  
+Now 3format-error* takes a string and arguments, just like 3format*,
+but also prints some additional information: if the control string in 3ctl-string*
+actually is a string (it might be a list--see below), then it prints the string
+and a little arrow showing where in the processing of the control string the
+error occurred.  The variable 3ctl-index* points one character after the place of
+the error.
+.lisp
+(defun format-error (string &rest args)
+  (if (stringp ctl-string)
+      (ferror nil "~1{~:}~%~VT~%~3@T/"~A/"~%"
+	      string args (+ ctl-index 3) ctl-string)
+    (ferror nil "~1{~:}" string args)))
+.end_lisp
+This first processes the given string and arguments using 3~1{~:}*, then
+tabs a variable amount for printing the down-arrow, then prints the control
+string between double-quotes.  The effect is something like this:
+.lisp
+(format t "The item is a ~[Foo~;Bar~;Loser~]." 'quux)
+>>ERROR: The argument to the FORMAT "~[" command 
+         must be a number
+                   
+   "The item is a ~[Foo~;Bar~;Loser~]."
+...
+.end_lisp
+
+.item ~}
+Terminates a 3~{*.  It is undefined elsewhere.
+
+.item ~<
+3~2mincol*,2colinc*,2minpad*,2padchar*<2text*~>*
+justifies 2text* within a field at least 2mincol* wide.  2text*
+may be divided up into segments with 3~;*--the
+spacing is evenly divided between the text segments.
+With no modifiers, the leftmost text segment is left justified in the
+field, and the rightmost text segment right justified;  if there is
+only one, as a special case, it is right justified.
+The 3:* modifier causes
+spacing to be introduced before the first text segment;  the 3@*
+modifier causes spacing to be added after the last.
+2Minpad*, default 30*, is the minimum number of 2padchar*
+(default space) padding characters to be output between each segment.
+If the total width needed to satisfy these constraints is greater
+than 2mincol*, then 2mincol* is adjusted upwards in
+2colinc* increments.  2colinc* defaults to 31*.  2mincol* defaults to 30*.
+For example,
+.lisp
+(format nil "~10<foo~;bar~>")          =>  "foo    bar"
+(format nil "~10:<foo~;bar~>")         =>  "  foo  bar"
+(format nil "~10:@<foo~;bar~>")        =>  "  foo bar "
+(format nil "~10<foobar~>")            =>  "    foobar"
+(format nil "~10:<foobar~>")           =>  "    foobar"
+(format nil "~10@<foobar~>")           =>  "foobar    "
+(format nil "~10:@<foobar~>")          =>  "  foobar  "
+(format nil "$~10,,,'*<~3f~>" 2.5902)  =>  "$******2.59"
+.end_lisp
+
+Note that 2text* may include format directives.  The last example
+illustrates how the 3~<* directive can be combined with the 3~f*
+directive to provide more advanced control over the formatting of
+numbers.
+
+Here are some examples of the use of 3~^* within a 3~<* construct.
+3~^* is explained in detail below, however the general idea is that
+it eliminates the segment in which it appears and all following segments
+if there are no more arguments.
+.lisp
+(format nil "~15<~S~;~^~S~;~^~S~>" 'foo)
+	=>  "            FOO"
+(format nil "~15<~S~;~^~S~;~^~S~>" 'foo 'bar)
+	=>  "FOO         BAR"
+(format nil "~15<~S~;~^~S~;~^~S~>" 'foo 'bar 'baz)
+	=>  "FOO   BAR   BAZ"
+.end_lisp
+
+The idea is that if a segment contains a 3~^*, and 3format* runs out
+of arguments, it just stops there instead of getting an error, and it as
+well as the rest of the segments are ignored.
+
+.setq ultra-hairy-print-list page
+If the first clause of a 3~<* is terminated with 3~:;* instead of 3~;*,
+then it is used in a special way.  All of the clauses are processed
+(subject to 3~^*, of course), but the first one is omitted in
+performing the spacing and padding.  When the padded result has been
+determined, then if it will fit on the current line of output, it is output,
+and the text for the first clause is discarded.  If, however, the padded text
+will not fit on the current line, then the
+text segment for the first clause is output before the padded text.  The first clause ought
+to contain a carriage return (3~%*).  The first clause is
+always processed, and so any arguments it refers to will be used;
+the decision is whether to use the resulting segment of text, not whether to
+process the first clause.  If the 3~:;* has a prefix parameter 2n*, then
+the padded text must fit on the current line with 2n* character positions to spare
+to avoid outputting the first clause's text.
+For example, the control string
+.lisp
+"~%;; ~{~<~%;; ~1:; ~S~>~^,~}.~%"
+.end_lisp
+can be used to print a list of items separated by commas, without
+breaking items over line boundaries, and beginning each line with
+`3;; *'.  The prefix parameter 31* in 3~1:;* accounts for the width of the
+comma which will follow the justified item if it is not the last
+element in the list, or the period if it is.  If 3~:;* has a second
+prefix parameter, then it is used as the width of the line,
+thus overriding the natural line width of the output stream.  To make
+the preceding example use a line width of 50, one would write
+.lisp
+"~%;; ~{~<~%;; ~1,50:; ~S~>~^,~}.~%"
+.end_lisp
+
+If the second argument is not specified, then 3format* sees whether
+the stream handles the 3:size-in-characters* message.  If it does,
+then 3format* sends that message and uses the first returned value as
+the line length in characters.  If it doesn't, 3format* uses 372.*
+as the line length.
+
+Rather than using this complicated syntax, one can often call the function
+3format:print-list* (see (format:print-list-fun)).
+
+.item ~>
+Terminates a 3~<*.  It is undefined elsewhere.
+
+.item ~^
+This is an escape construct.  If there are no more arguments remaining
+to be processed, then the immediately enclosing 3~{* or 3~<*
+construct is terminated.  If there is no such enclosing construct, then
+the entire formatting operation is terminated.
+In the 3~<* case, the formatting 2is* performed, but no
+more segments are processed before doing the justification.
+The 3~^* should appear only at the 2beginning* of a 3~<* clause,
+because it aborts the entire clause.  3~^* may appear anywhere in a 3~{* construct.
+
+If a prefix parameter is given, then termination occurs if the parameter
+is zero.  (Hence 3~^* is the same as 3~#^*.)  If two parameters are
+given, termination occurs if they are equal.  If three are given, termination
+occurs if the second is between the other two in ascending order.  Of course,
+this is useless if all the prefix parameters are constants; at least one
+of them should be a 3#* or a 3V* parameter.
+
+If 3~^* is used within a 3~:{* construct, then it merely terminates
+the current iteration step (because in the standard case it tests for
+remaining arguments of the current step only); the next iteration step
+commences immediately.  To terminate the entire iteration process,
+use 3~:^*.
+
+.item ~Q
+An escape to arbitrary user-supplied code.  2arg* is called as a function;
+its arguments are the prefix parameters to 3~Q*, if any.  2args* can be
+passed to the function by using the 3V* prefix parameter.  The function may
+output to 3*standard-output** and may look at the variables 3format:colon-flag*
+and 3format:atsign-flag*, which are 3t* or 3nil* to reflect the
+3:* and 3@* modifiers on the 3~Q*.  For example,
+.lisp
+(format t "~VQ" foo bar)
+.end_lisp
+is a fancy way to say
+.lisp
+(funcall bar foo)
+.end_lisp
+and discard the value.
+Note the reversal of order; the 3V* is processed before the 3Q*.
+
+.item ~\
+This begins a directive whose name is longer than one character.
+The name is terminated by another 3\* character.
+The following directives have names longer than one character
+and make use of the 3~\* mechanism as part of their operation.
+
+.need 1500
+.item ~\lozenged-string\
+This is like 3~A* except when output is to a window, in which case the
+argument is printed in a small font inside a lozenge.
+
+.item ~\lozenged-character\
+This is like 3~C* except when output is to a window, in which case the
+argument is printed in a small font inside a lozenge if it has a character name,
+even if it is a formatting character or graphic character.
+
+.item ~\date\
+This expects an argument that is a universal time (see
+(universal-time)), and prints it as a date and time using
+3time:print-universal-date*.
+.lisp
+.Exdent 96 Example:
+(format t "It is now ~\date\" (get-universal-time))
+.exdent 96 prints
+It is now Saturday the fourth of December, 1982; 4:00:32 am
+.end_lisp
+
+.item ~\time\
+This expects an argument that is a universal time (see
+(universal-time)), and prints it in a brief format using
+3time:print-universal-time*.
+.lisp
+.Exdent 96 Example:
+(format t "It is now ~\time\" (get-universal-time))
+.exdent 96 prints
+It is now 12/04/82 04:01:38
+.end_lisp
+
+.item ~\datime\
+This prints the current time and date.  It does not use an argument.
+It is equivalent to using the 3~\time\* directive with
+3(time:get-universal-time)* as argument.
+
+.item ~\time-interval\
+This prints a time interval measured in seconds using the function
+3time:print-interval-or-never*.
+.lisp
+.exdent 96 Example:
+(format t "It took ~\time-interval\." 3601.)
+.exdent 96 prints
+It took 1 hour 1 second.
+.end_lisp
+.end_table
+
+You can define your own directives.  How to do this is not documented
+here; read the code.  Names of user-defined directives longer than one
+character may be used if they are enclosed in backslashes (e.g.
+3~4,3\GRAPH\*).
+
+(Note: 3format* also allows 2control-string* to be a list.  If the
+list is a list of one element, which is a string, the string is simply
+printed.  This is for the use of the 3format:outfmt* function below.
+The old feature wherein a more complex interpretation of this list was
+possible is now considered obsolete; use 3format:output* if you like
+using lists.)
+
+A condition instance can also be used as the 2control-string*.  Then
+the 3:report* operation is used to print the condition instance;
+any other arguments are ignored.  This way, you can pass a condition
+instance directly to any function that normally expects a format string
+and arguments.
+
+.defun format:print-list destination element-format list &optional separator start-line tilde-brace-options
+This function provides a simpler interface for the specific purpose of
+printing comma-separated lists with no list element split across two
+lines; see the description of the 3~:;* directive
+((ultra-hairy-print-list)) to see the more complex way to do this
+within 3format*.  2destination* tells where to send the output; it
+can be 3t*, 3nil*, a 3string-nconc*'able string, or a stream, as
+with 3format*.  2element-format* is a 3format* control-string
+that tells how to print each element of 2list*; it is used as the
+body of a 3~{...~}* construct.  2separator*, which defaults to
+3", "* (comma, space) is a string which goes after each element
+except the last.  3format* control commands are not recommended in
+2separator*.  2start-line*, which defaults to three spaces, is a
+3format* control-string that is used as a prefix at the beginning of
+each line of output, except the first.  3format* control commands are
+allowed in 2separator*, but they should not swallow arguments from
+2list*.  2tilde-brace-options* is a string inserted before the
+opening `3{*'; it defaults to the null string, but allows you to
+insert colon and/or atsign.  The line-width of the stream is computed
+the same way that the 3~:;* command computes it;
+it is not possible to override the natural line-width of the stream.
+.end_defun 
+
+
+.page
+.subsection The Output Subsystem
+
+The formatting functions associated with the 3format:output* subsystem allow
+you to do formatted output using Lisp-style control structure.  Instead
+of a directive in a 3format* control string, there is one formatting
+function for each kind of formatted output.
+
+The calling conventions of most of the formatting functions are similar.
+The first argument is usually the datum to be output.  The second
+argument is usually the minimum number of columns to use.  The
+remaining arguments are keyword arguments.
+
+Most of the functions accept the keyword arguments 2padchar*, 2minpad*
+and 2tab-period*.  2padchar* is a character to use for padding.
+2minpad* is a minimum number of padding characters to output after the data.
+2tab-period* is the distance between allowable places
+to stop padding.  To make the meaning of 2tab-period* clearer, if
+the value of 2tab-period* is 5, if the minimum size of the field
+is 10, and if the value of 2minpad* is 2, then a datum that takes 9
+characters is padded out to 15 characters.  The requirement to
+use at least two characters of padding means it can't fit into 10
+characters, and the 2tab-period* of 5 means the next allowable
+stopping place is at 10+5 characters.  The default values for
+2minpad* and 2tab-period*, if they are not specified, are
+zero and one.  The default value for 2padchar* is space.
+
+The formatting functions always output to 3*standard-output** and do
+not require an argument to specify the stream.  The macro
+3format:output* allows you to specify the stream or a string, just
+as 3format* does, and also makes it convenient to concatenate
+constant and variable output.
+
+.defmac format:output stream string-or-form...
+Makes it convenient to intersperse arbitrary output
+operations with printing of constant strings.
+3*standard-output** is bound to 2stream*, and each 2string-or-form*
+is processed in succession from left to right.  If it is a string, it is
+printed; otherwise it is a form, which is evaluated for effect.  Presumably
+the forms will send output to 3*standard-output**.
+
+If 2stream* is written as 3nil*, then the output is put into a
+string which is returned by 3format:output*.  If 2stream* is written
+as 3t*, then the output goes to the prevailing value of
+3*standard-output**.  Otherwise 2stream* is a form, which must evaluate
+to a stream.
+
+Here is an example:
+.lisp
+(format:output t "FOO is " (prin1 foo) " now." (terpri))
+.end_lisp
+
+Because 3format:output* is a macro, what matters about 2stream* is
+not whether it 2evaluates* to 3t* or 3nil*, but whether it
+is actually written as 3t* or 3nil*.
+.end_defmac
+
+.defmac format:outfmt string-or-form...
+Some system functions ask for a 3format* control string and
+arguments, to be printed later.  If you wish to generate the output
+using the formatted output functions, you can use 3format:outfmt*, which
+produces a control argument that will eventually make 3format*
+print the desired output (this is a list whose one element is a string
+containing the output).  A call to 3format:outfmt* can be used as
+the second argument to 3ferror*, for example:
+.lisp
+(ferror nil (format:outfmt "Foo is " (format:onum foo) 
+			   " which is too large"))
+.end_lisp
+.end_defmac
+
+.defun format:onum number &optional radix minwidth &key padchar minpad tab-period signed commas
+Outputs 2number* in base 2radix*, padding to at least
+2minwidth* columns and obeying the other padding options specified
+as described above.
+
+2radix* can be a number, or it can be 3:roman*, 3:english*,
+or 3:ordinal*.  The default 2radix* is 310.* (decimal).
+
+If 2signed* is non-3nil*, a 3+* sign is printed if the number is
+positive.  If 2commas* is non-3nil*, a comma is printed every third
+digit in the customary way.  These arguments are meaningful only with
+numeric radices.
+.end_defun
+
+.defun format:ofloat number &optional n-digits force-exponential-notation minwidth &key padchar minpad tab-period
+Outputs 2number* as a floating point number using
+2n-digits* digits.  If 2force-exponential-notation* is
+non-3nil*, then an exponent is always used.  2minwidth* and
+the padding options are interpreted as usual.
+.end_defun
+
+.defun format:ostring string &optional minwidth &key padchar minpad tab-period right-justify
+Outputs 2string*, padding to at least
+2minwidth* columns if 2minwidth* is not 3nil*, and obeying
+the other padding options specified as described above.
+
+Normally the data are left justified; any padding follows the data.
+If 2right-justify* is non-3nil*, the padding comes before
+the data.  The amount of padding is not affected.
+
+The argument need not really be a string.  Any Lisp object is allowed,
+and it is output with 3princ*.
+.end_defun
+
+.defun format:oprint object &optional minwidth &key padchar minpad tab-period right-justify
+Prints 2object*, any Lisp object, padding to at
+least 2minwidth* columns if 2minwidth* is not 3nil*, and
+obeying the padding options specified as described above.
+
+Normally the data are left justified; any padding follows the data.
+If 2right-justify* is non-3nil*, the padding comes before
+the data.  The amount of padding is not affected.
+
+The printing of the object is done with 3prin1*.
+.end_defun
+
+.defun format:ochar character &optional style top-explain minwidth &key padchar minpad tab-period
+Outputs 2character* in one of three styles, selected
+by the 2style* argument.  2minwidth* and the padding options control
+padding as usual.
+
+.table 3
+.item :read 1or* nil
+The character is printed using 3#\* or 3#/* so that it could be read
+back in.
+
+.item :editor
+Output is in the style of
+`3Meta-Rubout*'.   Non-printing characters, and the two printing
+characters Space and Altmode, are represented by their names.  Other printing
+characters are printed directly.
+
+.item :brief
+Brief prefixes such as `3C-*' and
+`3M-*' are used, rather than `3Control-*' or `3Meta-*'.  Also,
+character names are used only if there are meta bits present.
+
+.item :lozenged
+The output is the same as that of the 3:editor* style, but If the
+character is not a graphic character or if it has meta bits, and the
+stream supports the 3:display-lozenged-string* operation, that
+operation is used instead of 3:string-out* to print the text.  On
+windows this operation puts the character name inside a lozenge.
+
+.item :sail
+`7*', `7*', etc. are used to represent 3Control* and 3Meta*,
+and shorter names for characters are also used when possible.  See
+(character-set).
+.end_table
+
+2top-explain* is useful with the 3:editor*, 3:brief* and
+3:sail*
+styles.  It says that any character that has to be typed using the
+Top or Greek keys should be followed by an explanation of how to type
+it.  For example: `3 (Top-K)*' or `3 (Greek-a)*'.
+.end_defun
+
+.defun format:tab mincol &key padchar minpad tab-period terpri unit
+Outputs padding at least until column 2mincol*.  It
+is the only formatting function that bases its actions on the actual
+cursor position rather than the width of what is being output.  The
+padding options 2padchar*, 2minpad*, and 2tab-period* are
+obeyed.  Thus, at least the 2minpad* number of padding characters
+are output even if that goes past 2mincol*, and once past
+2mincol*, padding can only stop at a multiple of 2tab-period*
+characters past 2mincol*.
+
+In addition, if the 2terpri* option is 3t*, then if column
+2mincol* is passed, 3format:tab* starts a new line and indents it
+to 2mincol*.
+
+The 2unit* option specifies the units of horizontal position.
+The default is to count in units of characters.  If 2unit* is
+specified as 3:pixel*, then the computation (and the argument
+2mincol* and the 2minpad* and 2tab-period* options) are
+in units of pixels.
+.end_defun
+
+.defmac format:pad (minwidth &key padchar minpad tab-period...) body...
+3format:pad* is used for printing several items in a fixed amount of
+horizontal space, padding between them to use up any excess space.
+Each of the 2body* forms prints one item.  The padding goes between
+items.  The entire 3format:pad* always uses at least 2minwidth*
+columns; any columns that the items don't need are distributed as
+padding between the items.  If that isn't enough space, then more
+space is allocated in units controlled by the 2tab-period* option
+until there is enough space.  If it's more than enough, the excess is
+used as padding.
+
+If the 2minpad* option is specified, then at least that many pad
+characters must go between each pair of items.
+
+Padding goes only between items.  If you want to treat several actual
+pieces of output as one item, put a 3progn* around them.  If you
+want padding before the first item or after the last, as well as
+between the items, include a dummy item 3nil* at the beginning or
+the end.
+
+If there is only one item, it is right justified.  One item followed by
+3nil* is left-justified.  One item preceded and followed by 3nil* is
+centered.  Therefore, 3format:pad* can be used to provide the usual
+padding options for a function that does not provide them itself.
+.end_defmac
+
+.defun format:plural number singular &optional plural
+Outputs either the singular or the plural form of a
+word depending on the value of 2number*.  The singular is used if and only if
+2number* is 1.  2singular* specifies the singular form of the word.
+3string-pluralize* is used to compute the plural, unless
+2plural* is explicitly specified.
+
+It is often useful for 2number* to be a value returned by
+3format:onum*, which returns its argument.  For example:
+.lisp
+(format:plural (format:onum n-frobs) " frob")
+.end_lisp
+prints "1 frob" or "2 frobs".
+.end_defun
+
+.defmac format:breakline linel print-if-terpri print-always...
+Goes to the next line if there is
+not enough room for something to be output on the current line.
+The 2print-always* forms print the text which is supposed to fit
+on the line.  2linel* is the column before which the text must end.
+If it doesn't end before that column, then 3format:breakline*
+moves to the next line and executes the 2print-if-terpri* form
+before doing the 2print-always* forms.
+
+Constant strings are allowed as well as forms for 2print-if-terpri*
+and 2print-always*.  A constant string is just printed.
+
+To go to a new line unconditionally, simply call 3terpri*.
+
+Here is an example that prints the elements of a list,
+separated by commas, breaking lines between elements when necessary.
+
+.lisp
+(defun pcl (list linel)
+  (do ((l list (cdr l))) ((null l))
+    (format:breakline linel "  "
+      (princ (car l))
+      (and (cdr l) (princ ", ")))))
+.end_lisp
+.end_defmac
+
+
+.page

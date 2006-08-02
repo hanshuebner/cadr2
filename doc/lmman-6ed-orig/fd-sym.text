@@ -1,0 +1,336 @@
+.c This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c Function Description: Symbols
+.chapter Symbols
+.cindex symbol
+.setq symbol section-page
+.setq symbol-chapter chapter-number
+
+This chapter discusses the symbol as a Lisp data type.  The Lisp system uses
+symbols as variables and function names, but these applications of symbols
+are discussed in chapter (evaluator-chapter).
+
+.section The Value Cell
+.cindex value cell
+	Each symbol has associated with it a 2value cell*, which refers to
+one Lisp object.  This object is called the symbol's 2value*, since it is
+what you get when you evaluate the symbol as a dynamic variable in a program.
+Variables and how they work are described in (variable-section).  We also say
+the the symbol 2is bound to* the object which is its value.  The symbols
+3nil* and 3t* are always bound to themselves; they may not be assigned,
+bound, or otherwise used as variables.  The same is true of symbols in the
+keyword package.
+
+	The value cell can also be 2void*, referring to 2no* Lisp object,
+in which case the symbol is said to be void or 2unbound*.  This is the
+initial state of a symbol when it is created.  An attempt to evaluate a
+void symbol causes an error.
+
+Lexical variable bindings are not stored in symbol value cells.
+The functions in this section have no interaction with lexical bindings.
+
+.defun symeval symbol
+.defun1 symbol-value symbol
+3symeval* is the basic primitive for retrieving a symbol's value.
+3(symeval 2symbol*)* returns 2symbol*'s current binding.
+This is the function called by 3eval* when it is given a symbol to
+evaluate.  If the symbol is unbound, then 3symeval* signals an
+error.  3symbol-value* is the Common Lisp name for this function.
+.end_defun
+
+.defun set symbol value
+3set* is the primitive for assignment of symbols.  The 2symbol*'s value
+is changed to 2value*; 2value* may be any Lisp object.  3set* returns
+2value*.
+.lisp
+.exdent 96 Example:
+(set (cond ((eq a b) 'c)
+           (t 'd))
+     'foo)
+.end_lisp
+either sets 3c* to 3foo* or sets 3d* to 3foo*.
+
+3(setf (symeval 2symbol*) 2value*)* is a more modern
+way to do this.
+.end_defun
+
+.defun boundp symbol
+3t* if 2symbol*'s value cell is not void.
+.end_defun
+
+.defun makunbound symbol
+Makes 2symbol*'s value cell void.
+.lisp
+.exdent 96 Example:
+(setq a 1)
+a => 1
+(makunbound 'a)
+a => 1causes an error.*
+.end_lisp
+3makunbound* returns its argument.
+.end_defun
+
+.defun value-cell-location symbol
+Returns a locative pointer to 2symbol*'s value cell.
+See the section on locatives ((locative)).  It is preferable to write
+.lisp
+(locf (symeval 2symbol*))
+.end_lisp
+which is equivalent, instead of calling this function explicitly.
+
+This is actually the internal value cell; there can also be an external
+value cell.  For details, see the section on closures ((closure)).
+
+For historical compatibility, 3value-cell-location* of a quoted symbol is
+recognized specially by the compiler and treated like 3variable-location*
+((variable-location-fun)).  However, such usage results in a compiler warning,
+and eventually this compatibility feature will be removed.
+.end_defun
+
+.section The Function Cell
+.cindex function cell
+	Every symbol also has associated with it a 2function cell*.  The 2function*
+cell is similar to the 2value* cell; it refers to a Lisp object.
+When a function is referred to by name, that is, when a symbol is passed to 3apply*
+or appears as the car of a form to be evaluated, that symbol's function cell
+is used to find its 2definition*, the functional object which is to be applied.
+For example, when evaluating 3(+ 5 6)*, 
+the evaluator looks in 3+*'s function cell to find the definition of 3+*,
+in this case a compiled function object, to apply to 5 and 6.
+	Maclisp does not have function cells; instead, it looks for special
+properties on the property list.  This is one of the major incompatibilities
+between the two dialects.
+	Like the value cell, a function cell can be void, and it can be bound
+or assigned.  (However, to bind a function cell you must use the
+3%bind* subprimitive; see (%bind-fun).)
+The following functions are analogous to the value-cell-related
+functions in the previous section.
+
+.defun fsymeval symbol
+.defun1 symbol-function symbol
+Returns 2symbol*'s definition, the contents of its
+function cell.  If the function cell is void, 3fsymeval*
+signals an error.  3symbol-function* is the Common Lisp name for this function.
+.end_defun
+
+.defun fset symbol definition
+Stores 2definition*, which may be any Lisp object, into 2symbol*'s
+function cell.  It returns 2definition*.
+
+3(setf (fsymeval 2symbol*) 2definition*)* is a more modern
+way to do this.
+.end_defun
+
+.defun fboundp symbol
+3nil* if 2symbol*'s function cell is void,
+i.e. if 2symbol* is undefined.
+Otherwise it returns 3t*.
+.end_defun
+
+.defun fmakunbound symbol
+Causes 2symbol* to be undefined, i.e. its
+function cell to be void.
+It returns 2symbol*.
+.end_defun
+
+.defun function-cell-location symbol
+Returns a locative pointer to 2symbol*'s
+function cell.  See the section on locatives ((locative)).  It is
+preferable to write
+.lisp
+(locf (fsymeval 2symbol*))
+.end_lisp
+rather than calling this function explicitly.
+.end_defun
+
+Since functions are the basic building block of Lisp programs,
+the system provides a variety of facilities for dealing with functions.
+Refer to chapter (function-chapter) for details.
+
+.section The Property List
+.setq symbol-plist-section section-page
+
+Every symbol has an associated property list.  See (plist) for
+documentation of property lists.  When a symbol is created, its property
+list is initially empty.
+
+The Lisp language itself does not use a symbol's property list for
+anything.  (This was not true in older Lisp implementations, where the
+print-name, value-cell, and function-cell of a symbol were kept on its
+property list.)  However, various system programs use the property list to
+associate information with the symbol.  For instance, the editor uses
+the property list of a symbol which is the name of a function to
+remember where it has the source code for that function, and the
+compiler uses the property list of a symbol which is the name of a
+special form to remember how to compile that special form.
+
+Because of the existence of print-name, value, function, and package cells,
+none of the Maclisp system property names (3expr*, 3fexpr*, 3macro*, 3array*,
+3subr*, 3lsubr*, 3fsubr*, and in former times 3value* and
+3pname*) exist in Zetalisp.
+
+.defun plist symbol
+.defun1 symbol-plist
+Returns the list which represents the property list of 2symbol*.
+Note that this is not actually a property list; you cannot do 3get*
+on it.  This value is like what would be the cdr of a property list.
+
+3symbol-plist* is the Common Lisp name.
+.end_defun
+
+.defun setplist symbol list
+Sets the list which represents the property list of 2symbol* to 2list*.
+3setplist* is to be used with caution (or not at all),
+since property lists sometimes contain internal system properties, which
+are used by many useful system functions.  Also it is inadvisable to have the property
+lists of two different symbols be 3eq*, since the shared list structure will
+cause unexpected effects on one symbol if 3putprop* or 3remprop* is done to the other.
+
+3setplist* is equivalent to
+.lisp
+(setf (plist 2symbol*) 2list*)
+.end_lisp
+.end_defun
+
+.defun property-cell-location symbol
+Returns a locative pointer to the location of 2symbol*'s
+property-list cell.  This locative pointer may be passed to 3get* or
+3putprop* with the same results as if as 2symbol* itself had been
+passed.  It is preferable to write
+.lisp
+(locf (plist 2symbol*))
+.end_lisp
+rather than using this function.
+.end_defun
+
+.section The Print Name
+.cindex print name
+Every symbol has an associated string called the 2print-name*, or 2pname*
+for short.  This string is used as the external representation of the symbol:
+if the string is typed in to 3read*, it is read as a reference to that symbol
+(if it is interned), and if the symbol is printed, 3print* types out the
+print-name.
+
+If a symbol is uninterned, 7#:* is normally printed as a prefix
+before the symbol's print-name.  If the symbol is interned, a package
+prefix may be printed, depending on the current package and how it relates
+to the symbol's home package.
+
+For more information, see the sections on the 2reader*
+(see (reader)), 2printer* (see (printer)), and packages
+(see (package)).
+
+.defun symbol-name symbol
+.defun1 get-pname symbol
+Returns the print-name of the symbol 2symbol*.
+.lisp
+.exdent 96 Example:
+(symbol-name 'xyz) => "XYZ"
+.end_lisp
+3get-pname* is an older name for this function.
+.end_defun
+
+.section The Package Cell
+
+Every symbol has a 2package cell* which, for interned
+symbols, is used to point to the package which the symbol belongs to.  For an
+uninterned symbol, the package cell contains 3nil*.  For
+information about packages in general, see the chapter on packages, (package).
+For information about package cells, see (symbol-package-cell-discussion).
+
+.section Creating Symbols
+
+The functions in this section are primitives for creating symbols.
+However, before discussing them, it is important to point out that most
+symbols are created by a higher-level mechanism, namely the reader and
+the 3intern* function.  Nearly all symbols in Lisp are created
+by virtue of the reader's having seen a sequence of input characters that
+looked like the printed representation (p.r.) of a symbol.  When the
+reader sees such a p.r., it calls 3intern* (see (intern-fun)),
+which looks up the sequence of characters in a big table and sees whether any symbol
+with this print-name already exists.  If it does, 3read* uses the
+already-existing symbol.  If it does not, then 3intern* creates a new
+symbol and puts it into the table; 3read* uses that new symbol.
+
+A symbol that has been put into such a table is called an 2interned*
+symbol.  Interned symbols are normally created automatically; the first
+time that someone (such as the reader) asks for a symbol with a given
+print-name, that symbol is automatically created.
+
+These tables are called 2packages*.  For more information, turn
+to the chapter on packages ((package)).
+
+.cindex uninterned symbol
+An 2uninterned* symbol is a symbol that has not been recorded
+or looked up in a package.  It is used simply as a data object,
+with no special cataloging.  An uninterned symbol prints with a
+prefix 7#:* when escaping is in use, unless 3*print-gensym** is 3nil*.
+This allows uninterned symbols to be distinguishable and to read back in as
+uninterned symbols.  See (*print-gensym*-var).
+
+The following functions can be used to create uninterned symbols
+explicitly.
+
+.defun make-symbol pname &optional permanent-p
+Creates a new uninterned symbol, whose print-name is the string
+2pname*.  The value and function cells are void and the
+property list is empty.  If 2permanent-p* is specified, it is
+assumed that the symbol is going to be interned and probably kept around
+forever; in this case it and its pname are put in the proper areas.
+If 2permanent-p* is 3nil* (the default), the symbol goes in the
+default area and the pname is not copied.  2permanent-p* is mostly
+for the use of 3intern* itself.
+.lisp
+.exdent 96 Examples:
+(setq a (make-symbol "foo")) => foo
+(symeval a) => ERROR!
+.end_lisp
+Note that the symbol is 2not* interned; it is simply created and returned.
+.end_defun
+
+.defun copysymbol symbol copy-props
+.defun1 copy-symbol symbol copy-props
+Returns a new uninterned symbol with the same print-name
+as 2symbol*.  If 2copy-props* is non-3nil*, then the
+value and function-definition of the new symbol are
+the same as those of 2symbol*, and the property list of
+the new symbol is a copy of 2symbol*'s.  If 2copy-props*
+is 3nil*, then the new symbol's function and value are void, and
+its property list is empty.
+.end_defun
+
+.defun gensym &optional x
+Invents a print-name and creates a new symbol with that print-name.
+It returns the new, uninterned symbol.
+
+	The invented print-name is a prefix (the value of 3si:*gensym-prefix*)
+followed by the decimal representation of a number (the value of 3si:*gensym-counter*),
+e.g. 3g0001*.  The number is increased by one every time 3gensym* is called.
+
+	If the argument 2x* is present and is a fixnum, then 3si:*gensym-counter* is
+set to 2x*.  If 2x* is a string or a symbol, then 3si:*gensym-prefix* is set to it,
+so it becomes the prefix for this and successive calls to 3gensym*.
+After handling the argument, 3gensym* creates a symbol as it would with no argument.
+.lisp
+.exdent 96 Examples:
+1if*	(gensym) => #:g0007
+1then*	(gensym 'foo) => #:foo0008
+	(gensym 32.) => #:foo0032
+	(gensym) => #:foo0033
+.end_lisp
+	Note that the number is in decimal and always has four digits.
+7#:* is the prefix normally printed before uninterned symbols.
+
+	3gensym* is usually used to create a symbol which should not normally
+be seen by the user, and whose print-name is unimportant, except to
+allow easy distinction by eye between two such symbols.
+The optional argument is rarely supplied.
+The name comes from `generate symbol', and the symbols produced by it
+are often called ``gensyms''.
+.end_defun
+
+.defun gentemp &optional (prefix 3"t"*) (a-package 3package*)
+Creates and returns a new symbol whose name starts with 2prefix*,
+interned in 2a-package*, and distinct from any symbol already present
+there.  This is done by trying names one by one until a name not already
+in use is found, which may be very slow.
+.end_defun

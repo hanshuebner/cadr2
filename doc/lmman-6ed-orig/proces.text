@@ -1,0 +1,968 @@
+.c This file is part of the Lisp Machine manual.  -*-Bolio-*-
+
+.chapter Processes
+.cindex process
+.cindex multiprocessing
+.setq process section-page
+.cindex wait
+.setq process-chapter chapter-number
+
+The Lisp Machine supports 2multi-processing*;  several computations
+can be executed concurrently by placing each in a separate
+2process*.  A process is like a processor, simulated by software.
+Each process has its own program counter, its own stack of function
+calls and its own special-variable binding environment in which to
+execute its computation.  (This is implemented with stack groups; see
+(stack-group).)
+
+If all the processes are simply trying to compute, the machine allows
+them all to run an equal share of the time.  This is not a particularly
+efficient mode of operation since dividing the finite memory and
+processor power of the machine among several processes certainly cannot
+increase the available power and in fact wastes some of it in overhead.
+The typical use for processes is that at any time only one or two
+are trying to run.  The rest are either 2waiting* for some event to
+occur or 2stopped* and not allowed to compete for resources.
+
+.cindex process wait function
+A process waits for an event by means of the 3process-wait* primitive,
+which is given a predicate function which defines the event being waited
+for.  A module of the system called the process scheduler periodically
+calls that function.  If it returns 3nil* the process continues to wait;
+if it returns 3t* the process is made runnable and its call to
+3process-wait* returns, allowing the computation to proceed.
+
+.cindex run reason
+.cindex arrest reason
+.cindex active process
+A process may be 2active* or 2stopped*.  Stopped processes are
+never allowed to run; they are not considered by the scheduler, and so
+can never become the current process until they are made active again.
+The scheduler continually tests the waiting functions of all the active
+processes, and those which return non-3nil* values are allowed to run.
+When you first create a process with 3make-process*, it is inactive.
+
+The activity of a process is controlled by two sets of Lisp objects
+associated with it, called its 2run reasons* and its 2arrest
+reasons*.  These sets are implemented as lists.  Any kind of object
+can be in these sets; typically keyword symbols and active objects
+such as windows and other processes are found.  A process is
+considered active when it has at least one run reason and no
+arrest reasons.
+
+To get a computation to happen in another process, you must first create
+a process, then say what computation you want to happen in that
+process.  The computation to be executed by a process is specified as an
+2initial function* and a list of arguments to that
+function.  When the process starts up it applies the function to the
+arguments.  In some cases the initial function is written so that it
+never returns, while in other cases it performs a certain computation
+and then returns, which stops the process.
+
+To 2reset* a process means to exit its entire computation nonlocally
+using 3*unwind-stack* (see (*unwind-stack-fun)).  Some processes are
+temporary and die when reset.  The other, permanent functions start
+their computations over again when reset.  Resetting a process clears
+its waiting condition, so that if it is active it becomes runnable.  To
+2preset* a function is to set up its initial function (and arguments)
+and then reset it.  This is how you start up a computation in a process.
+
+All processes in a Lisp Machine run in the same virtual address space,
+sharing the same set of Lisp objects.  Unlike other systems that have
+special restricted mechanisms for inter-process communication, the
+Lisp Machine allows processes to communicate in arbitrary ways through
+shared Lisp objects.  One process can inform another of an event simply
+by changing the value of a global variable.  Buffers containing messages
+from one process to another can be implemented as lists or arrays.
+The usual mechanisms of atomic operations, critical sections, and
+interlocks are provided
+(see 3store-conditional* [(store-conditional-fun)],
+3without-interrupts* [(without-interrupts-fun)],
+and 3process-lock* [(process-lock-fun)]).
+
+A process is a Lisp object, an instance of one of several flavors
+of process (see (flavor)).  The remainder of this chapter describes
+the operations defined on processes, the functions you can apply to
+a process, and the functions and variables a program running in a process
+can use to manipulate its process.
+
+.section The Scheduler
+
+.setq scheduler section-page
+.cindex scheduler
+	At any time there is a set of 2active processes*; as described
+above, these are all the processes that are not stopped.  Each active
+process is either currently running, runnable (ready to run), or waiting for some
+condition to become true.  The active processes are managed by a special
+stack group called the 2scheduler*, which repeatedly examines each active
+process to determine whether it is waiting or ready to run.  The scheduler
+then selects one process and starts it up.
+
+The process chosen by the scheduler becomes the 2current process*,
+that is, the one process that is running on the machine.  The scheduler
+sets the variable 3current-process* to it.  It remains the current
+process and continues to run until either it decides to wait, or a
+2sequence break* occurs.  In either case, the scheduler stack group is
+resumed.  It then updates the process's run time meters and chooses a
+new process to run next.  This way, each process that is ready to run
+gets its share of time in which to execute.
+
+.cindex priority (of a process)
+Each process has a 2priority* which is a number.  Most processes
+have priority zero.  Larger numbers give a process more priority.
+The scheduler only considers the highest priority runnable processes,
+so if there is one runnable process with priority 20 then no process
+with lesser priority can run.
+
+.cindex wait function
+The scheduler determines whether a process is runnable by applying the
+process's 2wait-function* to its 2wait-argument-list*.  If the
+wait-function returns a non-3nil* value, then the process is ready to
+run; otherwise, it is waiting.
+
+A process can wait for some condition to become true by calling
+3process-wait* (see (process-wait-fun)).  This function sets the
+process's wait-function and wait-argument-list as specified by the
+caller, and resumes the scheduler stack group.  A process can also wait
+for just a moment by calling 3process-allow-schedule* (see
+(process-allow-schedule-fun)), which resumes the scheduler stack group
+but leaves the process runnable; it will run again as soon as all other
+runnable processes have had a chance.
+
+A sequence break is a kind of interrupt that is generated by the Lisp
+system for any of a variety of reasons; when it occurs, the scheduler is
+resumed.  The function 3si:sb-on* (see (si:sb-on-fun)) can be used to
+control when sequence breaks occur.  The default is to sequence break
+once a second.  Thus even if a process never waits and is not stopped,
+it is forced to return control to the scheduler once a second so that
+any other runnable processes can get their turn.
+
+The system does not generate a sequence break when a page fault occurs;
+thus time spent waiting for a page to come in from the disk is ``charged''
+to a process the same as time spent computing, and cannot be used by
+other processes.  It is done this way for the sake of simplicity; this
+allows the whole implementation of the process system to reside in
+ordinary virtual memory, so that it does not have to worry specially
+about paging.  The performance penalty is small since Lisp Machines are
+personal computers, not multiplexed among a large number of processes.
+Usually only one process at a time is runnable.
+
+A process's wait function is free to touch any data structure it likes
+and to perform any computation it likes.  Of course, wait functions
+should be kept simple, using only a small amount of time and touching
+only a small number of pages, or system performance will be impacted
+since the wait function will consume resources even when its process is
+not running.
+
+If a wait function gets an error, the error occurs inside the scheduler.
+If this enters the debugger, all scheduling comes to a halt until the
+user proceeds or aborts.  Aborting in the debugger inside the scheduler
+``blasts'' the current process by giving it a trivial wait function that
+always returns 3nil*; this prevents recurrence of the same problem.
+It is best to write wait functions that cannot get errors, by keeping
+them simple and by arranging for any problems to be detected before the
+scheduler sees the wait function.  3process-wait* calls the wait
+function once before giving it to the scheduler, and this often exposes
+an error before it can interfere with scheduling.
+
+Note well that a process's wait function is executed inside the
+scheduler stack-group, 2not* inside the process.  This means that a
+wait function may not access special variables bound in the process.  It
+is allowed to access global variables.  It can access variables bound by
+a process through the closure mechanism ((closure)).  If the wait
+function is defined lexically within the caller of 3process-wait* then
+it can access local variables through the lexical scoping mechanism.
+Most commonly any values needed by the wait function are passed to it as
+arguments.
+
+.c [Here need to discuss quantum and priority.]
+
+.defvar current-process
+The value of 3current-process* is the process that is currently
+executing, or 3nil* while the scheduler is running.  When the
+scheduler calls a process's wait-function, it binds 3current-process*
+to the process so that the wait-function can access its process.
+.end_defvar
+
+.defmac without-interrupts body...
+The 2body* forms are evaluated with
+3inhibit-scheduling-flag* bound to 3t*.  This is the recommended
+way to lock out multi-processing over a small critical section of code
+to prevent timing errors.  In other words the body is an
+2atomic operation*.  The values of the last form in the body
+are ultimately returned.
+
+In this example, 3list* is presumed to be a global variable
+referred to from two places in the code which different
+processes will execute.
+.lisp
+.exdent 96 
+(without-interrupts
+  (push item list))
+
+(without-interrupts
+  (cond ((memq item list)
+	 (setq list (delq item list))
+	 t)
+	(t nil)))
+.end_lisp
+.end_defmac
+
+.defvar inhibit-scheduling-flag
+The value of 3inhibit-scheduling-flag* is normally 3nil*.
+3without-interrupts* binds it to 3t*, which prevents
+process-switching until 3inhibit-scheduling-flag* becomes 3nil*
+again.  It is cleaner to use 3without-interrupts* than to refer
+directly to this variable.
+.end_defvar
+
+.defun process-wait whostate function &rest arguments
+This is the primitive for waiting.  The current process waits until the
+application of 2function* to 2arguments* returns non-3nil*
+(at which time 3process-wait* returns).  Note that 2function* is applied
+in the environment of the scheduler, not the environment of the 3process-wait*,
+so special bindings in effect when 3process-wait* was called are 2not* be
+in effect when 2function* is applied.  Be careful when using any free
+references in 2function*.  2whostate* is a string containing a brief
+description of the reason for waiting.  If the who-line at the bottom
+of the screen is looking at this process, it will show 2whostate*.
+.lisp
+.exdent 96 Example:
+(process-wait "Buffer"
+	#'(lambda (b) (not (zerop (buffer-n-things b))))
+	the-buffer)
+.end_lisp
+.end_defun
+
+.defun process-sleep interval
+Waits for 2interval* sixtieths of a second, and then returns.
+It uses 3process-wait*.
+.end_defun
+
+.defun sleep seconds
+Waits 2seconds* seconds and then returns.
+2seconds* need not be an integer.  This also uses 3process-wait*.
+.end_defun
+
+.defun process-wait-with-timeout whostate interval function &rest arguments
+This is like 3process-wait* except that if 2interval* sixtieths of a
+second go by and the application of 2function* to 2arguments* is
+still returning 3nil*, then 3process-wait-with-timeout* returns
+anyway.  The value returned is the value of applying 2function* to
+2arguments*; thus, it is non-3nil* if the wait condition actually
+occurred, 3nil* for a time-out.
+
+If 2interval* is 3nil*, there is no timeout, and this function is then
+equivalent to 3process-wait*.
+.end_defun
+
+.defmac with-timeout (interval timeout-forms...) body...
+2body* is executed with a timeout in effect for 2interval* sixtieths of a second.  If
+2body* finishes before that much time elapses, the
+values of the last form in 2body* are returned.
+
+If after 2interval* has elapsed 2body* has not completed, its
+execution is terminated with a 3throw* caught by the 3with-timeout*
+form.  Then the 2timeout-forms* are evaluated and the values of the
+last one of them are returned.
+
+.lisp
+.exdent 96 For example,
+(with-timeout ((* 60. 60.) (format *query-io* " ... Yes.") t)
+  (y-or-n-p "Really do it? (Yes after one minute) "))
+.end_lisp
+is a convenient way to ask a question and assume an answer if the user does not
+respond promptly.  This is a good thing to do for queries likely to occur when the
+user has walked away from the terminal and expects an operation to finish without
+his attention.
+.end_defmac
+
+.defun process-allow-schedule
+Resumes the scheduler momentarily; all other processes will get a
+chance to run before the current process runs again.
+.end_defun
+
+.defconst sys:scheduler-stack-group
+This is the stack group in which the scheduler executes.
+.end_defconst
+
+.defvar sys:clock-function-list
+This is a list of functions to be called by the scheduler 60 times a second.
+Each function is passed one argument, the number of 60ths of a second
+since the last time that the functions on this list were called.
+These functions implement various
+system overhead operations such as blinking the blinking cursor
+on the screen.  Note that these functions are called inside the
+scheduler, just as are the functions of simple processes (see (simple-process)).
+The scheduler calls these functions as often as possible, but never
+more often than 60 times a second.  That is, if there are no processes
+ready to run, the scheduler calls the clock functions 60 times a second,
+assuming that, all together, they take less than 1/60 second to run.
+If there are processes continually ready to run, then the scheduler calls
+the clock functions as often as it can; usually this is once a second, since
+usually the scheduler gets control only once a second.
+.end_defvar
+
+.defvar sys:active-processes
+This is the scheduler's data-structure.  It is a list of lists, where
+the car of each element is an active process or 3nil* and the cdr is information
+about that process.
+.end_defvar
+
+.defvar sys:all-processes
+This is a list of all the processes in existence.  It is mainly for
+debugging.
+.end_defvar
+
+.defconst si:initial-process
+This is the process in which the system starts up when it is booted.
+.end_defconst
+
+.defun si:sb-on &optional when
+Controls what events cause a sequence break, i.e. when
+rescheduling occurs.  The following keywords are names of events
+which can cause a sequence break.
+.table 3
+.kitem :clock
+This event happens periodically based on a clock.  The default period
+is one second.  See 3sys:%tv-clock-rate*, (sys:%tv-clock-rate-meter).
+.kitem :keyboard
+Happens when a character is received from the keyboard.
+.kitem :chaos
+Happens when a packet is received from the Chaosnet,
+or transmission of a packet to the Chaosnet is completed.
+.end_table
+
+Since the keyboard and Chaosnet are heavily buffered, there is no
+particular advantage to enabling the 3:keyboard* and 3:chaos* events,
+unless the 3:clock* event is disabled.
+
+With no argument, 3si:sb-on* returns a list
+of keywords for the currently enabled events.
+
+With an argument, the set of enabled events is changed.  The argument
+can be a keyword, a list of keywords, 3nil* (which disables sequence
+breaks entirely since it is the empty list), or a number, which is the
+internal mask, not documented here.
+.end_defun
+
+.c with-real-time would be here except it's in the hacks package
+
+.section Locks
+.cindex lock
+
+	A 2lock* is a software construct used for synchronization
+of two processes.  A lock is either held by some process, or is free.
+When a process tries to seize a lock, it waits until the lock is free,
+and then it becomes the process holding the lock.  When it is finished,
+it unlocks the lock, allowing some other process to seize it.
+A lock protects some resource or data structure so that only one
+process at a time can use it.
+
+	In the Lisp Machine, a lock is a locative pointer to a cell.
+If the lock is free, the cell contains 3nil*; otherwise it contains
+the process that holds the lock.  The 3process-lock* and 3process-unlock*
+functions are written in such a way as to guarantee that two processes
+can never both think that they hold a certain lock; only one process
+can ever hold a lock at one time.
+
+.defun process-lock locative &optional (lock-value 3current-process*) (whostate 3"Lock"*) timeout
+This is used to seize the lock that 2locative* points to.
+If necessary, 3process-lock* waits until the lock becomes free.
+When 3process-lock* returns, the lock has been seized.  2lock-value*
+is the object to store into the cell specified by 2locative*, and
+2whostate* is passed on to 3process-wait*.
+
+If 2timeout* is non-3nil*, it should be a fixnum representing a time
+interval in 60ths of a second.  If it is necessary to wait more than that long,
+an error with condition name 3sys:lock-timeout* is signaled.
+.end_defun
+
+.defun process-unlock locative &optional (lock-value 3current-process*)
+This is used to unlock the lock that 2locative* points to.
+If the lock is free or was locked by some other process, an
+error is signaled.  Otherwise the lock is unlocked.  2lock-value*
+must have the same value as the 2lock-value* parameter to the matching
+call to 3process-lock*, or else an error is signaled.
+.end_defun
+
+.defcondition sys:lock-timeout (3error*)
+This condition is signaled when 3process-lock* waits longer than the
+specified timeout.
+.end_defcondition
+
+	It is a good idea to use 3unwind-protect* to make sure that
+you unlock any lock that you seize.  For example, if you write
+.lisp
+(unwind-protect
+   (progn (process-lock lock-3)
+	  (function-1)
+	  (function-2))
+   (process-unlock lock-3))
+.end_lisp
+then even if 3function-1* or 3function-2* does a 3throw*,
+3lock-3* will get unlocked correctly.  Particular programs that use
+locks often define special forms that package this 3unwind-protect*
+up into a convenient stylistic device.
+
+A higher level locking construct is 3with-lock*:
+
+.defmac with-lock (lock &key norecursive) body...
+Executes the 2body* with 2lock* locked.
+2lock* should actually be an expression whose value would be the
+status of the lock; it is used inside 3locf* to get a locative
+pointer with which the locking and unlocking are done.
+
+It is OK for one process to lock a lock multiple times, recursively,
+using 3with-lock*, provided 2norecursive* is not 3nil*.
+
+2norecursive* should be literally 3t* or 3nil*; it is not
+evaluated.  If it is 3t*, this call to 3with-lock* signals
+an error if the lock is already locked by the running process.
+.end_defmac
+
+A lower level construct which can be used to implement atomic
+operations, and is used in the implementation of 3process-lock*,
+is 3store-conditional*.
+
+.defun store-conditional location oldvalue newvalue
+This stores 2newvalue* into 2location* iff 2location* currently
+contains 2oldvalue*.  The value is 3t* iff the cell was changed.
+
+If 2location* is a list, the cdr of the list is tested and stored
+in.  This is in accord with the general principle of how to access the
+contents of a locative properly, and makes 
+3(store-conditional (locf (cdr x)) ...)* work.
+.end_defun
+
+An even lower-level construct is the subprimitive
+3%store-conditional*, which is like 3store-conditional* with no
+error checking, but is faster.
+
+.subsection Process Queues
+
+A process queue is a kind of lock which can record several processes
+which are waiting for the lock and grant them the lock in the order that
+they requested it.  The queue has a fixed size.  If the number of
+processes waiting remains less than that size then they will all get the
+lock in the order of requests.  If too many processes are waiting then
+the order of requesting is not remembered for the extra ones, but proper
+interlocking is still maintained.
+
+.defun si:make-process-queue name size
+Makes and returns a process queue object named 2name*, able to record
+2size* processes.  The count of 2size* includes the process that
+owns the lock.
+.end_defun
+
+.defun si:process-enqueue process-queue &optional lock-value who-state
+Attempts to lock 2process-queue* on behalf of 2lock-value*.  If
+2lock-value* is 3nil* then the locking is done on behalf of
+3current-process*.
+
+If the queue is locked, then 2lock-value* or the current process is
+put on the queue.  Then this function waits for that lock value to reach
+the front of the queue.  When it does so, the lock has been granted, and
+the function returns.  The lock is now locked in the name of 2lock-value*
+or the current process, until 3si:process-dequeue* is used to unlock it.
+
+2who-state* appears in the who line during the wait.  It defaults to
+3"Lock"*.
+.end_defun
+
+.defun si:process-deqeueue process-queue &optional lock-value
+Unlocks 3process-queue*.  2lock-value* (which defaults to the current process)
+must be the value which now owns the lock on the queue, or an error occurs.
+The next process or other object on the queue is granted the lock and its
+call to 3si:process-enqueue* will therefore return.
+.end_defun
+
+.defun si:reset-process-queue process-queue
+Unlocks the queue and clears out the list of things waiting to lock it.
+.end_defun
+
+.defun si:process-queue-locker process-queue
+Returns the object in whose name the queue is currently locked,
+or 3nil* if it is not now locked.
+.end_defun
+
+.section Creating a Process
+
+There are two ways of creating a process.  One is to create a permanent
+process which you will hold on to and manipulate as desired.  The other
+way is to say simply, ``call this function on these arguments in another
+process, and don't bother waiting for the result.''  In the latter case
+you never actually use the process itself as an object.
+
+.defun make-process name &key ...
+Creates and returns a process named 2name*.  The process is not
+capable of running until it has been reset or preset in order to initialize
+the state of its computation.
+
+Usually you do not need to specify any of the keyword arguments.
+The following keyword arguments are allowed:
+.table 3
+.kitem :simple-p
+Specifying 3t* here gives you a simple process (see (simple-process)).
+.kitem :flavor
+Specifies the flavor of process to be created.  See (process-flavors), for
+a list of all the flavors of process supplied by the system.
+.kitem :stack-group
+Specifies the stack group the process is to use.  If this option is not specified,
+a stack group is created according to the relevant options below.
+.kitem :warm-boot-action
+What to do with the process when the machine is booted.
+See (si:process-warm-boot-action-method).
+.kitem :quantum
+See (si:process-quantum-method).
+.kitem :priority
+See (si:process-priority-method).
+.kitem :run-reasons
+Lets you supply an initial run reason.  The default is 3nil*.
+.kitem :arrest-reasons
+Lets you supply an initial arrest reason.  The default is 3nil*.
+.kitem :sg-area
+The area in which to create the stack group.  The default is
+the value of 3default-cons-area*.
+.kitem :regular-pdl-area
+.xitem1 :special-pdl-area make-process
+.xitem1 :regular-pdl-size make-process
+.xitem1 :special-pdl-size make-process
+These are passed on to 3make-stack-group*, (make-stack-group-fun).
+.kitem :swap-sv-on-call-out
+.xitem1 :swap-sv-of-sg-that-calls-me make-process
+.xitem1 :trap-enable make-process
+Specify those attributes of the stack group.  You don't want to use
+these.
+.end_table
+
+If you specify 3:flavor*, there can be additional options provided
+by that flavor.
+.end_defun
+
+The following functions allow you to call a function and have its
+execution happen asynchronously in another process.  This can be used
+either as a simple way to start up a process that will run ``forever'', or
+as a way to make something happen without having to wait for it
+to complete.  When the function returns, the process is returned to a pool
+of free processes for reuse.  The only difference between these three
+functions is in what happens if the machine is booted while the process
+is still active.
+
+Normally the function to be run should not do any I/O to the terminal,
+as it does not have a window and terminal I/O will cause it to make a
+notification and wait for user attention.  Refer to
+(sg-terminal-io-issues) for a discussion of the issues.
+
+.defun process-run-function name-or-options function &rest args
+Creates a process, presets it to apply
+2function* to 2args*, and starts it running.
+The value returned is the new process.
+The process is killed if 2function* returns; by default,
+it is also killed if it is reset.
+Example:
+.lisp
+(defun background-print (file)
+  (process-run-function "Print" 'hardcopy-file file))
+.end_lisp
+creates a background process that prints the specified file.
+
+2name-or-options* can be either a string specifying a name for
+the process or a list of alternating keywords and values that can
+specify the name and various other parameters.
+.table 3
+.kitem :name
+This keyword should be followed by a string which specifies the name
+of the process.  The default is 3"Anonymous"*.
+.kitem :restart-after-reset
+This keyword says what to do to the process if it is reset.  3nil*
+means the process should be killed; anything else means the process
+should be restarted.  3nil* is the default.
+.kitem :warm-boot-action
+What to do with the process when the machine is booted.
+See (si:process-warm-boot-action-method).
+.kitem :restart-after-boot
+This is a simpler way of saying what to do with the process when the
+machine is booted.  If the 3:warm-boot-action* keyword is not
+supplied or its value is 3nil*, then this keyword's value is used
+instead.  3nil* means the process should
+be killed; anything else means the process should be restarted.
+3nil* is the default.
+.kitem :quantum
+See (si:process-quantum-method).
+.kitem :priority
+See (si:process-priority-method).
+.end_table
+.end_defun
+
+.defun process-run-restartable-function name-or-keywords function &rest args
+This is the same as 3process-run-function* except that the default is that
+the process will be restarted if reset or after a warm boot.
+You can get the same effect by using 3process-run-function* with
+appropriate keywords.
+.end_defun
+
+.section Process Generic Operations
+
+.nopara
+These are the operations that are defined on all flavors of process.
+Certain process flavors may define additional operations.  Not all possible
+operations are listed here, only those of interest to the user.
+
+.subsection Process Attributes
+
+.defmethod si:process :name
+Returns the name of the process, which was the first argument to 3make-process*
+or 3process-run-function* when the process was created.  The name is
+a string that appears in the printed-representation of the process, stands for
+the process in the who-line and the 3peek* display, etc.
+.end_defmethod
+
+.defmethod si:process :stack-group
+Returns the stack group currently executing on behalf of this process.
+This can be different from the initial-stack-group if the process contains
+several stack groups that coroutine among themselves,
+or if the process is in the error-handler, which runs in its own stack group.
+
+Note that the stack-group of a 2simple* process (see (simple-process))
+is not a stack group at all, but a function.
+.end_defmethod
+
+.defmethod si:process :initial-stack-group
+Returns the stack group the initial-function is called in when the process starts up
+or is reset.
+.end_defmethod
+
+.defmethod si:process :initial-form
+Returns the initial ``form'' of the process.
+This isn't really a Lisp form; it is a cons whose car is the initial-function
+and whose cdr is the list of arguments to which that function is applied
+when the process starts up or is reset.
+
+In a simple process (see (simple-process)), the initial form is a list of one
+element, the process's function.
+
+To change the initial form, use the 3:preset* operation (see (si:process-preset-method)).
+.end_defmethod
+
+.defmethod si:process :wait-function
+Returns the process's current wait-function, which is the predicate used
+by the scheduler to determine if the process is runnable.  This is
+3#'true* if the process is running, and 3#'false* if the process has
+no current computation (for instance, if it has just been created, its
+initial function has returned) or if the program has decided to wait
+indefinitely.  The wait-function of a flushed process is 3si:flushed-process*,
+a function equivalent to 3#'false* but recognizably distinct.
+.end_defmethod
+
+.defmethod si:process :wait-argument-list
+Returns the arguments to the process's current wait-function.  This is
+frequently the 3&rest* argument to 3process-wait* in the
+process's stack.  The system always uses it in
+a safe manner, i.e. it forgets about it before 3process-wait* returns.
+.end_defmethod
+
+.defmethod si:process :whostate
+Returns a string that is the state of the process to go in the who-line at
+the bottom of the screen.  This is 3"run"* if the process is running or
+trying to run; otherwise, it is the reason why the process is waiting.  If the
+process is stopped, then this whostate string is ignored and the who-line
+displays 3arrest* if the process is arrested or 3stop* if the process has
+no run reasons.
+.end_defmethod
+
+.defmethod si:process :quantum
+.defmethod1 si:process :set-quantum 60ths
+Respectively return and change the number of 60ths of a second this
+process is allowed to run without waiting before the scheduler will run
+someone else.  The quantum defaults to 1 second.
+.c [This feature doesn't really work very well.]
+.end_defmethod
+
+.defmethod si:process :quantum-remaining
+Returns the amount of time remaining for this process to run, in 60ths of a second.
+.end_defmethod
+
+.defmethod si:process :priority
+.defmethod1 si:process :set-priority priority-number
+Respectively return and change the priority of this process.  The larger the number, the
+more this process gets to run.  Within a priority level the scheduler runs all
+runnable processes in a round-robin fashion.  Regardless of priority a process
+will not run for more than its quantum.  The default priority is 0, and no
+normal process uses other than 0.
+.end_defmethod
+
+.defmethod si:process :warm-boot-action
+.defmethod1 si:process :set-warm-boot-action action
+Respectively return and change the process's warm-boot-action, which controls what
+happens if the machine is booted while this process is active.
+(Contrary to the name, this applies to both cold and warm booting.) This
+can be 3nil* or 3:flush*, which means to 2flush* the process (see
+(flushed-process)), or can be a function to call.  The default is
+3si:process-warm-boot-delayed-restart*, which resets the process,
+causing it to start over at its initial function.  You can also use
+3si:process-warm-boot-reset*, which throws out of the process'
+computation and kills the process, or 3si:process-warm-boot-restart*,
+which is like the default but restarts the process at an earlier stage
+of system reinitialization.  This is used for processes like the
+keyboard process and chaos background process, which are needed for
+reinitialization itself.
+
+.end_defmethod
+
+.defmethod si:process :simple-p
+Returns 3nil* for a normal process, 3t* for a simple process.
+See (simple-process).
+.end_defmethod
+
+.defmethod si:process :idle-time
+Returns the time in seconds since this process last ran, or 3nil* if it has never run.
+.end_defmethod
+
+.defmethod si:process :total-run-time
+Returns the amount of time this process has run, in 60ths of a second.
+This includes cpu time and disk wait time.
+.end_defmethod
+
+.defmethod si:process :disk-wait-time
+Returns the amount of time this process has spent
+waiting for disk I/O, in 60ths of a second.
+.end_defmethod
+
+.defmethod si:process :cpu-time
+Returns the amount of time this process has spent actually
+executing instructions, in 60ths of a second.
+.end_defmethod
+
+.defmethod si:process :percent-utilization
+Returns the fraction of the machine's time this
+process has been using recently, as a percentage
+(a number between 0 and 100.0).  The value is a weighted
+average giving more weight to more recent history.
+.end_defmethod
+
+.defmethod si:process :reset-meters
+Resets the run-time counters of the process to zero.
+.end_defmethod
+
+.subsection Run and Arrest Reasons
+
+.defmethod si:process :run-reasons
+Returns the list of run reasons, which are the reasons why this process should
+be active (allowed to run).
+.end_defmethod
+
+.defmethod si:process :run-reason object
+Adds 2object* to the process's run reasons.  This can activate the process.
+.end_defmethod
+
+.defmethod si:process :revoke-run-reason object
+Removes 2object* from the process's run reasons.  This can stop the process.
+.end_defmethod
+
+.defmethod si:process :arrest-reasons
+Returns the list of arrest reasons, which are the reasons why this process
+should be inactive (forbidden to run).
+.end_defmethod
+
+.defmethod si:process :arrest-reason object
+Adds 2object* to the process's arrest reasons.  This can stop the process.
+.end_defmethod
+
+.defmethod si:process :revoke-arrest-reason object
+Removes 2object* from the process's arrest reasons.  This can activate
+the process.
+.end_defmethod
+
+.defmethod si:process :active-p
+.defmethod1 si:process :runnable-p
+These two operations are the same.  3t* is returned if the process is
+active, i.e. it can run if its wait-function allows.  3nil* is returned
+if the process is stopped.
+.end_defmethod
+
+.subsection Bashing the Process
+
+.defmethod si:process :preset function &rest args
+Sets the process's initial function to 2function* and initial arguments
+to 2args*.  The process is then reset so that any computation occuring in it
+is terminated and it begins anew by applying 2function* to 2args*.
+A 3:preset* operation on a stopped process
+returns immediately, but does not activate the process; hence the
+process will not really apply 2function* to 2args* until it is activated later.
+.end_defmethod
+
+.defmethod si:process :reset &optional no-unwind kill
+Forces the process to throw out of its present computation and apply its
+initial function to its initial arguments, when it next runs.  The
+throwing out is skipped if the process has no present computation (e.g.
+it was just created), or if the 2no-unwind* option so specifies.  The
+possible values for 2no-unwind* are:
+.table 3
+.item :unless-current
+.item1 nil
+Unwind unless the stack group to be unwound is the one currently
+executing, or belongs to the current process.
+
+.item :always
+Unwind in all cases.  This may cause the operation to throw through its
+caller instead of returning.
+
+.item t
+Never unwind.
+.end_table
+
+If 2kill* is 3t*, the process is to be killed after unwinding it.
+This is for internal use by the 3:kill* operation only.
+
+A 3:reset* operation on a stopped process returns immediately, but
+does not activate the process; hence the process will not really get
+reset until it is activated later.
+.end_defmethod
+
+.defmethod si:process :flush
+.setq flushed-process page
+Forces the process to wait forever.  A process may not 3:flush* itself.
+Flushing a process is different from stopping it, in that it is still active
+and hence if it is reset or preset it will start running again.
+
+A flushed process can be recognized because its wait-function is
+3si:flushed-process*.
+If a process belonging to a window is flushed, exposing or selecting the window
+resets the process.
+.end_defmethod
+
+.defmethod si:process :kill
+Gets rid of the process.  It is reset, stopped,
+and removed from 3sys:all-processes*.
+.end_defmethod
+
+.defmethod si:process :interrupt function &rest args
+Forces the process to 3apply* 2function* to 2args*.  When 2function* returns,
+the process continues the interrupted computation.  If the process is waiting,
+it wakes up, calls 2function*, then waits again when 2function* returns.
+
+If the process is stopped it does not 3apply* 2function* to 2args* 
+immediately, but will later when it is activated.  Normally the 3:interrupt* operation
+returns immediately, but if the process's stack group is in an unusual internal
+state 3:interrupt* may have to wait for it to get out of that state.
+.end_defmethod
+
+.section Process Flavors
+.setq process-flavors section-page
+
+These are the flavors of process provided by the system.  It is possible for users
+to define additional flavors of their own.
+
+.defflavor si:process
+This is the standard default kind of process.
+.end_defflavor
+
+.defflavor si:simple-process
+.setq simple-process page
+.cindex simple process
+A simple process is not a process in the conventional sense.  It has no
+stack group of its own; instead of having a stack group that gets
+resumed when it is time for the process to run, it has a function that
+gets called when it is time for the process to run.  When the
+wait-function of a simple process becomes true, and the scheduler
+notices it, the simple process's function is called in the scheduler's
+own stack group.  Since a simple process does not have any stack group
+of its own, it can't save control state in between calls; any state
+that it saves must be saved in data structure.
+
+The only advantage of simple processes over normal processes is that
+they use up less system overhead, since they can be scheduled without
+the cost of resuming stack-groups.  They are intended as a special,
+efficient mechanism for certain purposes.  For example, packets received
+from the Chaosnet are examined and distributed to the proper receiver by
+a simple process that wakes up whenever there are any packets in the
+input buffer.  However, they are harder to use, because you can't save
+state information across scheduling.  That is, when the simple process
+is ready to wait again, it must return; it can't call 3process-wait*
+and continue to do something else later.  In fact, it is an error to
+call 3process-wait* from inside a simple process.  Another drawback to
+simple processes is that if the function signals an error, the scheduler
+itself is broken and multiprocessing stops; this situation can be
+repaired only by aborting, which blasts the process.  Also, when a
+simple process is run, no other process is scheduled until it chooses to
+return; so simple processes should never run for a long time without
+returning.
+
+Asking for the stack group of a simple process does not signal an error,
+but returns the process's function instead.
+
+Since a simple process cannot call 3process-wait*, it needs some other
+way to specify its wait-function.  To set the wait-function of a simple
+process, use 3si:set-process-wait* (see below).  So, when a simple
+process wants to wait for a condition, it should call
+3si:set-process-wait* to specify the condition, then return.
+.end_defflavor
+
+.defun si:set-process-wait simple-process wait-function wait-argument-list
+Sets the 2wait-function* and 2wait-argument-list* of 2simple-process*.
+See the description of the 3si:simple-process* flavor (above) for
+more information.
+.end_defun
+
+.c [si:coroutining-process not documented here because it doesn't seem of general
+.c enough interest and what it does is too hard to explain.]
+
+
+.section Other Process Functions
+
+.defun process-enable process
+Activates 2process* by revoking all its run and arrest reasons,
+then giving it a run reason of 3:enable*.
+.end_defun
+
+.defun process-reset-and-enable process
+Resets 2process*, then enables it.
+.end_defun
+
+.defun process-disable process
+Stops 2process* by revoking all its run reasons.  Also revokes
+all its arrest reasons.
+.end_defun
+
+.nopara
+The remaining functions in this section are obsolete, since they simply
+duplicate what can be done by sending a message.  They are documented here
+because their names are in the 3global* package.
+
+.defun process-preset process function &rest args
+Sends a 3:preset* message.
+.end_defun
+
+.defun process-reset process
+Sends a 3:reset* message.
+.end_defun
+
+.defun process-name process
+Gets the name of a process, like the 3:name* operation.
+.end_defun
+
+.defun process-stack-group process
+Gets the current stack group of a process, like the 3:stack-group* operation.
+.end_defun
+
+.defun process-initial-stack-group process
+Gets the initial stack group of a process, like the 3:initial-stack-group* operation.
+.end_defun
+
+.defun process-initial-form process
+Gets the initial form of a process, like the 3:initial-form* operation.
+.end_defun
+
+.defun process-wait-function process
+Gets the current wait-function of a process, like the 3:wait-function* operation.
+.end_defun
+
+.defun process-wait-argument-list p
+Gets the arguments to the current wait-function of a process, like the
+3:wait-argument-list* operation.
+.end_defun
+
+.defun process-whostate p
+Gets the current who-line state string of a process, like the 3:whostate* operation.
+.end_defun

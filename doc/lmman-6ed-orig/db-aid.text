@@ -1,0 +1,899 @@
+.c This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c  Debugging: Various Debugging Aids
+
+.section Tracing Function Execution
+.cindex tracing function execution
+.setq trace section-page
+
+	The trace facility allows the user to 2trace* some functions.
+When a function is traced, certain special actions are taken when it is
+called and when it returns.  The default tracing action is to print a message when the
+function is called, showing its name and arguments, and another message when
+the function returns, showing its name and value(s).
+
+	The trace facility is closely compatible with Maclisp.  You invoke
+it through the 3trace* and 3untrace* special forms, whose syntax is described
+below.  Alternatively, you can use the trace system by clicking 3Trace*
+in the system menu, or by using the 3Meta-X Trace* command in the editor.
+This allows you to select the trace options from a menu instead of having
+to remember the following syntax.
+
+.defspec trace
+A 3trace* form looks like:
+.lisp
+(trace 2spec-1* 2spec-2* ...)
+.end_lisp
+
+Each 2spec* can take any of the following forms:
+.table 1
+.item a symbol
+This is a function name, with no options.  The function is traced in the
+default way, printing a message each time it is called and each time it returns.
+
+.item a list 3(2function-name* 2option-1* 2option-2* ...)*
+2function-name* is a symbol and the 2options* control how it is to be
+traced.  The various options are listed below.  Some options take arguments,
+which should be given immediately following the option name.
+
+.item a list 3(:function 2function-spec* 2option-1* 2option-2* ...)*
+This is like the previous form except that 2function-spec* need not be a symbol
+(see (function-spec)).
+It exists because if 2function-name* was a list in the previous form, it
+would instead be interpreted as the following form:
+
+.item a list 3((2function-1* 2function-2*...) 2option-1* 2option-2* ...)*
+All of the functions are traced with the same options.  Each 2function* can
+be either a symbol or a general function-spec.
+.end_table
+.end_defun
+
+	The following 3trace* options exist:
+.table 3 0 1500
+.item :break 2pred*
+'kindex :break trace
+Causes a breakpoint to be entered after printing
+the entry trace information but before applying the traced function to its
+arguments, if and only if 2pred* evaluates to non-3nil*.  During the
+breakpoint, the symbol 3arglist* is bound to a list of the arguments
+of the function.
+
+.item :exitbreak 2pred*
+'kindex :exitbreak trace
+This is just like 3break* except that the
+breakpoint is entered after the function has been executed and the exit trace information
+has been printed, but before control returns.    During the
+breakpoint, the symbol 3arglist* is bound to a list of the arguments
+of the function, and the symbol 3values* is bound to a list of
+the values that the function is returning.
+
+.item :error
+'kindex :error trace
+Causes the error handler to be called when the function is entered.  Use
+3Resume* (or 3Control-C*) to continue execution of the function.  If this option
+is specified, there is no printed trace output other than the error message
+printed by the error handler.  This is semi-obsolete, as 3breakon* is
+more convenient and does more exactly the right thing.
+
+.item :step
+'kindex :step trace
+Causes the function to be single-stepped whenever it is called.
+See the documentation on the step facility, (stepper-section).
+
+.item :stepcond 2pred*
+'kindex :stepcond trace
+Causes the function to be single-stepped
+only if 2pred* evaluates to non-3nil*.
+
+.item :entrycond 2pred*
+'kindex :entrycond trace
+Causes trace information to be printed on function
+entry only if 2pred* evaluates to non-3nil*.
+
+.item :exitcond 2pred*
+'kindex :exitcond trace
+Causes trace information to be printed on function
+exit only if 2pred* evaluates to non-3nil*.
+
+.item :cond 2pred*
+'kindex :cond trace
+This specifies both 3:exitcond* and 3:entrycond*
+together.
+
+.item :wherein 2function*
+'kindex :wherein trace
+Causes the function to be traced only when called, directly or indirectly,
+from the specified function 2function*.  One can give several trace specs to
+3trace*, all specifying the same function but with different 3wherein*
+options, so that the function is traced in different ways when called from
+different functions.
+
+This is different from 3advise-within*, which only affects the function
+being advised when it is called directly from the other function.  The 3trace*
+3:wherein* option means that when the traced function is called, the special
+tracing actions occur if the other function is the caller of this function,
+or its caller's caller, or its caller's caller's caller, etc.
+
+.item :argpdl 2pdl*
+'kindex :argpdl trace
+Specifies a symbol 2pdl*, whose value is
+initially set to 3nil* by 3trace*.  When the function is traced, a
+list of the current recursion level for the function, the function's
+name, and a list of arguments is consed onto the 2pdl* when the
+function is entered, and cdr'ed back off when the function is exited.
+The 2pdl* can be inspected from within a breakpoint, for example, and
+used to determine the very recent history of the function. This option
+can be used with or without printed trace output.  Each function can be
+given its own pdl, or one pdl may serve several functions.
+
+.item :entryprint 2form*
+'kindex :entryprint trace
+The 2form* is evaluated and the value is included in the trace message
+for calls to the function.  You can give this option multiple times,
+and all the 2form*'s thus specified are evaluated and printed.
+3\\* precedes the values to separate them from the arguments.
+
+.item :exitprint 2form*
+'kindex :exitprint trace
+The 2form* is evaluated and the value is included in the trace message
+for returns from the function.  You can give this option multiple times,
+and all the 2form*'s thus specified are evaluated and printed.
+3\\* precedes the values to separate them from the returned values.
+
+.item :print 2form*
+'kindex :print trace
+The 2form* is evaluated and the value is included in the trace messages
+for both calls to and returns from the function.  Equivalent to
+3:exitprint* and 3:entryprint* at once.
+
+.item :entry 2list*
+'kindex :entry trace
+This specifies a list of arbitrary forms whose
+values are to be printed along with the usual entry-trace.  The list of
+resultant values, when printed, is preceded by 3\\* to separate it
+from the other information.
+
+.item :exit 2list*
+'kindex :exit trace
+This is similar to 3entry*, but specifies expressions
+whose values are printed with the exit-trace.  Again, the list of
+values printed is preceded by 3\\*.
+
+.item :arg  :value  :both  nil
+'kindex :arg trace
+'kindex :value trace
+'kindex :both trace
+These specify which of the usual trace
+printouts should be enabled.  If 3:arg* is specified, then on function
+entry the name of the function and the values of its arguments will be
+printed.  If 3:value* is specified, then on function exit the returned
+value(s) of the function will be printed.  If 3:both* is specified,
+both of these will be printed.  If 3nil* is specified, neither will
+be printed.  If none of these four options are specified the default is
+to 3:both*.  If any further 2options* appear after one of these,
+they are not treated as options!  Rather, they are considered to
+be arbitrary forms whose values are to be printed on entry and/or exit
+to the function, along with the normal trace information. The values
+printed will be preceded by a 3//*, and follow any values specified
+by 3:entry* or 3:exit*.
+
+Note that since these options ``swallow'' all
+following options, if one is given it should be the last option
+specified.
+.end_table
+
+.vindex arglist
+In the evaluation of the expression arguments to various 3trace* options
+such as 3:cond* and 3:break*, the value of 3arglist* is
+a list of the arguments given to the traced function.  Thus
+.lisp
+(trace (foo :break (null (car arglist))))
+.end_lisp
+would cause a break in 3foo* if and only if the first argument to
+3foo* is 3nil*.  If the 3:break* option is used, the variable
+3arglist* is valid inside the break-loop.  If you 3setq* 3arglist*
+before actual function execution, the arguments seen by the function
+will change.
+
+.vindex values
+In the evaluation of the expression arguments to various 3trace* options
+such as 3:cond* and 3:break* on exit from the traced function,
+the variable 3values* is bound to a
+list of the resulting values of the traced function.
+If the 3:exitbreak* option is used, the variables 3values* and 3arglist* 
+are valid inside the break-loop.  If you 3setq* 3values*, the values returned
+by the function will change.
+
+The trace specifications may be ``factored'', as explained above.  For example,
+.lisp
+(trace ((foo bar) :break (bad-p arglist) :value))
+1is equivalent to*
+(trace (foo :break (bad-p arglist) :value)
+       (bar :break (bad-p arglist) :value))
+.end_lisp
+Since a list as a function name is interpreted as a list of
+functions, non-atomic function names (see (function-spec))
+are specified as follows:
+.lisp
+(trace (:function (:method flavor :message) :break t))
+.end_lisp
+
+3trace* returns as its value a list of names of all functions it traced.  If
+called with no arguments, as just 3(trace)*, it returns a list of all the
+functions currently being traced.
+
+If you attempt to trace a function already being traced, 3trace* calls
+3untrace* before setting up the new trace.
+
+Tracing is implemented with encapsulation (see (encapsulate)), so if the
+function is redefined (e.g. with 3defun* or by loading it from a QFASL file)
+the tracing will be transferred from the old definition to the new definition.
+
+Tracing output is printed on the stream that is the value of 3*trace-output**.
+This is synonymous with 3*terminal-io** unless you change it.
+
+.defspec untrace
+Undoes the effects of 3trace* and restores functions to
+their normal, untraced state.  3untrace* accepts multiple specifications,
+e.g. 3(untrace foo quux fuphoo)*.  Calling 3untrace* with no arguments
+will untrace all functions currently being traced.
+.end_defun
+
+.defvar trace-compile-flag
+If the value of 3trace-compile-flag* is non-3nil*, the functions
+created by 3trace* are compiled, allowing you to trace special
+forms such as 3cond* without interfering with the execution of the
+tracing functions.  The default value of this flag is 3nil*.
+
+See also the function 3compile-encapsulations*, (compile-encapsulations-fun).
+.end_defvar
+
+.section Breakon
+
+The function 3breakon* allows you to request that the debugger be
+entered whenever a certain function is called.
+
+.defun breakon function-spec &optional condition-form
+Encapsulates the definition of 2function-spec* so that a trap-on-call
+occurs when it is called.  This enters the debugger.  A
+trap-on-exit will occur when the stack frame is exited.
+
+If 2condition-form* is non-3nil*, its value should be a form to be
+evaluated each time 2function-spec* is called. The trap occurs only if
+2condition-form* evaluates to non-3nil*.  Omitting the
+2condition-form* is equivalent to supplying 3t*.  If 3breakon* is
+called more than once for the same 2function-spec* and different
+2condition-form*s, the trap occurs if any of the conditions are true.
+
+3breakon* with no arguments returns a list of the functions that
+are broken on.
+.end_defun
+
+Conditional breakons are useful for causing the trap to occur only in a
+certain stack group.  This sometimes allows debugging of functions
+that are being used frequently in background processes.
+.lisp
+(breakon 'foo `(eq current-stack-group ',current-stack-group))
+.end_lisp
+
+If you wish to trap on calls to 3foo* when called from the execution of
+3bar*, you can use 3(si:function-active-p 'bar)* as the condition.
+If you want to trap only calls made directly from 3bar*, the thing to
+do is
+.lisp
+(breakon '(:within bar foo))
+.end_lisp
+rather than a conditional breakon.
+
+To break only the 2n*'th time 3foo* is called, do
+.lisp
+(defvar i 2n*)
+(breakon 'foo '(zerop (decf i)))
+.end_lisp
+
+Another useful form of conditional breakon allows you to control
+trapping from the keyboard:
+.lisp
+(breakon 'foo '(tv:key-state :mode-lock))
+.end_lisp
+The trap occurs only when the 3Mode-Lock* key is down.  This key
+is not normally used for much else.  With this technique, you can
+successfully trap on functions used by the debugger!
+
+.defun unbreakon function-spec &optional conditional-form
+Remove the 3breakon* set on 2function-spec*.  If
+2conditional-form* is specified, remove only that condition.  Breakons
+with other conditions are not removed.
+
+With no arguments, 3unbreakon* removes all breakons from all
+functions.
+.end_defun
+
+To cause the encapsulation which implements the breakon to be compiled,
+call 3compile-encapsulations* or set 3compile-encapsulations-flag*
+non-3nil*.  See (compile-encapsulations-fun).  This may eliminate
+some of the problems that occur if you breakon a function such as
+3prog* that is used by the evaluator.  (A conditional to trap only in
+one stack group will help here also.)
+
+.section Advising a Function
+.setq advise section-page
+.cindex advice to functions
+
+To advise a function is to tell it to do something extra in addition to its
+actual definition.  It is done by means of the function 3advise*.  The
+something extra is called a piece of advice, and it can be done before, after,
+or around the definition itself.  The advice and the definition are independent,
+in that changing either one does not interfere with the other.  Each function
+can be given any number of pieces of advice.
+
+Advising is fairly similar to tracing, but its purpose is different.  Tracing is
+intended for temporary changes to a function to give the user information about
+when and how the function is called and when and with what value it returns.
+Advising is intended for semi-permanent changes to what a function actually
+does.  The differences between tracing and advising are motivated by this
+difference in goals.
+
+Advice can be used for testing out a change to a function in a way
+that is easy to retract.  In this case, you would call 3advise* from
+the terminal.  It can also be used for customizing a
+function that is part of a program written by someone else.  In this
+case you would be likely to put a call to 3advise* in one of your
+source files or your login init file (see (login-fun)), rather than modifying the other
+person's source code.
+
+Advising is implemented with encapsulation (see (encapsulate)), so if the
+function is redefined (e.g. with 3defun* or by loading it from a QFASL file)
+the advice will be transferred from the old definition to the new definition.
+
+.defmac advise
+A function is advised by the special form
+.lisp
+(advise 2function* 2class* 2name* 2position*
+  2form1* 2form2*...)
+.end_lisp
+None of this is evaluated.  2function* is the function to put the advice on.
+It is usually a symbol, but any function spec is allowed (see (function-spec)).
+The 2forms* are the advice; they get evaluated when the function is called.
+2class* should be either 3:before*, 3:after*, or 3:around*, and says
+when to execute the advice (before, after, or around the execution of the
+definition of the function).  The meaning of 3:around* advice is explained a
+couple of sections below.
+
+2name* is used to keep track of multiple pieces of advice on the same
+function.  2name* is an arbitrary symbol that is remembered as the
+name of this particular piece of advice.  If you have no name in mind,
+use 3nil*; then we say the piece of advice is anonymous.  A given
+function and class can have any number of pieces of anonymous advice,
+but it can have only one piece of named advice for any one name.  If
+you try to define a second one, it replaces the first.  Advice for
+testing purposes is usually anonymous.  Advice used for customizing
+someone else's program should usually be named so that multiple
+customizations to one function have separate names.  Then, if you
+reload a customization that is already loaded, it does not get put on
+twice.
+
+2position* says where to put this piece of advice in relation to
+others of the same class already present on the same function.  If
+2position* is 2nil*, the new advice goes in the default position: it
+usually goes at the beginning (where it is executed before the other
+advice), but if it is replacing another piece of advice with the same
+name, it goes in the same place that the old piece of advice was in.
+
+If you wish to specify the position, 2position* can be the numerical index of
+which existing piece of advice to insert this one before.  Zero means
+at the beginning; a very large number means at the end.  Or,
+2position* can be the name of an existing piece of advice of the same
+class on the same function; the new advice is inserted before that
+one.
+
+.lisp
+.exdent 96 1For example,*
+(advise factorial :before negative-arg-check nil
+  (if (minusp (first arglist))
+      (ferror nil "factorial of negative argument")))
+.end_lisp
+This modifies the (hypothetical) factorial function so that if it is
+called with a negative argument it signals an error instead of running
+forever.
+
+3advise* with no arguments returns a list of advised functions.
+.end_defmac
+
+.defmac unadvise
+.lisp
+(unadvise 2function* 2class* 2position*)
+.end_lisp
+removes pieces of advice.  None of its arguments are evaluated.  2function*
+and 2class* have the same meaning as they do in the function 3advise*.
+2position* specifies which piece of advice to remove.  It can be the numeric
+index (zero means the first one) or it can be the name of the piece of advice.
+
+If some of the arguments
+are missing or 3nil*, all pieces of advice which match the non-3nil* arguments
+are removed.  Thus, if 2function* is missing or 3nil*, all advice on all
+functions which match the specified 2class* and 2position* are removed.
+If 2position* is missing or 3nil*, then all advice of the specified class
+on the specified function is removed.  If only 2function* is non-3nil*,
+all advice on that function is removed.
+.end_defmac
+
+The following are the primitive functions for adding and removing advice.
+Unlike the above special forms, these are functions and can be conveniently
+used by programs.  3advise* and 3unadvise* are actually macros that
+expand into calls to these two.
+
+.defun si:advise-1 function class name position forms
+Adds advice.  The arguments have the same meaning as in 3advise*.
+Note that the 2forms* argument is 2not* a 3&rest* argument.
+.end_defun
+
+.defun si:unadvise-1  &optional function class position
+Removes advice.  If 2function* or 2class* or 2position* is 3nil*
+or unspecified, advice is removed from all functions or all classes of
+advice or advice at all positions are removed.
+.end_defun
+
+You can find out manually what advice a function has with 3grindef*, which
+grinds the advice on the function as forms that are calls to
+3advise*.  These are in addition to the definition of the function.
+
+To cause the advice to be compiled, call 3compile-encapsulations* or
+set 3compile-encapsulations-flag* non-3nil*.  See
+(compile-encapsulations-fun).
+
+.subsection Designing the Advice
+
+For advice to interact usefully with the definition and intended
+purpose of the function, it must be able to interface to the data flow
+and control flow through the function.  We provide conventions for
+doing this.
+
+The list of the arguments to the function can be found in the variable
+3arglist*.  3:before* advice can replace this list, or an element of it, to
+change the arguments passed to the definition itself.  If you replace
+an element, it is wise to copy the whole list first with
+.lisp
+(setq arglist (copylist arglist))
+.end_lisp
+After the function's definition has been executed, the list of the
+values it returned can be found in the variable 3values*.  3:after* advice
+can set this variable or replace its elements to cause different
+values to be returned.
+
+All the advice is executed within a 3block nil* so any piece of advice can
+exit the entire function with 3return*.  The arguments of the 3return*
+are returned as the values of the function and no further advice
+is executed.  If a piece of 3:before* advice does this then the
+function's definition is not even called.
+
+.subsection :around Advice
+
+A piece of 3:before* or 3:after* advice is executed entirely before or
+entirely after the definition of the function.  3:around* advice is wrapped
+around the definition; that is, the call to the original definition of
+the function is done at a specified place inside the piece of 3:around*
+advice.  You specify where by putting the symbol 3:do-it* in that place.
+
+For example, 3(+ 5 :do-it)* as a piece of 3:around* advice would add 35* to
+the value returned by the function.  This could also be done by
+3(setq values (list (+ 5 (car values))))* as 3:after* advice.
+
+When there is more than one piece of 3:around* advice, the pieces are stored
+in a sequence just like 3:before* and 3:after* advice.  Then, the first
+piece of advice in the sequence is the one started first.  The second
+piece is substituted for 3:do-it* in the first one.  The third one is
+substituted for 3:do-it* in the second one.  The original definition is
+substituted for 3:do-it* in the last piece of advice.
+
+3:around* advice can access 3arglist*, but 3values* is not set up until the
+outermost 3:around* advice returns.  At that time, it is set to the
+value returned by the 3:around* advice.  It is reasonable for the advice to
+receive the values of the 3:do-it* (e.g. with 3multiple-value-list*) and
+fool with them before returning them (e.g. with 3values-list*).
+
+3:around* advice can 3return* from the 3block* at any time, whether the
+original definition has been executed yet or not.  It can also override
+the original definition by failing to contain 3:do-it*.  Containing two
+instances of 3:do-it* may be useful under peculiar circumstances.  If you
+are careless, the original definition may be called twice, but
+something like
+.lisp
+(if (foo) (+ 5 :do-it) (* 2 :do-it))
+.end_lisp
+will work reasonably.
+
+.subsection Advising One Function Within Another
+
+It is possible to advise the function 3foo* only for when it is called
+directly from a specific other function 3bar*.  You do this by
+advising the function specifier 3(:within bar foo)*.  That works by
+finding all occurrences of 3foo* in the definition of 3bar* and
+replacing them with 3#:altered-foo-within-bar*.  (Note that this is an
+uninterned symbol.)  This can be done even if 3bar*'s definition is
+compiled code.  The symbol 3#:altered-foo-within-bar* starts off with
+the symbol 3foo* as its definition; then the symbol
+3#:altered-foo-within-bar*, rather than 3foo* itself, is advised.
+The system remembers that 3foo* has been replaced inside 3bar*, so
+that if you change the definition of 3bar*, or advise it, then the
+replacement is propagated to the new definition or to the advice.  If
+you remove all the advice on 3(:within bar foo)*, so that its
+definition becomes the symbol 3foo* again, then the replacement is
+unmade and everything returns to its original state.
+
+3(grindef bar)* prints 3foo* where it originally appeared, rather than
+3#:altered-foo-within-bar*, so the replacement is not seen.  Instead,
+3grindef* prints calls to 3advise* to describe all the advice that
+has been put on 3foo* or anything else within 3bar*.
+
+An alternate way of putting on this sort of advice is to use
+3advise-within*.
+
+.defmac advise-within
+.lisp
+(advise-within 2within-function* 2function-to-advise*
+	       2class* 2name* 2position*
+	2forms...*)
+.end_lisp
+advises 2function-to-advise* only when called directly from the function
+2within-function*.  The other arguments mean the same thing as with
+3advise*.  None of them are evaluated.
+.end_defmac
+
+To remove advice from 3(:within bar foo)*, you can use 3unadvise* on that
+function specifier.  Alternatively, you can use 3unadvise-within*.
+
+.defmac unadvise-within
+.lisp
+(unadvise-within 2within-function* 2function-to-advise* 2class* 2position*)
+.end_lisp
+removes advice
+that has been placed on 3(:within 2within-function* 2function-to-advise*)*.
+Any of the four arguments may be missing or 3nil*; then that argument is
+unconstrained.  All advice matching whichever arguments are non-3nil* is
+removed.  For example, 3(unadvise-within foo nil :before)* removes
+all 3:before*-advice from anything within 3foo*.  3(unadvise-within)*
+removes all advice placed on anything within anything.  By contrast, 3(unadvise)*
+removes all advice, including advice placed on a function for all callers.
+Advice placed
+on a function not within another specific function is never removed by
+3unadvise-within*.
+.end_defmac
+
+The function versions of 3advise-within* and 3unadvise-within* are
+called 3si:advise-within-1* and 3si:unadvise-within-1*.  3advise-within* and
+3unadvise-within* are macros that expand into calls to the other two.
+
+
+.section Stepping Through an Evaluation
+.setq stepper-section section-page
+.cindex stepping through evaluation
+
+	The Step facility gives you the ability to follow every step of
+the evaluation of a form, and examine what is going on.  It is
+analogous to a single-step proceed facility often found in
+machine-language debuggers.  If your program is doing something
+strange, and it isn't obvious how it's getting into its strange state,
+then the stepper is for you.
+
+	There are two ways to enter the stepper.  One is by use of the
+3step* function.
+
+.defun step form
+	This evaluates 2form* with single stepping.  It returns
+the value of 2form*.
+.end_defun
+
+	For example, if you have a function named 3foo*, and typical arguments
+to it might be 3t* and 33*, you could say
+.lisp
+(step '(foo t 3))
+.end_lisp
+to evaluate the form 3(foo t 3)* with single stepping.
+
+	The other way to get into the stepper is to use the 3:step* option 
+of 3trace* (see (trace-fun)).  If a function is traced with the 3:step* option, then
+whenever that function is called it will be single stepped.
+
+	Note that any function to be stepped must be interpreted; that is, it
+must be a lambda-expression.  Compiled code cannot be stepped by the stepper.
+
+	When evaluation is proceeding with single stepping, before any
+form is evaluated, it is (partially) printed out, preceded by a forward
+arrow (7*) character When a macro is expanded, the expansion is
+printed out preceded by a double arrow (7*) character.  When a form
+returns a value, the form and the values are printed out preceded by a
+backwards arrow (7*) character; if there is more than one value
+being returned, an and-sign (7*) character is printed between the
+values.  When the stepper has evaluated the args to a form and is about
+to apply the function, it prints a lambda (7*) because entering the
+lambda is the next thing to be done.
+
+	Since the forms may be very long, the stepper does not print all
+of a form; it truncates the printed representation after a certain number
+of characters.  Also, to show the recursion pattern of who calls whom in
+a graphic fashion, it indents each form proportionally to its level
+of recursion.
+
+	After the stepper prints any of these things, it waits for a
+command from the user.  There are several commands to tell the stepper
+how to proceed, or to look at what is happening. The commands are:
+.table 1 0 500
+.item 3Control-N* (Next)
+Steps to the Next event, then asks for another command.
+Events include beginning to evaluate a form at any level
+or finishing the evaluation of a form at any level.
+
+.item 3Space*
+.br
+Steps to the next event at this level.  In other words, continue to
+evaluate at this level, but don't step anything at lower levels.  This is a good
+way to skip over parts of the evaluation that don't interest you.
+
+.item 3Control-A* (Args)
+Skips over the evaluation of the arguments of this form, but pauses in the stepper
+before calling the function that is the car of the form.
+
+.item 3Control-U* (Up)
+Continues evaluating until we go up one level.  This is like
+the space command, only more so; it skips over anything on the current level
+as well as lower levels.
+
+.item 3Control-X* (eXit)
+Exits; finishes evaluation without any more stepping.
+
+.item 3Control-T* (Type)
+Retypes the current form in full (without truncation).
+
+.item 3Control-G* (Grind)
+Grinds (i.e. prettyprints) the current form.
+
+.item 3Control-E* (Editor)
+Switches windows, to the editor.
+
+.item 3Control-B* (Breakpoint)
+Enters a 3break* loop from which you can examine the values of
+variables and other aspects of the current environment.  From
+within this loop, the following variables are available:
+.table 3
+.item step-form
+the current form.
+.item step-values
+the list of returned values.
+.item step-value
+the first returned value.
+.end_table
+If you change the values of these variables, you will affect execution.
+
+.item 3Control-L*
+Clears the screen and redisplays the last 10. pending forms (forms
+that are being evaluated).
+
+.item 3Meta-L*
+Like Control-L, but doesn't clear the screen.
+
+.item 3Control-Meta-L*
+Like Control-L, but redisplays all pending forms.
+
+.item 3?* or 3Help*
+Prints documentation on these commands.
+.end_table
+	It is strongly suggested that you write some little function
+and try the stepper on it.  If you get a feel for what the stepper does
+and how it works, you will be able to tell when it is the right thing to use
+to find bugs.
+
+.section "Evalhook"
+
+.setq evalhook-section section-page
+
+The 3evalhook* facility provides a ``hook'' into the evaluator; it is a
+way you can get a Lisp form of your choice to be executed whenever the
+evaluator is called.  The stepper uses 3evalhook*, and usually it is
+the only thing that ever needs to.  However, if you want to write your
+own stepper or something similar, this is the primitive facility that
+you can use to do so.  The way this works is a bit hairy, but unless
+you need to write your own stepper you don't have to worry about it.
+
+.defvar evalhook
+.defvar1 *evalhook*
+If the value of 3evalhook* is non-3nil*, then special things happen
+in the evaluator.  Its value is called the 2hook function*.  When a
+form (any form, even a number or a symbol) is to be evaluated, the hook
+function is called instead.  Whatever values the hook function returns
+are taken to be the results of the evaluation.  Both 3evalhook* and
+3applyhook* are bound to 3nil* before the hook function is actually
+called.
+
+The hook function receives two arguments: the form that was to be
+evaluated, and the lexical environment of evaluation.  These two
+arguments allow the hook function to perform later, if it wishes,
+the very same evaluation that the hook was called instead of.
+.end_defvar
+
+.defvar applyhook
+.defvar1 *applyhook*
+If the value of 3applyhook* is non-3nil*, it is called the
+next time the interpreter is about to apply a function to its
+evaluated arguments.  Whatever values the apply hook function
+returns are taken to be the results of calling the other function.
+Both 3evalhook* and 3applyhook* are bound to 3nil* before the
+hook function is actually called.
+
+The hook function receives three arguments: the function that was
+going to be called, the list of arguments it was going to receive,
+and the lexical environment of evaluation.  These
+arguments allow the hook function to perform later, if it wishes,
+the very same evaluation that the hook was called instead of.
+.end_defvar
+
+When either the evalhook or the applyhook is called, both variables are
+bound to 3nil*.  They are also rebound to 3nil* by 3break* and by
+the debugger, and 3setq*'ed to 3nil* when errors are dismissed
+by throwing to the Lisp top level loop.  This provides the ability to
+escape from this mode if something bad happens.
+
+In order not to impair the efficiency of the Lisp interpreter,
+several restrictions are imposed on the evalhook and applyhook.
+They apply only to evaluation--whether in a read-eval-print loop,
+internally in evaluating arguments in forms, or by explicit use
+of the function 3eval*.  They 2do not* have any effect
+on compiled function references, on use of the function 3apply*,
+or on the mapping functions.
+
+.defun evalhook form evalhook applyhook &optional environment
+Evaluates 2form* in the specified 2environment*, with 2evalhook* and 2applyhook* in
+effect for all recursive evaluations of subforms of 2form*.  However, the
+2evalhook* is not called for the evaluation of 2form* itself.
+
+2environment* is a list which represents the lexical environment
+to be in effect for the evaluation of 2form*.  3nil* means an
+empty lexical environment, in which no lexical bindings exist.  This
+is the environment used when 3eval* itself is called.  Aside from
+3nil*, the only reasonable way to get a value to pass for
+2environment* is to use the last argument passed to a hook
+function.  You must take care not to use it after the context in
+which it was made is exited, because environments normally contain
+stack lists which become garbage after their stack frames are
+popped.
+
+2environment* has no effect on the evaluation of a variable which
+is regarded as special.  This is always done by examining the value
+cell.  However, environment contains the record of the local special
+declarations currently in effect, so it does enter in the decision
+of whether a variable is special.
+
+.lisp
+.exdent 96 Here is an example of the use of 3evalhook*:
+1;; This function evaluates a form while printing debugging information.*
+(defun hook (x)
+   (terpri)
+   (evalhook x 'hook-function nil))
+
+1;; Notice how this function calls 3evalhook* to evaluate the form 3f*,*
+1;; so as to hook the sub-forms.*
+(defun hook-function (f env)
+   (let ((v (multiple-value-list
+	      (evalhook f 'hook-function nil env))))
+     (format t "form: ~S~%values: ~S~%" f v)
+     (values-list v)))
+.end_lisp
+
+The following output might be seen from 3(hook '(cons (car '(a . b)) 'c))*:
+.lisp
+form: (quote (a . b))
+values: ((a . b))
+form: (car (quote (a . b)))
+values: (a)
+form: (quote c)
+values: (c)
+(a . c)
+.end_lisp
+.end_defun
+
+.defun applyhook function list-of-args evalhook applyhook &optional environment
+Applies 2function* to 2list-of-args* in the specified 2environment*, with 2evalhook*
+and 2applyhook* in effect for all recursive evaluations of subforms of 2function*'s body.
+However, 2applyhook* is not called for this application of function itself.
+For more information, refer to the definition of 3evalhook*, immediately above.
+.end_defun
+
+.section "The MAR"
+.cindex MAR
+.setq mar section-page
+
+	The MAR facility allows any word or contiguous set of words to
+be monitored constantly, and can cause an error if the words are
+referenced in a specified manner.  The name MAR is from the similar
+device on the ITS PDP-10's; it is an acronym for `Memory Address
+Register'.  The MAR checking is done by the Lisp Machine's memory
+management hardware, so the speed of general execution is not
+significantly slowed down when the MAR is enabled.  However, the speed
+of accessing pages of memory containing the locations being checked is
+slowed down somewhat, since every reference involves a microcode trap.
+
+	These are the functions that control the MAR:
+
+.defun set-mar location cycle-type &optional n-words
+Sets the MAR on 2n-words* words, starting at 2location*.
+2location* may be any object.  Often it will be a locative pointer
+to a cell, probably created with the 3locf* special form.
+2n-words* currently defaults to 1,
+but eventually it may default to the size of the object.
+2cycle-type* says under what conditions to trap.  3:read* means that
+only reading the location should cause an error, 3:write* means that
+only writing the location should, 3t* means that both should.
+To set the MAR to detect 3setq* (and binding) of the variable 3foo*, use
+.lisp
+(set-mar (variable-location foo) :write)
+.end_lisp
+.end_defun
+
+.defun clear-mar
+Turns off the MAR.  Warm-booting the machine disables the
+MAR but does not turn it off, i.e. references to the MARed pages
+are still slowed down.  3clear-mar* does not currently speed
+things back up until the next time the pages are swapped out;
+this may be fixed some day.
+.end_defun
+
+.defun mar-mode
+3(mar-mode)* returns a symbol indicating the current state of
+the MAR.  It returns one of:
+.table 3
+.item nil
+The MAR is not set.
+.item :read
+The MAR will cause an error if there is a read.
+.item :write
+The MAR will cause an error if there is a write.
+.item t
+The MAR will cause an error if there is any reference.
+.end_table
+.end_defun
+
+Note that using the MAR makes the pages on which it is set
+somewhat slower to access, until the next time they are
+swapped out and back in again after the MAR is shut off.
+Also, use of the MAR currently breaks the read-only feature
+if those pages were read-only.
+
+Proceeding from a MAR break allows the memory reference that got an error
+to take place, and continues the program with the MAR still effective.  When
+proceeding from a write, you have the choice of whether to allow the
+write to take place or to inhibit it, leaving the location with its old
+contents.
+
+.defcondition sys:mar-break (3condition*)
+This is the condition, not an error, signaled by a MAR break.
+
+The condition instance supports these operations:
+.table 3
+.item :object
+The object one of whose words was being referenced.
+
+.item :offset
+The offset within the object of the word being referenced.
+
+.item :value
+The value read, or to be written.
+
+.item :direction
+Either 3:read* or 3:write*.
+.end_table
+
+The proceed type 3:no-action* simply proceeds, continuing with the
+interrupted program as if the MAR had not been set.  If the trap was due
+to writing, the proceed type 3:proceed-no-write* is also provided, and
+causes the program to proceed but does not store the value in the memory
+location.
+.end_defcondition
+
+Most--but not all--write operations first do a read.  3setq* and
+3rplaca* both do.  This means that if the MAR is in 3:read*
+mode it catches writes as well as reads; however, they trap
+during the reading phase, and consequently the data to be written are
+not yet known.  This also means that setting the MAR to 3t* mode
+causes most writes to trap twice, first for a read and then again for a
+write.  So when the MAR says that it trapped because of a read, this
+means a read at the hardware level, which may not look like a read in
+your program.

@@ -1,0 +1,1458 @@
+.c This file is part of the Lisp Machine manual.	-*-Bolio-*-
+.c The stream section of the I/O System Chapter.
+
+.section I/O Streams
+.setq streams section-page
+.cindex stream
+.cindex I/O stream
+
+An 2I/O stream*, or just 2stream*, is a source
+and/or sink of characters or bytes.  A set of 2operations* is
+available with every stream; operations include things like ``output a
+character'' and ``input a character''.  The way to perform an operation on
+a stream is the same for all streams, although what happens inside the
+stream is very different depending on what kind of a stream it is.  So
+all a program has to know is how to deal with streams using the
+standard, generic operations.  A programmer creating a new kind of stream
+only needs to implement the appropriate standard operations.
+
+	A stream is a message-receiving object.  This means that it is
+something that you can apply to arguments.  The first argument is a
+keyword symbol which is the name of the operation you wish to perform.
+The rest of the arguments depend on what operation you are doing.
+Message-passing and generic operations are explained in the flavor
+chapter ((flavor)).
+
+	Some streams can only do input, some can only do output, and
+some can do both.  Some operations are only supported by some streams.
+Also, there are some operations that the stream may not support by
+itself, but which work anyway, albeit slowly, because the 2stream
+default handler* can handle them.  All streams support the operation
+3:which-operations*, which returns a list of the names of all of the
+operations that are supported ``natively'' by the stream.
+(3:which-operations* itself is not in the list.)
+
+All input streams support all the standard input operations, and all
+output streams support all the standard output operations.  All
+bidirectional streams support both.
+
+.defun streamp object
+According to Common Lisp, this returns 3t* if 2object* is a stream.  In
+the Lisp machine, a stream is any object which can be called as a
+function with certain calling conventions.  It is theoretically
+impossible to test for this.  However, 3streamp* does return 3t* for any of
+the usual types of streams, and 3nil* for any Common Lisp datum which is
+not a stream.
+.end_defun
+
+.subsection Standard Streams
+
+	There are several variables whose values are streams used by many
+functions in the Lisp system.  These variables and their uses are listed here.
+By convention, variables that are expected to hold a stream capable of input
+have names ending with 3-input*, and similarly for output.  Those expected
+to hold a bidirectional stream have names ending with 3-io*.  The names
+with asterisks are synonyms introduced for the sake of Common Lisp.
+
+.defvar *standard-input*
+.defvar1 standard-input
+In the normal Lisp top-level loop, input is read from
+3*standard-input** (that is, whatever stream is the value of
+3*standard-input**).  Many input functions, including 3tyi* and
+3read*, take a stream argument that defaults to 3*standard-input**.
+.end_defvar
+
+.defvar *standard-output*
+.defvar1 standard-output
+In the normal Lisp top-level loop, output is sent to
+3*standard-output** (that is, whatever stream is the value of
+3*standard-output**).  Many output functions, including 3tyo* and
+3print*, take a stream argument that defaults to 3*standard-output**.
+.end_defvar
+
+.defvar *error-output*
+.defvar1 error-output
+The value of 3*error-output** is a stream on which noninteractive error
+or warning messages should be printed.  Normally this is the same as
+3*standard-output**, but 3*standard-output** might be bound to a file
+and 3*error-output** left going to the terminal.
+.end_defvar
+
+.defvar *debug-io*
+.defvar1 debug-io
+The value of 3*debug-io** is used for all input and output by the
+error handler.  Normally this is a synonym for 3*terminal-io**.  The
+value may be 3nil*, which is regarded as equivalent to a synonym for
+3*terminal-io**.  This feature is provided because users often set
+3*debug-io** by hand, and it is much easier to set it back to 3nil*
+afterward than to figure out the proper synonym stream pointing to
+3*terminal-io**.
+.end_defvar
+
+.defvar *query-io*
+.defvar1 query-io
+The value of 3*query-io** is a stream that should be used when
+asking questions of the user.  The question should be output to this
+stream, and the answer read from it.  The reason for this is that when
+the normal input to a program may be coming from a file, questions such
+as ``Do you really want to delete all of the files in your directory??'' should
+be sent directly to the user, and the answer should come from the user,
+not from the data file.  3*query-io** is used by 3fquery* and related
+functions; see (fquery-fun).
+.end_defvar
+
+.defvar *terminal-io*
+.defvar1 terminal-io
+The value of 3*terminal-io** is the stream that the program should use
+to talk to the user's console.  In an interactive program, it is the
+window from which the program is being run; I/O on this stream reads
+from the keyboard and displays on the screen.  However, in a background
+process that has no window, 3*terminal-io** defaults to a stream that
+does not ever expect to be used.  If it is used, perhaps by an error
+printout, it turns into a background window and requests the user's
+attention.
+.end_defvar
+
+.defvar *trace-output*
+.defvar1 trace-output
+The value of 3*trace-output** is the stream on which the 3trace* function
+prints its output.
+.end_defvar
+
+3*standard-input**, 3*standard-output**, 3*error-output**, 3*debug-io**,
+3*trace-output**, and 3*query-io** are initially bound to synonym
+streams that pass all operations on to the stream that is the value of
+3*terminal-io**.  Thus any operations performed on those streams go
+to the keyboard and screen.
+
+Most user programs should not change the value of 3*terminal-io**.  A
+program which wants (for example) to divert output to a file should do
+so by binding the value of 3*standard-output**; that way queries on
+3*query-io**, debugging on 3*debug-io** and error messages sent to
+3*error-output** can still get to the user by going through
+3*terminal-io**, which is usually what is desired.
+
+.subsection Standard Input Stream Operations
+.setq general-stream-ops page
+
+.defmetamethod streams :tyi &optional eof
+The stream inputs one character and returns it.  For example, if the next
+character to be read in by the stream is a `C', then the form
+.lisp
+(send s :tyi)
+.end_lisp
+returns the value of 3#/C* (that is, 103 octal).
+Note that the 3:tyi* operation does not
+echo the character in any fashion; it just does the input.  The
+3tyi* function (see (tyi-fun)) does echoing
+when reading from the terminal.
+
+The optional 2eof* argument to the 3:tyi*
+operation tells the stream what to do if it gets to the end of the
+file.  If the argument is not provided or is 3nil*, the stream
+returns 3nil* at the end of file.  Otherwise it signals a 3sys:end-of-file* error.
+Note that this is 2not* the same as the eof-option argument to
+3read*, 3tyi*, and related functions.
+
+The 3:tyi* operation on a binary input stream returns a non-negative
+number, not necessarily to be interpreted as a character.
+
+For some streams (such as windows), not all the input data are numbers.
+Some are lists, called 2blips*.  The 3:tyi* operation returns only
+numbers.  If the next available input is not a number, it is discarded,
+and so on until a number is reached (or end of file is reached).
+.end_defmetamethod
+
+.defmetamethod streams :any-tyi &optional eof
+Like 3:tyi* but returns any kind of datum.  Non-numbers are not
+discarded as they would be by 3:tyi*.  This distinction only makes
+a difference on streams which can provide input which is not composed
+of numbers; currently, only windows can do that.
+.end_defmetamethod
+
+.setq tyipeek-stream-operation page
+.defmetamethod streams :tyipeek &optional eof
+Peeks at the next character or byte from the stream without discarding
+it.  The next 3:tyi* or 3:tyipeek* operation will get the same
+character.
+
+2eof* is the same as in the 3:tyi* operation: if 3nil*, end of
+file returns 3nil*; otherwise, it signals a 3sys:end-of-file* error.
+.end_defmetamethod
+
+.defmetamethod streams :untyi char
+Unreads the character or byte 2char*; that is to say, puts it back into
+the input stream so that the next 3:tyi* operation will read it again.
+For example,
+.lisp
+(send s :untyi 120)
+(send s :tyi) ==> 120
+.end_lisp
+This operation is used by 3read*, and any stream that supports 3:tyi*
+must support 3:untyi* as well.
+
+You are only allowed to 3:untyi* one character before doing a
+3:tyi*, and the character you 3:untyi* must be the last character
+read from the stream.  That is, 3:untyi* can only be used to back up
+one character, not to stuff arbitrary data into the stream.  You also
+can't 3:untyi* after you have peeked ahead with 3:tyipeek* since
+that does one 3:untyi* itself.  Some streams implement 3:untyi* by
+saving the character, while others implement it by backing up the
+pointer to a buffer.
+.end_defmetamethod
+
+.defmetamethod streams :string-in eof-option string &optional (start 30*) end
+Reads characters from the stream and stores them into the array
+2string*.  Many streams can implement this far more efficiently that
+repeated 3:tyi*'s.  2start* and 2end*, if supplied, delimit the
+portion of 2string* to be stored into.  If 2eof-option* is
+non-3nil* then a 3sys:end-of-file* error is signaled if end of file
+is reached on the stream before the string has been filled.  If
+2eof-option* is 3nil*, any number of characters before end of file
+is acceptable, even no characters.
+
+If 2string* has an array-leader, the fill pointer is adjusted to 2start* plus
+the number of characters stored into 2string*.
+
+Two values are returned: the index of the next position in 2string* to be filled,
+and a flag that is non-3nil* if end of file was reached before 2string* was
+filled.  Most callers do not need to look at either of these values.
+
+2string* may be any kind of array, not necessarily a string; this is useful
+when reading from a binary input stream.
+.end_defmetamethod
+
+.defmetamethod streams :line-in &optional leader
+The stream should input one line from the input source, and return it as a
+string with the carriage return character stripped off.  Contrary to what you
+might assume from its name, this operation is not much like the 3readline* function.
+
+Many streams have a string that is used as a buffer for lines.  If this string
+itself were returned, there would be problems caused if the caller of the stream
+attempted to save the string away somewhere, because the contents of the string
+would change when the next line was read in.  In order to solve this problem,
+the string must be copied. On the other hand, some streams don't reuse the
+string, and it would be wasteful to copy it on every 3:line-in* operation.
+This problem is solved by using the 2leader* argument to 3:line-in*.  If
+2leader* is 3nil* (the default), the stream does not bother to copy the
+string and the caller should not rely on the contents of that string after the
+next operation on the stream.  If 2leader* is 3t*, the stream does make a
+copy.  If 2leader* is a fixnum then the stream makes a copy with an array
+leader 2leader* elements long.  (This is used by the editor, which represents
+lines of buffers as strings with additional information in their array-leaders,
+to eliminate an extra copy operation.)
+
+If the stream reaches end of file while reading in characters, it
+returns the characters it has read in as a string and returns a second value of
+3t*.  The caller of the stream should therefore arrange to receive the second
+value, and check it to see whether the string returned was a whole line or just
+the trailing characters after the last carriage return in the input source.
+
+This operation should be implemented by all input streams whose data are
+characters.
+.end_defmetamethod
+
+.defmetamethod streams :string-line-in eof-option string &optional (start 30*) end
+Reads characters, storing them in 2string*, until 2string* is full
+or a 3Return* character is read.  If input stops due to a Return, the Return
+itself is not put in the buffer.
+
+Thus, this operation is nearly the same as 3:string-in*, except that
+3:string-in* always keeps going until the buffer is full or until end
+of file.
+
+2start* and 2end*, if supplied, delimit the
+portion of 2string* to be stored into.  If 2eof-option* is
+non-3nil* then a 3sys:end-of-file* error is signaled if end of file
+is reached on the stream before the string has been filled.  If
+2eof-option* is 3nil*, any number of characters before end of file
+is acceptable, even no characters.
+
+If 2string* has an array-leader, the fill pointer is adjusted to 2start* plus
+the number of characters stored into 2string*.
+
+2string* may be any kind of array, not necessarily a string; this is useful
+when reading from a binary input stream.
+
+Three values are returned:
+.table 1 0 300
+.item (1)
+The index in 2string* at which input stopped.  This is the first
+index not stored in.
+.item (2)
+3t* if input stopped due to end of file.
+.item (3)
+3t* if the line is incomplete; that is, if a 3Return* character
+did not terminate it.
+.end_table
+.end_defmetamethod
+
+.defmetamethod streams :read-until-eof
+Discards all data from the stream until it is at end of file,
+or does anything else with the same result.
+.end_defmetamethod
+
+.defmetamethod streams :close &optional ignore
+Releases resources associated with the stream, when it is not going to be
+used any more.  On some kinds of streams, this may do nothing.
+On Chaosnet streams, it closes the Chaosnet connection, and
+on file streams, it closes the input file on the file server.
+
+The argument is accepted for compatibility with 3:close* on output streams.
+.end_defmetamethod
+
+.subsection Standard Output Stream Operations
+
+.defmetamethod streams :tyo char
+The stream outputs the character 2char*.  For example, if 3s* is bound
+to a stream, then the form
+.lisp
+(send s :tyo #/B)
+.end_lisp
+outputs a 3B* to the stream.  For binary output streams, the argument
+is a non-negative number rather than specifically a character.
+.end_defmetamethod
+
+.defmetamethod streams :fresh-line
+Tells the stream that it should position itself at the beginning of
+a new line.  If the stream is already at the beginning of a fresh line
+it should do nothing; otherwise it should output a carriage return.  If
+the stream cannot tell whether it is at the beginning of a line, it should
+always output a carriage return.
+.end_defmetamethod
+
+.defmetamethod streams :string-out (string 30*) &optional start end
+Outputs the characters of 2string* successively to 2stream*.  This
+operation is provided for two reasons; first, it saves the writing of a loop
+which is used very often, and second, many streams can perform this operation
+much more efficiently than the equivalent sequence of 3:tyo* operations.
+
+If 2start* and 2end* are not supplied, the whole string is output.
+Otherwise a substring is output; 2start* is the index of the first character
+to be output (defaulting to 30*), and 2end* is one greater than the index of
+the last character to be output (defaulting to the length of the string).  Callers
+need not pass these arguments, but all streams that handle 3:string-out* must
+check for them and interpret them appropriately.
+.end_defmetamethod
+
+.defmetamethod streams :line-out string &optional (start 30*) end
+Outputs the characters of 2string* successively to 2stream*, then
+outputs a 3Return* character.  2start* and 2end* optionally
+specify a substring, as with 3:string-out*.  If the stream doesn't
+support 3:line-out* itself, the default handler implements it by means
+of 3:tyo*.
+
+This operation should be implemented by all output streams whose data are
+characters.
+.end_defmetamethod
+
+.setq close-message page
+.defmetamethod streams :close &optional mode
+Closes the stream to make the output final if this is necessary.  The
+stream becomes 2closed* and no further output operations should be
+performed on it.  However, it is all right to 3:close* a closed
+stream.  On many file server hosts, a file being written is not
+accessible to be read until the output stream is closed.
+
+This operation does nothing on streams for which it is not meaningful.
+
+The 2mode* argument is normally not supplied.  If it is 3:abort*, we are
+abnormally exiting from the use of this stream.  If the stream is outputting to
+a file, and has not been closed already, the stream's newly-created file is
+deleted; it will be as if it was never opened in the first place.  Any previously
+existing file with the same name remains undisturbed.
+.end_defmetamethod
+
+.defmetamethod streams :eof
+Indicates the end of data on an output stream.  This is different from 3:close*
+because some devices allow multiple data files to be transmitted without closing.
+3:close* implies 3:eof* when the stream is an output stream and the close
+mode is not 3:abort*.
+
+This operation does nothing on streams for which it is not meaningful.
+.end_defmetamethod
+
+.subsection Asking Streams What They Can Do
+
+All streams are supposed to support certain operations which enable a
+program using the stream to ask which operations are available.
+
+.defmetamethod streams :which-operations
+Returns a list of operations handled natively by the stream.
+Certain operations not in the list may work anyway, but slowly, so it is
+just as well if any programs that work with or without them
+choose not to use them.
+
+3:which-operations* itself need not be in the list.
+.end_defmetamethod
+
+.defmetamethod streams :operation-handled-p operation
+Returns 3t* if 2operation* is handled natively by the stream:
+if 2operation* is a member of the 3:which-operations* list, or is
+3:which-operations*.
+.end_defmetamethod
+
+.defmetamethod streams :send-if-handles operation &rest arguments
+Performs the operation 2operation*, with the specified 2arguments*,
+only if the stream can handle it.  If 2operation* is handled, this
+is the same as sending an 2operation* message directly, but if 2operation*
+is not handled, using 3:send-if-handles* avoids any error.
+
+If 2operation* is handled, 3:send-if-handles* returns whatever values
+the execution of the 2operation* returns.  If 2operation* is not handled,
+3:send-if-handles* returns 3nil*.
+.end_defmetamethod
+
+.defmetamethod streams :direction
+Returns 3:input*, 3:output*, or 3:bidirectional*
+for a bidirectional stream.
+
+There are a few kinds of streams, which cannot do either input or
+output, for which the 3:direction* operation returns 3nil*.  For
+example, 3open* with the 3:direction* keyword specified as 3nil*
+returns a stream-like object which cannot do input or output but can
+handle certain file inquiry operations such as 3:truename* and
+3:creation-date*.
+.end_defmetamethod
+
+.defmetamethod streams :characters
+Returns 3t* if the data input or output on the stream
+represent characters, or 3nil* if they are just numbers (as for a stream
+reading a non-text file).
+.end_defmetamethod
+
+.defmetamethod streams :element-type
+Returns a type specified describing in principle the data input or output on the stream.
+Refer to the function 3stream-element-type*, below, which works
+using this operation.
+.end_defmetamethod
+
+.need 2000
+These functions for inquiring about streams are defined by Common Lisp.
+
+.defun input-stream-p stream
+3t* if 2stream* handles input operations (at least, if it handles 3:tyi*).
+.end_defun
+
+.defun output-stream-p stream
+3t* if 2stream* handles output operations (at least, if it handles 3:tyo*).
+.end_defun
+
+.defun stream-element-type stream
+Returns a type specifier which describes, conceptually, the kind of data
+input from or output to 2stream*.  The value is always a subtype of
+3integer* (for a binary stream) or a subtype of 3character* (for a
+character stream).  If it is a subtype of 3integer*, a Common Lisp
+program should use 3read-byte* ((read-byte-fun)) or 3write-byte*
+((write-byte-fun)) for I/O.  If it is a subtype of 3character*,
+3read-char* ((read-char-fun)) or 3write-char* ((write-char-fun))
+should be used.
+
+The value returned is not intended to be rigidly accurate.  It describes
+the typical or characteristic sort of data transferred by the stream,
+but the stream may on occasion deal with data that do not fit the type;
+also, not all objects of the type may be possible as input or even make
+sense as output.  For example, windows describe their element type
+as 3character* even though they may offer blips, which are lists,
+as input on occasion.  In addition, streams which say they provide
+characters really return integers if the 3:tyi* operation is used
+rather than the standard Common Lisp function 3read-char*.
+.end_defun
+
+.subsection Operations for Interactive Streams
+
+The operations 3:listen*, 3:tyi-no-hang*, 3:rubout-handler* and
+3:beep* are intended for interactive streams, which communicate with
+the user.  3:listen* and 3:tyi-no-hang* are supported in a trivial
+fashion by other streams, for compatibility.
+
+.setq :listen-stream-operation page
+.defmetamethod streams :listen
+On an interactive device, the 3:listen* operation returns non-3nil* if
+there are any input characters immediately available, or 3nil* if there is
+no immediately available input.  On a non-interactive device, the operation
+always returns non-3nil* except at end of file.
+
+The main purpose of 3:listen* is to test whether the user has hit
+a key, perhaps trying to stop a program in progress.
+.end_defmetamethod
+
+.defmetamethod streams :tyi-no-hang &optional eof
+Just like 3:tyi* except that it returns 3nil* rather than waiting if
+it would be necessary to wait in order to get the character.  This lets
+the caller check efficiently for input being available and get the input
+if there is any.
+
+3:tyi-no-hang* is different from 3:listen* because it reads a
+character.
+
+Streams for which the question of whether input is available is not
+meaningful treat this operation just like 3:tyi*.  So do
+Chaosnet file streams.  Although in fact reading a
+character from a file stream may involve a delay, these delays are
+2supposed* to be insignificant, so we pretend they do not exist.
+.end_defmetamethod
+
+.defmetamethod streams :any-tyi-no-hang &optional eof
+Like 3:tyi-no-hang* but does not filter and discard input which is not numbers.
+It is therefore possible to see blips in the input stream.
+The distinction matters only for input from windows.
+.end_defmetamethod
+
+.defmetamethod streams :rubout-handler options function &rest args
+This is supported by interactive bidirectional streams, such as windows
+on the terminal, and is described in its own section below (see
+(rubout-handler)).
+.end_defmetamethod
+
+.defmetamethod streams :beep &optional type
+This is supported by interactive streams.  It attracts the attention of the
+user by making an audible beep and/or flashing the screen.
+2beep-type* is a keyword selecting among several different beeping noises;
+see 3beep* ((beep-fun)) for a list of them.
+.end_defmetamethod
+
+.subsection Cursor Positioning Stream Operations
+
+.defmetamethod streams :read-cursorpos &optional (units 3:pixel*)
+.setq read-cursorpos page
+This operation is supported by all windows and some other streams.
+
+It returns two values, the current 2x* and 2y* coordinates
+of the cursor.  It takes one optional argument, which is a symbol indicating
+in what units 2x* and 2y* should be; the symbols 3:pixel*
+and 3:character* are understood.  3:pixel* means that the coordinates
+are measured in display pixels (bits), while 3:character* means that
+the coordinates are measured in characters horizontally and lines vertically.
+
+This operation and 3:increment-cursorpos* are used by the 3format* 3~T*
+request (see (format-t-operation)), which is why 3~T* doesn't work on all
+streams.  Any stream that supports this operation should support
+3:increment-cursorpos* as well.
+
+Some streams return a meaningful value for the horizontal position
+but always return zero for the vertical position.  This is sufficient
+for 3~T* to work.
+.end_defmetamethod
+
+.defmetamethod streams :increment-cursorpos x-increment y-increment &optional (units 3:pixel*)
+Moves the stream's cursor left or down according to the specified increments,
+as if by outputting an appropriate number of space or return characters.
+2x* and 2y*
+are like the values of 3:read-cursorpos* and 2units* is the same
+as the 2units* argument to 3:read-cursorpos*.
+
+Any stream which supports this operation should support
+3:read-cursorpos* as well, but it need not support 3:set-cursorpos*.
+
+Moving the cursor with 3:increment-cursorpos* differs from moving it
+to the same place with 3:set-cursorpos* in that this operation is
+thought of as doing output and 3:set-cursorpos* is not.  For example,
+moving a window's cursor down with 3:increment-cursorpos* when it is
+near the bottom to begin with will wrap around, possibly doing a
+3**MORE***.  3:set-cursorpos*, by comparison, cannot move the cursor
+``down'' if it is at the bottom of the window; it can move the cursor
+explicitly to the top of the window, but then no 3**MORE*** will
+happen.
+
+Some streams, such as those created by 3with-output-to-string*, cannot
+implement arbitrary cursor motion, but do implement this operation.
+.end_defmetamethod
+
+.defmetamethod streams :set-cursorpos x y &optional (units 3:pixel*)
+This operation is supported by the same streams that support
+3:read-cursorpos*.  It sets the position of the cursor.  2x* and 2y*
+are like the values of 3:read-cursorpos* and 2units* is the same
+as the 2units* argument to 3:read-cursorpos*.
+.end_defmetamethod
+
+.defmetamethod streams :clear-screen
+Erases the screen area on which this stream displays.
+Non-window streams don't support this operation.
+.end_defmetamethod
+
+There are many other special-purpose stream operations for graphics.  They are
+not documented here, but in the window-system documentation.  No claim that the
+above operations are the most useful subset should be implied.
+
+.subsection Operations for Efficient Pretty-Printing
+
+3grindef* runs much more efficiently on streams that implement
+the 3:untyo-mark* and 3:untyo* operations.
+
+.defmetamethod streams :untyo-mark
+This is used by the grinder (see (grindef-fun)) if the output stream supports it.
+It takes no arguments.  The stream
+should return some object that indicates how far output has gotten up to in
+the stream.
+.end_defmetamethod
+
+.defmetamethod streams :untyo mark
+This is used by the grinder (see (grindef-fun)) in conjunction with 3:untyo-mark*.
+It takes one argument, which is something returned by the 3:untyo-mark*
+operation of the stream.  The stream should back up output to the point
+at which the object was returned.
+.end_defmetamethod
+
+.subsection Random Access File Operations
+
+The following operations are implemented only by streams to random-access devices,
+principally files.
+
+.defmetamethod streams :read-pointer
+Returns the current position within the file, in characters (bytes in fixnum
+mode).  For text files on ASCII file servers, this is the number of Lisp
+Machine characters, not ASCII characters.  The numbers are different because of
+character-set translation.
+.end_defmetamethod
+
+.defmetamethod streams :set-pointer new-pointer
+Sets the reading position within the file to 2new-pointer* (bytes in
+fixnum mode).  For text files on ASCII file servers, this does not do
+anything reasonable unless 2new-pointer* is 0, because of
+character-set translation.  Some file systems support this operation
+for input streams only.
+.end_defmetamethod
+
+.defmetamethod streams :rewind
+This operation is obsolete.  It is the same as 3:set-pointer* with
+argument zero.
+.end_defmetamethod
+
+.subsection Buffered Stream Operations
+
+.defmetamethod streams :clear-input
+Discards any buffered input the stream may have.
+It does nothing on streams for which it is not meaningful.
+.end_defmetamethod
+
+.defmetamethod streams :clear-output
+Discards any buffered output the stream may have.
+It does nothing on streams for which it is not meaningful.
+.end_defmetamethod
+
+.defmetamethod streams :force-output
+This is for output streams to buffered asynchronous devices, such as the
+Chaosnet.  3:force-output* causes any buffered output to be sent to the
+device.  It does not wait for it to complete; use 3:finish* for that.  If a
+stream supports 3:force-output*, then 3:tyo*, 3:string-out*, and
+3:line-out* may have no visible effect until a 3:force-output* is done.
+
+This operation does nothing on streams for which it is not meaningful.
+.end_defmetamethod
+
+.defmetamethod streams :finish
+This is for output streams to buffered asynchronous devices, such as the
+Chaosnet.  3:finish* does a 3:force-output*, then waits until the
+currently pending I/O operation has been completed.
+
+This operation does nothing on streams for which it is not meaningful.
+.end_defmetamethod
+
+The following operations are implemented only by buffered input streams.
+They allow increased efficiency by making the stream's internal buffer
+available to the user.
+
+.defmetamethod streams :read-input-buffer &optional eof
+Returns three values: a buffer array, the index in that array of the next input byte,
+and the index in that array just past the last available input byte.  These values
+are similar to the 2string*, 2start*, 2end* arguments taken by many functions
+and stream operations.  If the end of the file
+has been reached and no input bytes are available,
+this operation returns 3nil* or signals an error,
+based on the 2eof* argument, just like the 3:tyi* operation.
+After reading as many bytes from the array
+as you care to, you must use the 3:advance-input-buffer* operation.
+.end_defmetamethod
+
+.defmetamethod streams :get-input-buffer &optional eof
+This is an obsolete operation similar to 3:read-input-buffer*.
+The only difference is that the third value is the number of significant
+elements in the buffer-array, rather than a final index.
+If found in programs, it should be replaced with 3:read-input-buffer*.
+.end_defmetamethod
+
+.defmetamethod streams :advance-input-buffer &optional new-pointer
+If 2new-pointer* is non-3nil*, it is the index in the buffer array of the next
+byte to be read.  If 2new-pointer* is 3nil*, the entire buffer has been used up.
+.end_defmetamethod
+
+.subsection Obtaining Streams to Use
+
+Windows are one important class of streams.  Each window can be used as
+a stream.  Output is displayed on the window and input comes from the
+keyboard.  A window is created using 3make-instance* on a window
+flavor.  Simple programs use windows implicitly through 3*terminal-io**
+and the other standard stream variables.
+
+Also important are 2file streams*, which are produced by the function
+3open* (see (open-fun)).  These read or write the contents of a file.
+
+2Chaosnet streams* are made from Chaosnet connections.  Data output to
+the stream goes out over the network; data coming in over the network is
+available as input from the stream.  File streams that deal with
+Chaosnet file servers are very similar to Chaosnet streams, but Chaosnet
+streams can be used for many purposes other than file access.
+
+2String streams* read or write the contents of a string.  They are
+made by 3with-output-to-string* or 3with-input-from-string*
+(see (with-input-from-string-fun)), or by 3make-string-input-stream*
+or 3make-string-output-stream*, below.
+
+2Editor buffer streams* read or write the contents of an editor
+buffer.
+
+The 2null stream* may be passed to a program that asks for a stream
+as an argument.  It returns immediate end of file if used for input
+and throws away any output.  The null stream is the symbol
+3si:null-stream*.  This is to say, you do not call that function to
+get a stream or use the symbol's value as the stream; 2the symbol
+itself* is the object that is the stream.
+
+The 2cold-load stream* is able to do I/O to the keyboard and screen
+without using the window system.  It is what is used by the error
+handler, if you type 3Terminal Call*, to handle a background error that the
+window system cannot deal with.  It is called the cold-load stream
+because it is what is used during system bootstrapping, before the
+window system has been loaded.
+
+.defun si:null-stream operation &rest arguments
+This function is the null stream.  Like any stream, it supports various
+operations.  Output operations are ignored and input operations report
+end of file immediately, with no data.  Usage example:
+.lisp
+(let ((*standard-output* 'si:null-stream))
+  (function-whose-output-I-dont-want))
+.end_lisp
+.end_defun
+
+.defconst si:cold-load-stream
+The one and only cold-load stream.  Usage example:
+.lisp
+(let ((*query-io* si:cold-load-stream))
+  (yes-or-no-p "Clear all window system locks? "))
+.end_lisp
+.end_defconst
+
+.defmac with-open-stream (variable expression) body...
+2body* is executed with 2variable* bound to the value of
+2expression*, which ought to be a stream.  On exit, whether normal
+or by throwing, a 3:close* message with argument 3:abort* is sent
+to the stream.
+
+This is a generalization of 3with-open-file*, which is equivalent
+to using 3with-open-stream* with a call to 3open* as the
+2expression*.
+.end_defmac
+
+.defmac with-open-stream-case (variable expression) clauses...
+Like 3with-open-stream* as far as opening and closing the stream are
+concerned, but instead of a simple body, it has clauses like those of a
+3condition-case* that say what to do if 2expression* does or does
+not get an error.  See 3with-open-file-case*, (with-open-file-case-fun).
+.end_defmac
+
+.defun make-synonym-stream symbol-or-locative
+.defun1 make-syn-stream symbol-or-locative
+Creates and returns a 2synonym* stream (`syn' for
+short).  Any operations sent to this stream are redirected to the stream
+that is the value of the argument (if it is a symbol) or the contents of
+it (if it is a locative).
+
+A synonym stream is actually an uninterned symbol whose function
+defnition is forwarded to the function cell of the argument or
+to the contents of the argument as appropriate.  If the argument is a
+symbol, the synonym stream's print-name is 2symbol*3-syn-stream*;
+otherwise the name is just 3syn-stream*.  Once a synonym stream is
+made for a symbol, it is recorded, and the same one is handed out
+again if there is another request for it.
+
+The two names for this function are synonyms too.
+.end_defun
+
+.defun make-concatenated-stream &rest streams
+Returns an input stream which will read its input from the first of 2streams* until
+that reaches its eof, then read input from the second of 2streams*, and so on until
+the last of 2streams* has reached end of file.
+.end_defun
+
+.defun make-two-way-stream input-stream output-stream
+Returns a bidirectional stream which passes input operations to
+2input-stream* and passes output operations to 2output-stream*.
+This works by attempting to recognize all standard input operations;
+anything not recognized is passed to 2output-stream*.
+.end_defun
+
+.defun make-echo-stream input-stream output-stream
+Like 3make-two-way-stream* except that each input character read via
+2input-stream* is output to 2output-stream* before it is returned to
+the caller.
+.end_defun
+
+.defun make-broadcast-stream &rest streams
+Returns a stream that only works in the output direction.  Any output sent to
+this stream is forwarded to all of the streams given.  The 3:which-operations*
+is the intersection of the 3:which-operations* of all of the streams.  The value(s)
+returned by a stream operation are the values returned by the last stream in 2streams*.
+.end_defun
+
+.defun zwei:interval-stream interval-or-from-bp &optional to-bp in-order-p hack-fonts
+Returns a bidirectional stream that reads or writes all or part of an
+editor buffer.  Note that editor buffer streams can also be obtained
+from 3open* by using a pathname whose host is 3ED*, 3ED-BUFFER* or
+3ED-FILE* (see (editor-hosts)).
+
+The first three arguments specify the buffer or portion to be read or
+written.  Either the first argument is an 2interval* (a buffer is one
+kind of interval), and all the text of that interval is read or written,
+or the first two arguments are two buffer pointers delimiting the range
+to be read or written.  The third argument is used only in the latter
+case; if non-3nil*, it tells the function to assume that the second
+buffer pointer comes later in the buffer than the first and not to take
+the time to verify the assumption.
+
+The stream has only one pointer inside it, used for both input and
+output.  As you do input, the pointer advances through the text.
+When you do output, it is inserted in the buffer at the place where the
+pointer has reached.  The pointer starts at the beginning of the
+specified range.
+
+2hack-fonts* tells what to do about fonts.  Its possible values are
+
+.table 3
+.item t
+The character 3* is recognized as special when you output to the
+stream; sequences such as 32* are interpreted as font-changes.  They
+do not get inserted into the buffer; instead, they change the font in
+which following output will be inserted.  On input, font change
+sequences are included to indicate faithfully what was in the buffer.
+
+.item :tyo
+You are expected to read and write
+16-bit characters containing font numbers.
+
+.item nil
+All output is inserted in font zero and font information is discarded in
+the input you receive.  This is the best mode to use if you are
+reading or otherwise parsing the contents of an editor buffer.
+.end_table
+.end_defun
+
+.defmac sys:with-help-stream (stream options...) body...
+Executes the 2body* with the variable 2stream* bound to a suitable
+stream for printing a large help message.  If 3*standard-output** is a
+window, then 2stream* is also a window; a temporary window which fills
+the screen.  Otherwise, 2stream* is just the same as
+3*standard-output**.
+
+The purpose of this is to spare the user the need to read a large help
+printout in a small window, or have his data overwritten by it
+permanently.  This is the mechanism used if you type the 3Control-Help*
+key while in the rubout handler.
+
+2options* is a list of alternating keywords and values.
+.table 3
+.kitem :label
+The value (which is evaluated) is used as the label of the temporary
+window, if one is used.
+
+.kitem :width
+The value, which is not evaluated, is a symbol.  While 2body* is
+executed, this symbol is bound to the width, in characters, available
+for the message.
+
+.kitem :height
+The value is a symbol, like the value after 3:width*, and it is bound
+to the height in lines of the area available for the help message.
+
+.kitem :superior
+The value, which is evaluated, specifies the original stream to use in
+deciding where to print the help message.  The default is
+3*standard-output**.
+.end_table
+.end_defmac
+
+.subsection String I/O Streams
+
+The functions and special forms in this section allow you to create I/O
+streams that input from or output to the contents of a string.
+
+.defun make-string-input-stream string &optional (start 30*) end
+Returns a stream which can be used to read the contents of 2string*
+(or the portion of it from index 2start* to index 2end*) as input.
+End of file occurs on reading past position 2end* or the end of
+string.
+.end_defun
+
+.defun make-string-output-stream &optional string
+Returns an output stream which will accumulate all output in a string.
+If 2string* is non-3nil*, output is added to it with 3string-nconc*
+((string-nconc-fun)).  Otherwise, a new string is created and used to
+hold the output.
+.end_defun
+
+.defun get-output-stream-string string-output-stream
+Returns the string of output accumulated so far by a stream which was
+made by 3make-string-output-stream*.  The accumulated output is
+cleared out, so it will not be obtained again if
+3get-output-stream-string* is called another time on the same stream.
+.end_defun
+
+.defmac with-input-from-string (var string &key start end index) body...
+The form
+.lisp
+(with-input-from-string (2var* 2string*)
+    2body*)
+.end_lisp
+evaluates the forms in 2body* with the variable 2var* bound to a stream
+which reads characters from the string which is the value of the form
+2string*.  The value of the construct is the value of the last
+form in its body.
+
+If the 2start* and 2end* arguments are specified, they should be
+forms.  They are evaluated at run time to produce the indices starting and
+ending the portion of 2string* to be read.
+
+If the 2index* argument is specified, it should be something 3setf*
+can store in.  When 2body* is finished, the index in the string at
+which reading stopped is stored there.  This is the index of the first
+character not read.  If the entire string was read, it is the length of
+the string.  The value of 2index* is not updated until
+3with-input-from-string* is exited, so you can't use its value within
+the body to see how far the reading has gotten.  Example:
+.lisp
+(with-input-from-string
+     (foo "This is a test." :start (+ 2 2) :end 8 :index bar)
+  (readline))
+.end_lisp
+returns 3" is "* and sets 3bar* to eight.
+
+An older calling sequence which used positional rather than keyword
+arguments is still accepted:
+.lisp
+(with-input-from-string (2var* 2string* 2index* 2end*)
+    2body*)
+.end_lisp
+
+The functions 3read-from-string* and 3cli:read-from-string*
+are convenient special cases of what 3with-input-from-string* can do.
+See (read-from-string-fun).
+.end_defmac
+
+.defmac with-output-to-string (var [string [index]]) body...
+This special form provides a variety of ways to send output to a string
+through an I/O stream.
+.lisp
+(with-output-to-string (2var*)
+  2body*)
+.end_lisp
+evaluates the forms in 2body* with 2var* bound to a stream
+which saves the characters output to it in a string.  The value of
+the special form is the string.
+
+.lisp
+(with-output-to-string (2var* 2string*)
+  2body*)
+.end_lisp
+appends its output to the string which is the value of the form 2string*.
+(This is like the 3string-nconc* function; see (string-nconc-fun).)
+The value returned is the value of the last form in the body, rather than the string.
+Multiple values are not returned.  2string* must have a fill pointer.
+If 2string*
+is too small to contain all the output, 3adjust-array-size* is used to
+make it bigger.
+
+.lisp
+(with-output-to-string (2var* 2string* 2index*)
+  2body*)
+.end_lisp
+is similar to the above except that 2index* is a variable or 3setf*-able
+reference which contains the index of the next character to be stored into.
+It must be initialized before the 3with-output-to-string* and it is updated
+upon normal exit.
+The value of 2index* is not updated until 3with-output-to-string*
+returns, so you can't use its value within the body to see how far
+the writing has gotten.  The presence of 2index* means that 2string*
+is not required to have a fill-pointer; if there is one, it is updated on exit.
+.end_defmac
+
+Another way of doing output to a string is to use the 3format* facility
+(see (format-fun)).
+
+.subsection Implementing Streams
+.setq stream-implementation section-page
+
+There are two ways to implement a stream: using 3defun* or using flavors.
+
+Using flavors is best when you can take advantage of the predefined
+stream mixins, including those which perform buffering, or when you wish
+to define several similar kinds of streams that can inherit methods from
+each other.
+
+3defun* (or 3defselect*, which is a minor variation of the
+technique) may have an advantage if you are dividing operations into
+broad groups and handling them by passing them off to one or more other
+streams.  In this case, the automatic operation decoding provided by
+flavors may get in the way.  A number of streams in the system are
+implemented using 3defun* or 3defselect* for historical reasons.  It
+isn't yet clear whether there is any reason not to convert most of them
+to use flavors.
+
+If you use 3defun*, you can use the 2stream default handler* to
+implement some of the standard operations for you in a default manner.
+If you use flavors, there are predefined mixins to do this for you.
+
+A few streams are individual objects, one of a kind.  For example, there
+is only one null stream, and no need for more, since two null streams
+would behave identically.  But most streams are elements of a general
+class.  For example, there can be many file streams for different files,
+even though all behave the same way.  There can also be multiple streams
+reading from different points in the same file.
+
+If you implement a class of streams with 3defun*, then the actual
+streams must be closures of the function you define, made with
+3closure*.
+
+If you use flavors to implement the streams, having a class of similar
+streams comes naturally: each instance of the flavor is a stream, and
+the instance variables distinguish one stream of the class from another.
+
+.subsection Implementing Streams with Flavors
+
+To define a stream using flavors, define a flavor which incorporates the
+appropriate predefined stream flavor, and then redefine those operations
+which are peculiar to your own type of stream.
+
+Flavors for defining unbuffered streams:
+
+.defflavor si:stream
+This flavor provides default definitions for a few standard operations such as
+3:direction* and 3:characters*.  Usually you do not have to mention
+this explicitly; instead you use the higher level flavors below, which
+are built on this one.
+.end_defflavor
+
+.defflavor si:input-stream
+This flavor provides default definitions of all the mandatory input
+operations except 3:tyi* and 3:untyi*, in terms of those two.  You
+can make a simple non-character input stream by defining a flavor
+incorporating this one and giving it methods for 3:tyi* and
+3:untyi*.
+.end_defflavor
+
+.defflavor si:output-stream
+This flavor provides default definitions of all the mandatory output
+operations except 3:tyo*, in terms of 3:tyo*.  All you need to do to
+define a simple unbuffered non-character output stream is to define a
+flavor incorporating this one and give it a method for the
+3:tyo* operation.
+.end_defflavor
+
+.defflavor si:bidirectional-stream
+This is a combination of 3si:input-stream* and 3si:output-stream*.
+It defines 3:direction* to return 3:bidirectional*.  To define a
+simple unbuffered non-character bidirectional stream, build on this
+flavor and define 3:tyi*, 3:untyi* and 3:tyo*.
+.end_defflavor
+
+The unbuffered streams implement operations such as 3:string-out* and
+3:string-in* by repeated use of 3:tyo* or 3:tyi*.
+
+For greater efficiency, if the stream's data is available in blocks, it
+is better to define a buffered stream.  You start with the predefined
+buffered stream flavors, which define 3:tyi* or 3:tyo* themselves
+and manage the buffers for you.  You must provide other operations that
+the system uses to obtain the next input buffer or to write or discard
+an output buffer.
+
+.need 1800
+Flavors for defining buffered streams:
+
+.defflavor si:buffered-input-stream
+This flavor is the basis for a non-character buffered input stream.
+It defines 3:tyi* as well as all the other standard input operations,
+but you must define the two operations 3:next-input-buffer* and
+3:discard-input-buffer*, which the buffer management routines use.
+.end_defflavor
+
+.defmethod si:buffered-input-stream :next-input-buffer
+In a buffered input stream, this operation is used as a subroutine of
+the standard input operations, such as 3:tyi*, to get the next
+bufferful of input data.  It should return three values: an array
+containing the data, a starting index in the array, and an ending index.
+For example, in a Chaosnet stream, this operation would get the next
+packet of input data and return pointers delimiting the actual data in
+the packet.
+.end_defmethod
+
+.defmethod si:buffered-input-stream :discard-input-buffer buffer-array
+In a buffered input stream, this operation is used as a subroutine of
+the standard input operations such as 3:tyi*.  It says that the buffer
+management routines have used or thrown away all the input in a buffer,
+and the buffer is no longer needed.
+
+In a Chaosnet stream, this operation would return the packet buffer
+to the pool of free packets.
+.end_defmethod
+
+.defflavor si:buffered-output-stream
+This flavor is the basis for a non-character buffered output stream.  It
+defines 3:tyo* as well as all the other standard output operations, but
+you must define the operations 3:new-output-buffer*,
+3:send-output-buffer* and 3:discard-output-buffer*, which the buffer
+management routines use.
+.end_defflavor
+
+.defmethod si:buffered-output-stream :new-output-buffer
+In a buffered output stream, this operation is used as a subroutine of
+the
+standard output operations, such as 3:tyo*, to get an empty buffer for
+storing more output data.  How the buffer is obtained depends on the
+kind of stream, but in any case this operation should return an array
+(the buffer), a starting index, and an ending index.  The two indices
+delimit the part of the array that is to be used as a buffer.
+
+For example, a Chaosnet stream would get a packet from the free pool
+and return indices delimiting the part of the packet array which can
+hold data bytes.
+.end_defmethod
+
+.defmethod si:buffered-output-stream :send-output-buffer buffer-array ending-index
+In a buffered output stream, this operation is used as a subroutine of
+the standard output operations, such as 3:tyo*, to send the data in a
+buffer that has been completely or partially filled.
+
+2ending-index* is the first index in the buffer that has not actually
+been stored.  This may not be the same as the ending index that was
+returned by the 3:new-output-buffer* operation that was used to
+obtain this buffer; if a 3:force-output* is being handled, 2ending-index*
+indicates how much of the buffer is currently full.
+
+The method for this operation should process the buffer's data and, if
+necessary, return the buffer to a free pool.
+.end_defmethod
+
+.defmethod si:buffered-output-stream :discard-output-buffer buffer-array
+In a buffered output stream, this operation is used as a subroutine
+of the standard output operations, such as 3:clear-output*, to free an
+output buffer and say that the data in it should be ignored.
+
+It should simply return 2buffer-array* to a free pool, if appropriate.
+.end_defmethod
+
+Some buffered output streams simply have one buffer array which they use
+over and over.  For such streams, 3:new-output-buffer* can simply
+return that particular array each time; 3:send-output-buffer* and
+3:discard-output-buffer* do not have to do anything about returning
+the buffer to a free pool.  In fact, 3:discard-output-buffer* can
+probably do nothing.
+
+.defflavor si:buffered-stream
+This is a combination of 3si:buffered-input-stream* and
+3si:buffered-output-stream*, used to make a buffered bidirectional
+stream.  The input and output buffering are completely independent of
+each other.  You must define all five of the low level operations:
+3:new-output-buffer*, 3:send-output-buffer* and
+3:discard-output-buffer* for output, and 3:next-input-buffer* and
+3:discard-input-buffer* for input.
+.end_defflavor
+
+The data in most streams are characters.  Character streams should support
+either 3:line-in* or 3:line-out* in addition to the other standard
+operations.
+
+.defflavor si:unbuffered-line-input-stream
+This flavor is the basis for unbuffered character input streams.
+You need only define 3:tyi* and 3:untyi*.
+.end_defflavor
+
+.defflavor si:line-output-stream-mixin
+To make an unbuffered character output stream, mix this flavor into the
+one you define, together with 3si:output-stream*.  In addition, you
+must define 3:tyo*, as for unbuffered non-character streams.
+.end_defflavor
+
+.defflavor si:buffered-input-character-stream
+This is used just like 3si:buffered-input-stream*, but it also
+provides the 3:line-in* operation and makes 3:characters* return
+3t*.
+.end_defflavor
+
+.defflavor si:buffered-output-character-stream
+This is used just like 3si:buffered-output-stream*, but it also
+provides the 3:line-out* operation and makes 3:characters* return
+3t*.
+.end_defflavor
+
+.defflavor si:buffered-character-stream
+This is used just like 3si:buffered-stream*, but it also
+provides the 3:line-in* and 3:line-out* operations and makes
+3:characters* return 3t*.
+.end_defflavor
+
+To make an unbuffered random-access stream, you need only define the
+3:read-pointer* and 3:set-pointer* operations as appropriate.
+Since you provide the 3:tyi* or 3:tyo* handler yourself, the system
+cannot help you.
+
+In a buffered random-access stream, the random access operations must
+interact with the buffer management.  The system provides for this.
+
+.defflavor si:input-pointer-remembering-mixin
+Incorporate this into a buffered input stream to
+support random access.  This flavor defines the 3:read-pointer* and
+3:set-pointer* operations.  If you wish 3:set-pointer* to work, you
+must provide a definition for the 3:set-buffer-pointer* operation.
+You need not do so if you wish to support only 3:read-pointer*.
+.end_defflavor
+
+.defmethod si:input-pointer-remembering-mixin :set-buffer-pointer new-pointer
+You must define this operation if you use
+3si:input-pointer-remembering-mixin* and want the 3:set-pointer*
+operation to work.
+
+This operation should arrange for the next 3:next-input-buffer*
+operation to provide a bufferful of data that includes the specified
+character or byte position somewhere inside it.
+
+The value returned should be the file pointer corresponding to the first
+character or byte of that next bufferful.
+.end_defmethod
+
+.defflavor si:output-pointer-remembering-mixin
+Incorporate this into a buffered output stream to
+support random access.  This mixin defines the 3:read-pointer* and
+3:set-pointer* operations.  If you wish 3:set-pointer* to work, you
+must provide definitions for the 3:set-buffer-pointer* and
+3:get-old-data* operations.  You need not do so if you wish to support
+only 3:read-pointer*.
+.end_defflavor
+
+.defmethod si:output-pointer-remembering-mixin :set-buffer-pointer new-pointer
+This is the same as in 3si:input-pointer-remembering-mixin*.
+.end_defmethod
+
+.defmethod si:output-pointer-remembering-mixin :get-old-data buffer-array lower-output-limit
+The buffer management routines perform this operation when you do a
+3:set-pointer* that is outside the range of pointers that fit in the
+current output buffer.  They first send the old buffer, then do
+3:set-buffer-pointer* as described above to say where in the file the
+next output buffer should come, then do 3:new-output-buffer* to get the
+new buffer.  Then the 3:get-old-data* operation is performed.
+
+It should fill current buffer (2buffer-array*) with the 2old*
+contents of the file at the corresponding addresses, so that when the
+buffer is eventually written, any bytes skipped over by random access
+will retain their old values.
+
+The instance variable 3si:stream-output-lower-limit* is the starting
+index in the buffer of the part that is supposed to be used for output.
+3si:stream-output-limit* is the ending index.
+The instance variable 3si:output-pointer-base* is the file pointer
+corresponding to the starting index in the buffer. 
+.end_defmethod
+
+.defflavor si:file-stream-mixin
+Incorporate this mixin together with 3si:stream* to make a 2file probe stream*,
+which cannot do input or output but records the answers to an enquiry
+about a file.  You should specify the init option 3:pathname* when you
+instantiate the flavor.
+
+You must provide definitions for the 3:plist* and 3:truename*
+operations; in terms of them, this mixin defines the operations
+3:get*, 3:creation-date*, and 3:info*.
+.end_defflavor
+
+.defflavor si:input-file-stream-mixin
+Incorporate this mixin into input streams that are used to read files.
+You should specify the file's pathname with the 3:pathname* init option
+when you instantiate the flavor.
+
+In addition to the services and requirements of
+3si:file-stream-mixin*, this mixin takes care of mentioning the file
+in the who-line.  It also includes
+3si:input-pointer-remembering-mixin* so that the 3:read-pointer*
+operation, at least, will be available.
+.end_defflavor
+
+.defflavor si:output-file-stream-mixin
+This is the analogue of 3si:input-file-stream-mixin* for output
+streams.
+.end_defflavor
+
+.subsection Implementing Streams Without Flavors
+
+You do not need to use flavors to implement a stream.
+Any object that can be used as a function, and decodes its first
+argument appropriately as an operation name, can serve as a stream.
+Although in practice using flavors is as easy as any other way,
+it is educational to see how to define streams ``from scratch''.
+
+We could begin to define a simple output stream, which accepts
+characters and conses them onto a list, as follows:
+
+.lisp
+(defvar the-list nil)
+
+(defun list-output-stream (op &optional arg1 &rest rest)
+  (ecase op
+    (:tyo
+     (setq the-list (cons arg1 the-list)))
+    (:which-operations '(:tyo))))
+.end_lisp
+
+This is an output stream, and so it supports the 3:tyo* operation.
+All streams must support 3:which-operations*.
+
+The lambda-list for a stream defined with a 3defun* must always have
+one required parameter (2op*), one optional parameter (2arg1*), and
+a rest parameter (2rest*).
+
+This definition is not satisfactory, however.  It handles 3:tyo*
+properly, but it does not handle 3:string-out*, 3:direction*,
+3:send-if-handles*, and other standard operations.
+
+The function 3stream-default-handler* exists to spare us the trouble
+of defining all those operations from scratch in simple streams like
+this.  By adding one additional clause, we let the default handler take
+care of all other operations, if it can.
+
+.lisp
+(defun list-output-stream (op &optional arg1 &rest rest)
+    (selectq op
+        (:tyo
+         (setq the-list (cons arg1 the-list)))
+        (:which-operations '(:tyo))
+        (otherwise
+          (stream-default-handler #'list-output-stream
+				  op arg1 rest))))
+.end_lisp
+
+If the operation is not one that the stream understands (e.g. 3:string-out*),
+it calls 3stream-default-handler*.  Note how the rest argument is
+passed to it.  This is why the argument list must look the way it does.
+3stream-default-handler* can be thought of as a restricted analogue of
+flavor inheritance.
+
+If we want to have only one stream of this sort, the symbol
+3list-output-stream* can be used as the stream.  The data output to it
+will appear in the global value of 3the-list*.  One more step is
+required, though:
+.lisp
+(defprop list-output-stream t si:io-stream-p)
+.end_lisp
+This tells certain functions including 3read* to treat the symbol
+3list-output-stream* as a stream rather than as an end of file option.
+
+If we wish to be able to create any number of list output
+streams, each accumulating its own list, we must use closures:
+
+.lisp
+(defvar the-stream nil
+  "Inside a list output stream, holds the stream itself.")
+(defvar the-list nil
+  "Inside a list output stream,
+holds the list of characters being accumulated.")
+
+(defun list-output-stream (op &optional arg1 &rest rest)
+    (selectq op
+        (:tyo
+	 (push arg1 the-list)))
+	(:withdrawal (prog1 the-list (setq the-list nil)))
+        (:which-operations '(:tyo :withdrawal))
+        (otherwise
+          (stream-default-handler the-stream
+				  op arg1 rest))))
+
+(defun make-list-output-stream ()
+  (let ((the-stream the-list))
+    (setq the-stream
+	  (closure '(the-stream the-list)
+                   'list-output-stream))))
+.end_lisp
+
+We have added a new operation 3:withdrawal* that can be used to find
+out what data has been accumulated by a stream.  This is necessary
+because we can no longer simply look at or set the global value of
+3the-list*; that is not the same as the value closed into the stream.
+
+In addition, we have a new variable 3the-stream* which allows the
+function 3list-output-stream* to know which stream it is serving at
+any time.  This variable is passed to 3stream-default-handler* so that
+when it simulates 3:string-out* by means of 3:tyo*, it can do the
+3:tyo*'s to the same stream that the 3:string-out* was done to.
+
+The same stream could be defined with 3defselect* instead of
+3defun*.  It actually makes only a small difference.  The 3defun*
+for 3list-output-stream* could be replaced with this code:
+
+.lisp
+(defselect (list-output-stream list-output-d-h)
+  (:tyo (arg1)
+    (push arg1 the-list))
+  (:withdrawal ()
+    (prog1 the-list (setq the-list nil))))
+
+(defun list-output-d-h (op &optional arg1 &rest rest)
+  (stream-default-handler the-stream op arg1 rest))
+.end_lisp
+
+3defselect* takes care of decoding the operations, provides a
+definition for 3:which-operations*, and allows you to write a separate
+lambda list for each operation.
+
+By comparison, the same stream defined using flavors looks like this:
+
+.lisp
+(defflavor list-output-stream ((the-list nil))
+	   (si:line-output-stream-mixin si:output-stream))
+
+(defmethod (list-output-stream :tyo) (character)
+  (push character the-list))
+
+(defmethod (list-outut-stream :withdrawal) ()
+  (prog1 the-list (setq the-list nil)))
+
+(defun make-list-output-stream ()
+  (make-instance 'list-output-stream))
+.end_lisp
+
+.need 1800
+Here is a simple input stream, which generates successive characters of a list.
+
+.lisp
+(defvar the-list)	;Put your input list here
+(defvar the-stream)
+(defvar untyied-char nil)
+
+(defun list-input-stream (op &optional arg1 &rest rest)
+  (selectq op
+    (:tyi
+     (cond ((not (null untyied-char))
+	    (prog1 untyied-char (setq untyied-char nil)))
+	   ((null the-list)
+	    (and arg1 (error arg1)))
+	   (t (pop the-list))))
+    (:untyi
+     (setq untyied-char arg1))
+    (:which-operations '(:tyi :untyi))
+    (otherwise
+      (stream-default-handler the-stream
+                              op arg1 rest))))
+
+(defun make-list-input-stream (the-list)
+  (let (the-stream untyied-char)
+    (setq the-stream
+	  (closure '(the-list the-stream untyied-char)
+		   'list-input-stream))))
+.end_lisp
+	The important things to note are that 3:untyi* must be supported,
+and that the stream must check for having reached the end of the information
+and do the right thing with the argument to the 3:tyi* operation.
+
+.defun stream-default-handler stream op arg1 rest
+Tries to handle the 2op* operation on 2stream*, given arguments of
+2arg1* and the elements of 2rest*.  The exact action taken for each
+of the defined operations is explained with the documentation on that
+operation, above.
+.end_defun

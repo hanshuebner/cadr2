@@ -1,0 +1,2371 @@
+.c This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c  Function Description: Evaluator >
+.chapter Evaluation
+.setq evaluator-chapter chapter-number
+.cindex evaluation
+.setq description-of-evaluation page
+
+	The following is a complete description of the actions taken by the
+evaluator, given a 2form* to evaluate.
+
+	If 2form* is a number, the result is 2form*.
+
+	If 2form* is a string, the result is 2form*.
+
+	If 2form* is a self-evaluating symbol (3nil*, 3t* or a keyword
+such as 3:foo*), then 2form* itself is the result.
+
+	If 2form* is any other symbol, the result is the value of 2form*,
+considered as a variable.  If 2form*'s value is void, an error is
+signaled.  The way symbols are bound to values is explained in
+(variable-section) below.
+
+	If 2form* is not any of the above types, and is not a list,
+2form* itself is the result.
+
+	In all remaining cases, 2form* is a list.  The evaluator
+examines the car of the list to figure out what to do next.  There are
+three possibilities: this form may be a 2special form*, a 2macro
+form*, or a plain old 2function form*.  If the car is an explicit
+function such as a list starting with 3lambda*, the form is a function
+form.  If it is a symbol, things depend on the symbol's function
+definition, which may be a special form definition (see
+(special-function)), a macro definition, or an ordinary function.
+
+	If 2form* is a special form, then it is handled accordingly;
+each special form works differently.  All of them are documented in this
+manual.  The internal workings of special forms are explained in more
+detail on (special-function), but this hardly ever affects you.
+
+	If 2form* is a macro form, then the macro is expanded as
+explained in chapter (macros-chapter).
+
+	If 2form* is a function form, it calls for the 2application*
+of a function to 2arguments*.  The car of 2form* is a function or
+the name of a function.  The cdr of 2form* is a list of subforms.  The
+subforms are evaluated, sequentially, and each produces one argument for
+the function.  The function is then applied to those arguments.
+Whatever results the function returns are the values of the original
+2form*.
+
+	There is a lot more to be said about evaluation.  The way variables
+work and the ways in which they are manipulated, including the binding of
+arguments, is explained in (variable-section).  A basic explanation of
+functions is in (function-section).  The way functions can return more
+than one value is explained in (multiple-value).  The description of all
+of the kinds of functions, and the means by which they are manipulated, is
+in chapter (function-chapter).  Macros are explained in chapter
+(macros-chapter).  The 3evalhook* facility, which lets you do something
+arbitrary whenever the evaluator is invoked, is explained in
+(evalhook-section).  Special forms are described all over the manual; each
+special form is in the section on the facility it is part of.
+
+
+.section Variables
+.setq variable-section section-page
+
+In Zetalisp, variables are implemented using symbols.  Symbols
+are used for many things in the language, such as naming functions,
+naming special forms, and being keywords; they are also useful to
+programs written in Lisp, as parts of data structures.  But when
+a symbol is evaluated, its value as a variable is taken.
+
+.subsection Variables and Bindings
+
+There are two different ways of changing the value of a variable.  One
+is to 2set* the variable.  Setting a variable changes its value to a
+new Lisp object, and the previous value of the variable is forgotten.
+Setting of variables is usually done with the 3setq* special form.
+
+.cindex binding
+.cindex shadowing of bindings
+The other way to change the value of a variable is with 2binding*
+(also called 2lambda-binding*).  We say that a variable is 2bound*
+(past participle of active verb) by the action of binding; we also say
+that the variable is 2bound* (state of being) after a binding has been
+made.  When a binding is made, the variable's old binding and value are
+hidden or 2shadowed* by a new binding, which holds a new value.
+Setting a variable places a new value into the current binding; it does
+not change which binding is current.  In addition, shadowed bindings' values
+are not affected by setting the variable.  Binding a variable does not affect
+the value in the old current binding but that binding ceases to be
+current so the value no longer applies.
+
+.cindex unbinding
+The action of binding is always followed eventually by the action of
+unbinding.  This discards the current binding of the variable, with its
+value.  The previous binding becomes current again, and the value in
+it--unchanged since the newer binding was made, in normal operation--is
+visible again.
+
+.cindex scope of binding
+Binding is normally done on entry to a function and by certain special forms
+(3let*, 3do*, 3prog* and others).  The bindings are unbound
+on exit from the function or the special form, even nonlocal exit such
+as 3go*, 3return* or 3throw*.  The function or special form
+is said to be the 2scope* of the bindings made therein.
+
+Here is a simple example of making a binding, shadowing it,
+unshadowing it, examining it, and unbinding it.  The inner, shadowing binding
+is made, examined, set, examined and unbound.
+.lisp
+(let ((a 5))
+  (print a)         1;prints 35**
+  (let ((a "foo"))
+    (print a)       1;prints 3"foo"**
+    (setq a "bar")
+    (print a))      1;prints 3"bar"**
+  (print a))        1;prints 35**
+.end_lisp
+
+.cindex global binding
+Every symbol has one binding which was never made and is never unbound.
+This is the 2global* binding.  This binding is current whenever
+no other binding has been established that would shadow it.
+If you type 3(setq x 5)* in the Lisp listen loop, you set
+the global binding of 3x*.  Programs often set global bindings
+permanently using 3defvar* or one of its cousins ((defvar-fun)).
+3setq-globally* and related functions can be used to set or
+refer to the global binding even when it is shadowed ((setq-globally-fun)).
+
+.lisp
+(defvar a 5)   ;1sets the global binding*
+
+(let ((a t))
+  (print a))   ;1prints 3t**
+
+a => 5         ;1the global binding is visible again*
+.end_lisp
+
+.cindex void binding
+A binding does not need to have an actual value.  It can be 2void*
+instead.  The variable is also called void.  Actually, a void binding
+contains a weird internal value, which the system interprets as meaning
+``there is no value here''.  (This is the data type code 3dtp-null*,
+(dtp-null-var)).  Reference to a variable whose current binding is void
+signals an error.  In fact, nearly all variables' global bindings are
+void; only those that you or the system have set are not void.
+3variable-makunbound* makes the current binding of a variable void
+again ((variable-makunbound-fun)).
+
+.cindex unbound variable
+`Void' used to be called `unbound', and most function names, error
+messages and documentation still use the term `unbound'.  The variable
+is also called `unbound'.  The term `void' is being adopted because it is
+less ambiguous.  `Unbound' can mean `void', or `not bound' (no binding
+established), or the past participle of `unbind'.
+
+.cindex lexical scope
+.cindex dynamic scope
+All bindings except global binding have a limited scope: one function
+or special form.  This does not fully specify the scope, however:
+it may be 2lexical* or 2dynamic*.  When a binding has lexical scope,
+it is visible only from code written within the function or special
+form that established it.  Subroutines called from within the scope,
+but which are written elsewhere, never see the lexical binding.
+By contrast, a dynamic binding is visible the whole time it exists
+(except when it is shadowed, of course), which includes time spent
+in subroutines called from within the binding construct.
+The global binding of a symbol can be regarded as a dynamic binding that
+lasts from the beginning of the session to the end of the session.
+
+.cindex special variable
+Lexical and dynamic bindings are made by the same kinds of function
+definitions and special forms.  By default, the bindings are lexical.
+You request a dynamic binding instead using a 2special-declaration* at
+the beginning of the body of the function definition or special form.
+Also, some symbols are marked 2globally special*; every binding of
+such a symbol is dynamic.  This is what 3defvar*, etc., do to a
+symbol.  Dynamic bindings are also called 2special bindings*, and the
+variable bound is called a 2special variable*.  Each use of a symbol
+as a variable (this includes setting as well as examining) is also
+marked as lexical or dynamic by the same declarations.  A dynamic use
+sees only dynamic bindings, and a lexical use sees only lexical
+bindings.
+
+In the examples above it makes no difference whether the bindings of
+3a* are lexical or dynamic, because all the code executed between the
+binding and unbinding is also written lexically within the 3let*
+which made the binding.  Here is an example where it makes a difference:
+
+.lisp
+(defun foo ()
+  (print a))
+
+(let ((a 5))
+  (foo))
+
+>>Error: the variable A is used free but not special.
+.end_lisp
+
+If the intention is that 5 be printed, a dynamic binding is required.
+A dynamic binding would remain visible for all the execution from the
+entry to the 3let* to the exit from the 3let*, including the execution
+of the definition of 3foo*.  Actually, the default is to do lexical binding.
+Since the binding of 3a* is lexical, it is visible only for the evaluation
+of expressions written inside the 3let*, which does not include the body
+of 3foo*.  In fact, an error happens when 3foo* evaluates 3a*,
+since 3a* there is supposed to be lexical and no lexical binding is
+visible.  If you compile 3foo*, you get a compiler warning about 3a*.
+
+.cindex free variable
+The use of 3a* inside 3foo*, not lexically within any binding of 3a*,
+is called 2free*, and 3a* is called a 2free variable* of 3foo*.
+Free variables are erroneous unless they are special.  Strictly speaking,
+it is erroneous to type 3(setq x 5)* at top level in the Lisp listener
+if 3x* has not been made globally special, but this is permitted
+as an exception because it is so often useful.
+
+One way to make the example work is to make 3a* globally special:
+
+.lisp
+(defvar a)
+
+(defun foo () (print a))
+
+(let ((a 5))
+  (foo))
+.end_lisp
+
+.nopara
+prints 5.  The global specialness of 3a* tells 3let* to make a dynamic
+binding and tells the evaluation of 3a* in 3foo* to look for one.
+
+Another way is with declarations at the point of binding and the point of use:
+
+.lisp
+(defun foo ()
+  (declare (special a))
+  (print a))
+
+(let ((a 5))
+  (declare (special a))
+  (foo))
+.end_lisp
+
+A declaration at the point of binding affects only that binding, not
+other bindings made within it to shadow it.  Another way of stating this
+is that a binding is affected only by a declaration in the construct
+that makes the binding, not by declarations in surrounding constructs.
+Thus,
+.lisp
+(let ((a 5))             ;1this binding is dynamic*
+  (declare (special a))
+  (let ((a "foo"))       ;1this binding is lexical*
+    2no declaration here*
+    ... a ...            ;1this reference is lexical since*
+    ...                  ;1 the innermost binding is lexical*
+    (let ()
+      (declare (special a))
+      ... a ...          ;1this reference is dynamic, and sees value 35**
+    ...))
+.end_lisp
+
+[Currently, for historical compatibility, bindings 2are* affected
+by surrounding declarations.  However, whenever this makes a difference,
+the compiler prints a warning to inform the programmer that the declaration
+should be moved.]
+
+The classical case where dynamic binding is useful is for
+parameter variables like 3*read-base**:
+.lisp
+(let ((*read-base* 16.))
+  (read))
+.end_lisp
+reads an expression using hexadecimal numbers by default.
+3*read-base** is globally special, and the subroutine of 3read*
+that reads integers uses 3*read-base** free.
+
+Here is an example where lexical bindings are desirable:
+
+.lisp
+(let ((a nil))
+  (mapatoms (function (lambda (symbol) (push symbol a))))
+  a)
+.end_lisp
+
+Because the reference to 3a* from within the internal function
+is lexical, the only binding it can see is the one made by this 3let*.
+3mapatoms* cannot interfere by binding 3a* itself.
+Consider: if 3mapatoms* makes a lexical binding of 3a*,
+it is not visible here because this code is not written inside
+the definition of 3mapatoms*.  If 3mapatoms* makes a dynamic binding
+of 3a*, it is not visible here because the reference to 3a*
+is not declared special and therefore sees only lexical bindings.
+
+.cindex lexical closure
+The fact that 3function* is used to mark the internal function
+is crucial.  It causes the lexical environment appropriate for
+the function to be combined with the code for the function
+in a 2lexical closure*, which is passed to 3mapatoms*.
+
+The last example shows 2downward* use of lexical closures.
+2Upward* use is also possible, in which a function is closed
+inside a lexical environment and then preserved after the
+binding construct has been exited.
+
+.lisp
+(defun mycons (a d)
+  (function (lambda (x)
+	      (cond ((eq x 'car) a)
+		    ((eq x 'cdr) d)))))
+
+(defun mycar (x) (funcall x 'car))
+(defun mycdr (x) (funcall x 'cdr))
+
+(setq mc (mycons 4 t))
+
+(mycar mc)  =>  4
+(mycdr mc)  =>  t
+.end_lisp
+
+3mycons* returns an object that can be called as a function
+with one argument.  This object retains a pointer to a lexical
+environment that has a binding for 3a* and a binding for 3d*.
+The function 3mycons* that made those bindings
+has been exited, but this is irrelevant because the bindings were
+not dynamic.  Since the code of the lambda-expression is lexically
+within the body of 3mycons*, that function can see the lexical bindings
+made by 3mycons* no matter when it is called.
+The function returned by 3mycons* records two values and
+can deliver either of them when asked, and is therefore analogous
+to a cons cell.
+
+Only lexical bindings are transferred automatically downward and upward,
+but dynamic bindings can be used in the same ways if explicitly requested
+through the use of the function 3closure*.  See (closure) for more
+information.
+
+.cindex value cell
+.cindex special pdl
+Dynamic bindings, including the global binding, are stored (unless
+shadowed) in a particular place: the symbol's 2value cell*.
+This is a word at a fixed offset in the symbol itself.  When a new
+dynamic binding is made, the value in the value cell is saved away
+on a stack called the 2special pdl*.  The new binding's value
+is placed in the value cell.  When the new binding is unbound, the
+old binding's value is copied off of the special pdl, into the
+value cell again.  The function 3symeval* examines the
+value cell of a symbol chosen at run time; therefore, it sees
+the current dynamic binding of the symbol.
+
+Lexical bindings are never stored in the symbol's value cell.  The
+compiler stores them in fixed slots in stack frames.  The interpreter
+stores them in alists that live in the stack.  It should be noted that
+if the lexical binding is made by compiled code, then all code that
+ought to see the binding is necessarily also compiled; if the binding is
+made by interpreted code, then all code that ought to see the binding
+is necessarily interpreted.  Therefore, it is safe for the compiler and
+interpreter to use completely different techniques for recording lexical
+bindings.
+
+Lexical binding is the default because the compiler can find with certainty
+all the places where a lexical binding is used, and usually can use short cuts
+based on this certainty.  For dynamic bindings slow but general code must always
+be generated.
+
+.subsection Setting Variables
+
+Here are the constructs used for setting variables.
+
+.defspec setq {variable value}...
+The 3setq* special form is used to set the value of a variable or of
+many variables.  The first 2value* is evaluated, and the first
+2variable* is set to the result.  Then the second 2value* is
+evaluated, the second 2variable* is set to the result, and so on for
+all the variable/value pairs.  3setq* returns the last value, i.e.
+the result of the evaluation of its last subform.
+.lisp
+.exdent 96 Example:
+(setq x (+ 3 2 1) y (cons x nil))
+.end_lisp
+3x* is set to 36*, 3y* is set to 3(6)*, and the 3setq* form
+returns 3(6)*.  Note that the first variable was set before
+the second value form was evaluated, allowing that form to use the new value of 3x*.
+.end_defspec
+
+.defmac psetq {variable value}...
+A 3psetq* form is just like a 3setq* form, except
+that the variables are set ``in parallel''; first all of the 2value* forms
+are evaluated, and then the 2variables* are set to the resulting
+values.
+.lisp
+.exdent 96 Example:
+(setq a 1)
+(setq b 2)
+(psetq a b b a)
+a => 2
+b => 1
+.end_lisp
+.end_defmac
+
+.defspec variable-location symbol
+Returns a locative to the cell in which the value of 2symbol* is
+stored.  2symbol* is an unevaluated argument, so the name of the
+symbol must appear explicitly in the code.
+
+For a special variable, this is equivalent to
+.lisp
+(value-cell-location '2symbol*)
+.end_lisp
+For a lexical variable, the place where the value is stored is
+a matter decided by the interpreter or the compiler, but in any case
+3variable-location* nevertheless returns a pointer to it.
+
+In addition, if 2symbol* is a special variable that is closed over,
+the value returned is an external value cell, the same as the value of
+3locate-in-closure* applied to the proper closure and 2symbol*.
+This cell 2always* contains the closure binding's value, which is
+2current* only inside the closure.  See (external-value-cell).
+.end_defspec
+
+.defspec variable-boundp symbol
+3t* if variable 2symbol* is not void.
+It is equivalent to 
+.lisp
+(location-boundp (variable-location 2symbol*))
+.end_lisp
+2symbol* is not evaluated.
+.end_defspec
+
+.defspec variable-makunbound symbol
+Makes 2symbol*'s current binding void.  It is equivalent to
+.lisp
+(location-makunbound (variable-location 2symbol*))
+.end_lisp
+2symbol* is not evaluated.
+.end_defspec
+
+.subsection Variable Binding Constructs
+
+Here are the constructs used for binding variables.
+
+.defspec let ((var value)...) body...
+Is used to bind some variables to some objects, and evaluate some forms
+(the body) in the context of those bindings.
+A 3let* form looks like
+.lisp
+(let ((2var1* 2vform1*)
+      (2var2* 2vform2*)
+      ...)
+  2bform1*
+  2bform2*
+  ...)
+.end_lisp
+When this form is evaluated, first the 2vforms* (the values) are evaluated.
+Then the 2vars* are bound to the values returned by the
+corresponding 2vforms*.  Thus the bindings happen in parallel;
+all the 2vforms* are evaluated before any of the 2vars* are bound.
+Finally, the 2bforms* (the body) are evaluated sequentially, the old values
+of the variables are restored, and the result of the last 2bform* is returned.
+
+You may omit the 2vform* from a 3let* clause, in which case it is as
+if the 2vform* were 3nil*: the variable is bound to 3nil*.
+Furthermore, you may replace the entire clause (the list of the variable
+and form) with just the variable, which also means that the variable
+gets bound to 3nil*.  Example:
+.lisp
+(let ((a (+ 3 3))
+      (b 'foo)
+      (c)
+      d)
+  ...)
+.end_lisp
+Within the body, 3a* is bound to 36*, 3b* is bound to 3foo*, 3c* is
+bound to 3nil*, and 3d* is bound to 3nil*.
+.end_defspec
+
+.defspec let* ((var value)...) body...
+3let** is the same as 3let* except that the binding is sequential.  Each
+2var* is bound to the value of its 2vform* before the next 2vform*
+is evaluated.  This is useful when the computation of a 2vform* depends on
+the value of a variable bound in an earlier 2vform*.  Example:
+.lisp
+(let* ((a (+ 1 2))
+       (b (+ a a)))
+ ...)
+.end_lisp
+Within the body, 3a* is bound to 33* and 3b* is bound to 36*.
+.end_defspec
+
+.defspec let-if condition ((var value)...) body...
+3let-if* is a variant of 3let* in which the binding of variables is conditional.
+The 3let-if* special form, typically written as
+.lisp
+(let-if 2cond*
+	((2var-1* 2val-1*) (2var-2* 2val-2*)...)
+  2body*...)
+.end_lisp
+first evaluates the predicate form 2cond*.  If the result is non-3nil*, the value forms
+2val-1*, 2val-2*, etc. are evaluated and then the variables 2var-1*, 2var-2*,
+etc. are bound to them.  If the result is 3nil*, the
+2vars* and 2vals* are ignored.  Finally the body forms are evaluated.
+
+The bindings are always dynamic, and it is the user's responsibility
+to put in appropriate declarations so that the body forms consider
+the variables dynamic.
+.end_defspec
+
+.defmac let-globally ((var value)...) body...
+.defmac1 let-globally-if condition ((var value)...) body...
+3let-globally* is similar in form to 3let* (see (let-fun)).  The
+difference is that 3let-globally* does not 2bind* the variables;
+instead, it saves the old values and 2sets* the variables, and sets up
+an 3unwind-protect* (see (unwind-protect-fun)) to set them back.  The
+important consequence is that, with
+3let-globally*, when the current stack group (see (stack-group))
+co-calls some other stack group, the old values of the variables are
+2not* restored.  Thus 3let-globally* makes the new values visible in
+all stack groups and processes that don't bind the variables themselves,
+not just in the current stack group.  Therefore, 3let-globally*
+can be used for communication between stack groups and between processes.
+
+3let-globally-if* modifies and restores the variables only if the
+value of 2condition* is non-3nil*.  The 2body* is executed in any case.
+
+Since 3let-globally* is based on 3setq*, it makes sense for both
+lexical and dynamic variables.  But its main application exists
+only for dynamic variables.
+
+The 3globally* in 3let-globally* does not mean the same thing
+as the 3globally* in 3setq-globally* and related functions.
+.end_defmac
+
+.defspec progv symbol-list value-list body...
+3progv* is a special form to provide the user with extra control
+over binding.  It binds a list of variables dynamically to a list of values,
+and then evaluates some forms.  The lists of variables and values
+are computed quantities; this is what makes 3progv* different from
+3let*, 3prog*, and 3do*.
+
+3progv* first evaluates 2symbol-list* and 2value-list*, and then binds each
+symbol to the corresponding value.  If too few values are supplied, the
+remaining symbols' bindings are made empty.  If too many values are
+supplied, the excess values are ignored.
+
+After the symbols have been bound to the values, the 2body* forms are
+evaluated, and finally the symbols' bindings are undone.
+The result returned is the value of the last form in the body.
+Assuming that the variables 3a*, 3b*, 3foo* and 3bar*
+are globally special, we can do:
+
+.lisp
+(setq a 'foo b 'bar)
+
+(progv (list a b 'b) (list b)
+  (list a b foo bar))
+    => (foo nil bar nil)
+.end_lisp
+
+.nopara
+During the evaluation of the body of this 3progv*, 3foo*
+is bound to 3bar*, 3bar* is bound to 3nil*, 3b* is
+bound to 3nil*, and 3a* retains its top-level value 3foo*.
+.end_defspec
+
+.defspec progw vars-and-vals-form body...
+3progw* is like 3progv* except that it has a different way of
+deciding which variables to bind and what values to give them.  Like
+3progv*, it always makes dynamic bindings.
+
+First, 2vars-and-val-forms-form* is evaluated.  Its value should be a list
+that looks like the first subform of a 3let*:
+.lisp
+  ((2var1* 2val-form-1*)
+   (2var2* 2val-form-2*)
+   ...)
+.end_lisp
+Each element of this list is processed in turn, by evaluating the
+2val-form* and binding the 2var* dynamically to the resulting
+value.  Finally, the 2body* forms are evaluated sequentially, the
+bindings are undone, and the result of the last form is returned.  Note
+that the bindings are sequential, not parallel.
+
+This is a very unusual special form because of the way the evaluator is
+called on the result of an evaluation.  3progw* is useful mainly for
+implementing special forms and for functions part of whose contract is
+that they call the interpreter.  For an example of the latter, see
+3sys:*break-bindings** ((sys:*break-bindings*-var)); 3break*
+implements this by using 3progw*.
+.end_defspec
+
+See also 3%bind* ((%bind-fun)), which is a
+subprimitive that gives you maximal control over binding.
+
+.subsection Defining Global Variables
+
+Here are the constructs for defining global variables.
+Each makes the variable globally special, provides a value,
+records documentation, and allows the editor to find where
+all this was done.
+
+.defmac defvar variable [initial-value] [documentation]
+3defvar* is the recommended way to declare the use of a global variable in a
+program.  Placed at top level in a file,
+.lisp
+(defvar 2variable* 2initial-value* 
+  "2documentation*")
+.end_lisp
+declares 2variable* globally special and records its location in the
+file for the sake of the editor so that you can ask to see where the
+variable is defined.  The documentation string is remembered and
+returned if you do 3(documentation '2variable* 'variable)*.
+
+If 2variable* is void, it is initialized to the result of evaluating
+the form 2initial-value*.  2initial-value* is evaluated only if it
+is to be used.
+
+If you do not wish to give 2variable* any initial value, use the
+symbol 3:unbound* as the 2initial-value* form.  This is treated
+specially; no attempt is made to evaluate 3:unbound*.
+
+Using a documentation string is better than using a comment to describe
+the use of the variable, because the documentation string is accessible
+to system programs that can show the documentation to you while you are
+using the machine.  While it is still permissible to omit
+2initial-value* and the documentation string, it is recommended that
+you put a documentation string in every 3defvar*.
+
+3defvar* should be used only at top level, never in function
+definitions, and only for global variables (those used by more than one
+function).  3(defvar foo 'bar)* is roughly equivalent to
+.lisp
+(declare (special foo))
+(if (not (boundp 'foo))
+    (setq foo 'bar))
+.end_lisp
+
+If 3defvar* is used in a patch file (see (patch-facility))
+or is a single form (not a region) evaluated with the editor's
+compile/evaluate from buffer commands,
+if there is an initial-value the variable is always set to it
+regardless of whether it is void.
+.end_defmac
+
+.defmac defconst variable initial-value [documentation]
+.defmac1 defparameter variable initial-value [documentation]
+3defconst* is the same as 3defvar* except that if an initial value
+is given the variable is always set to it regardless of whether it is
+already bound.  The rationale for this is that 3defvar* declares a
+global variable, whose value is initialized to something but will then
+be changed by the functions that use it to maintain some state.  On the
+other hand, 3defconst* declares a constant, whose value will be
+changed only by changes 2to* the program, never by the operation of
+the program as written.  3defconst* always sets the variable to the
+specified value so that if, while developing or debugging the program,
+you change your mind about what the constant value should be, and then
+you evaluate the 3defconst* form again, the variable gets the new
+value.  It is 2not* the intent of 3defconst* to declare that the
+value of 2variable* will never change; for example, 3defconst* is
+2not* a license to the compiler to build assumptions about the value of
+2variable* into programs being compiled.
+
+As with 3defvar*, you should include a documentation string in every 3defconst*.
+.end_defmac
+
+.defmac defconstant symbol value [documentation]
+Defines a true constant.  The compiler is permitted to assume
+it will never change.  Therefore, if a function that refers
+to 2symbol*'s value is compiled, the compiled function may
+contain 2value* merged into it and may not actually refer
+to 2symbol* at run time.
+
+You should not change the value of 2symbol* except by
+reexecuting the 3defconstant* with a new 2value*.  If you do this,
+it is necessary to recompile any compiled functions that refer
+to 2symbol*'s value.
+.end_defmac
+
+.subsection The Global Binding
+
+This section describes functions which examine or set the global binding of a
+variable even when it is shadowed and cannot be accessed simply by evaluating
+the variable or setting it.
+
+The primary use of these functions is for init files to set
+variables which are bound by the 3load* function, such as 3package*
+or 3base*.  3(setq package (find-package 'foo))* executed from a
+file being loaded has no effect beyond the end of loading that file,
+since it sets the binding of 3package* made by 3load*.  However, if
+you use 3setq-globally* instead, the current binding in effect during
+loading is actually not changed, but when the 3load* exits and the
+global binding is in effect again, 3foo* will become the current package.
+
+.defmac setq-globally {symbol value}...
+Sets each 2symbol*'s global binding to the 2value* that follows.
+The 2value*'s are evaluated but the 2symbol*'s are not.
+.end_defmac
+
+.defun set-globally symbol value
+Sets the global binding of 2symbol* to 2value*.
+.end_defun
+
+.defun makunbound-globally symbol
+Makes the global binding of 2symbol* be void.
+.end_defun
+
+.defun boundp-globally symbol
+Returns 3t* if the global binding of 2symbol* is not void.
+.end_defun
+
+.defun symeval-globally symbol
+.defun1 symbol-value-globally symbol
+Return the value of the global binding of 2symbol*.
+An error is signaled if the global binding is void.
+.end_defun
+
+See also 3pkg-goto-globally* ((pkg-goto-globally-fun)), a ``globally''
+version of 3pkg-goto*.  Note that 3let-globally* is 2not* analogous
+to these functions, as it modifies the current bindings of symbols rather
+than their global bindings.  This is an unfortunate collision of naming
+conventions.
+
+.section Generalized Variables
+.setq setf section-page
+.cindex setf
+
+In Lisp, a variable is something that can remember one piece of data.
+The primary conceptual operations on a variable are to recover that
+piece of data and to change it.  These might be called 2access* and
+2update*.  The concept of variables named by symbols, explained above,
+can be generalized to any storage location that can
+remember one piece of data, no matter how that location is named.
+
+For each kind of generalized variable, there are typically three
+functions which implement the conceptual 2access*, 2update* and
+2locate* operations.  For example, 3symeval* accesses a symbol's
+value cell, 3set* updates it, and 3value-cell-location* returns the
+value cell's location.  3array-leader* accesses the contents of an
+array leader element, 3store-array-leader* updates it, and
+3ap-leader* returns the location of the leader element.  3car*
+accesses the car of a cons, 3rplaca* updates it, and 3car-location*
+returns the location of the car.
+
+Rather than thinking of this as two functions, which operate on a storage
+location somehow deduced from their arguments, we can shift our point of
+view and think of the access function as a 2name* for the storage
+location.  Thus 3(symeval 'foo)* is a name for the value of 3foo*, and
+3(aref a 105)* is a name for the 105th element of the array 3a*.
+Rather than having to remember the update function associated with each
+access function, we adopt a uniform way of updating storage locations named
+in this way, using the 3setf* special form.  This is analogous to the
+way we use the 3setq* special form to convert the name of a variable
+(which is also a form which accesses it) into a form that updates it.
+In fact, 3setf* is an upward compatible generalization of 3setq*.
+Similarly, the location of the generalized variable can be obtained
+using the 3locf* construct.
+
+.subsection setf
+
+3setf* is the construct for storing a new value into a generalized variable
+which is identified by the form which would obtain the current value of the
+variable.  For example,
+.lisp
+(setf (car x) y)
+.end_lisp
+stores the value of 3y* into the car of the value of 3x*.
+
+3setf* is particularly useful in combination with structure-accessing
+macros, such as those created with 3defstruct*, because the knowledge of the
+representation of the structure is embedded inside the macro, and the programmer
+shouldn't have to know what it is in order to alter an element of the structure.
+
+3setf* is actually a macro which expands into the appropriate update
+code.  It has a database, explained in (setf-extension), that
+associates from access functions to update functions.
+
+.defmac setf {place value}...
+Takes a form called 2place* that 2accesses* something and ``inverts'' the form to produce a corresponding form to 2update* the thing.
+A 3setf* expands into an update form, which stores the result of evaluating
+the form 2value* into the place referenced by the 2place*.
+If multiple 2place*`s and 2value*`s are specified,
+each one specifies an update, and each update is done before
+the following updates' arguments are computed.
+.lisp
+.exdent 96 Examples:
+(setf (array-leader foo 3) 'bar)
+		==> (store-array-leader 'bar foo 3)
+(setf a 3) ==> (setq a 3)
+(setf (plist 'a) '(foo bar)) ==> (setplist 'a '(foo bar))
+(setf (aref q 2) 56) ==> (sys:set-aref q 2 56)
+(setf (cadr w) x) ==> (sys:setcdr (cdr w) x)
+.end_lisp
+
+The value of a 3setf* form is always the 2value* stored by
+the last update it performs.  Thus, 3(setf (cadr w) x)*
+is not really the same as 3(rplaca (cdr w) x)*, because
+the 3setf* returns 3x* and the 3rplaca* returns
+3w*.  In fact, the expansion of 3setf* of 3cdr* uses
+an internal function 3si:setcdr* which exists specifically
+for this purpose.
+
+If 2place* invokes a macro or a substitutable function, then
+3setf* expands the 2place* and starts over again.  This lets you
+use 3setf* together with 3defstruct* accessor macros.
+.end_defmac
+
+.defcondition sys:unknown-setf-reference (3error*)
+.defcondition1 sys:unknown-locf-reference (3error*)
+These are signaled when 3setf* or 3locf* does not know how to expand
+the 2place*.  The 3:form* operation on the condition instance
+returns the 2access-form*.
+.end_defcondition
+
+.defmac psetf {place value}...
+Stores each 2value* into the corresponding 2place*, with the changes taking
+effect in parallel.  Thus,
+.lisp
+(psetf (car x) (cdr x) (cdr x) (car x))
+.end_lisp
+interchanges the car and cdr of 3x*.
+
+The subforms of the 2place*s, and the 2values*, are evaluated
+in order; thus, in 
+.lisp
+(psetf (aref a (tyi)) (tyi)
+       (aref b (tyi)) (aref a (tyi)))
+.end_lisp
+the first input character indexes 3a*, the second is stored, the third
+indexes 3b*, and the fourth indexes 3a*.  The parallel nature of
+3psetf* implies that, should the first and fourth characters be equal,
+the old value of that element of 3a* is what is stored into the array
+3b*, rather than the new value which comes from the second character
+read.
+.end_defmac
+
+.defmac shiftf place... 
+Sets the first 2place* from the second, the second from the third, and
+so on.  The last 2place* is not set, so it doesn't really need to be a
+3setf*'able place; it can be any form.  The value of the 3shiftf*
+form is the old value of the first 2place*.  Thus,
+.lisp
+(shiftf x (car (foo)) b)
+.end_lisp
+evaluates 3(foo)*, copies the car of that value into 3x*,
+copies 3b* into the car of that value, then returns the
+former value of 3x*.
+.end_defmac
+
+.defmac rotatef place...
+Sets the first 2place* from the second, the second from the third, and
+so on, and sets the last 2place* from the old value of the first
+2place*.  Thus, the values of the 2place*'s are permuted among the
+2place*'s in a cyclic fashion.
+
+With only two 1place*'s, their values are exchanged:
+.lisp
+(rotatef (car x) (cdr x))
+.end_lisp
+is equivalent to the 3psetf* example above.
+.end_defmac
+
+.defmac swapf place1 place2
+Exchanges the contents of 2place1* and 2place2*.
+This is a special case of 3rotatef*.
+.end_defmac
+
+.defmac incf place [amount]
+Increments the value of a generalized variable.  3(incf 2ref*)* increments
+the value of 2ref* by 1.  3(incf 2ref* 2amount*)* adds 2amount*
+to 2ref* and stores the sum back into 2ref*.
+The 3incf* form returns the value after incrementation.
+
+3incf* expands into a 3setf* form, so 2ref* can be anything that
+3setf* understands as its 2place*.
+
+3incf* is defined using 3define-modify-macro*, (define-modify-macro-fun).
+.end_defmac
+
+.defmac decf place [amount]
+Decrements the value of a generalized variable.  Just like 3incf*
+except that 2amount* (or 1) is subtracted rather than added.
+.end_defmac
+
+See also 3push* ((push-fun)), 3pop* ((pop-fun)), 3pushnew*
+((pushnew-fun)), 3getf* ((getf-fun)) and 3remf* ((remf-fun)).
+
+.subsection locf
+
+Besides the 2access* and 2update* conceptual operations on
+generalized variables, there is a third basic operation, which we might call
+2locate*.  Given the name of a storage cell, the 2locate* operation
+returns the address of that cell as a locative pointer (see
+(locative)).  This locative pointer is a first-class Lisp data object
+which is a kind of reference to the cell.  It can be passed as an
+argument to a function which operates on any cell,
+regardless of where the cell is found.  It can be used to 2bind* the contents
+of the cell, just as special variables are bound,
+using the 3%bind* subprimitive (see (%bind-fun)).
+
+Of course, this can work only on generalized variables whose implementation is really to
+store their value in a memory cell.  A generalized variable with an 2update*
+operation that encrypts the value and an 2access* operation that decrypts
+it could not have the 2locate* operation, since the value per se is not
+actually stored anywhere.
+
+.defmac locf place
+3locf* takes a form that 2accesses* some cell, and produces
+a corresponding form to create a locative pointer to that cell.
+.lisp
+.exdent 96 Examples:
+(locf (array-leader foo 3)) ==> (ap-leader foo 3)
+(locf a) ==> (value-cell-location 'a)
+(locf (plist 'a)) ==> (property-cell-location 'a)
+(locf (aref q 2)) ==> (aloc q 2)
+.end_lisp
+
+If 2place* invokes a macro or a substitutable function, then
+3locf* expands the 2place* and starts over again.  This lets you
+use 3locf* together with 3defstruct* accessor macros.
+.end_defmac
+
+.section Functions
+.setq function-section section-page
+.setq lambda-list section-page
+.cindex lambda list
+
+In the description of evaluation on (description-of-evaluation), we
+said that evaluation of a function form works by applying the function
+to the results of evaluating the argument subforms.  What is a function,
+and what does it mean to apply it?  In Zetalisp there are many
+kinds of functions, and applying them may do many different kinds of
+things.  For full details, see (function-functions).  Here we
+explain the most basic kinds of functions and how they work.  In
+particular, this section explains 2lambda lists* and all their
+important features.
+
+The simplest kind of user-defined function is the 2lambda-expression*,
+which is a list that looks like:
+.lisp
+(lambda 2lambda-list* 2body1* 2body2*...)
+.end_lisp
+The first element of the lambda-expression is the symbol 3lambda*; the
+second element is a list called the 2lambda list*, and the rest of the
+elements are called the 2body*.  The lambda list, in its simplest
+form, is just a list of variables.  Assuming that this simple form
+is being used, here is what happens when a lambda expression is applied
+to some arguments.  First, the number of arguments and the number of
+variables in the lambda list must be the same, or else an error is signaled.
+Each variable is bound to the corresponding argument value.  Then
+the forms of the body are evaluated sequentially.  After this, the
+bindings are all undone, and the value of the last form in the body is
+returned.
+
+This may sound something like the description of 3let*, above.  The
+most important difference is that the lambda-expression is not a form at
+all; if you try to evaluate a lambda-expression, you get an error because
+3lambda* is not a defined function.  The lambda-expression is a
+2function*, not a form.   A 3let* form gets evaluated, and the
+values to which the variables are bound come from the evaluation of some
+subforms inside the 3let* form; a lambda-expression gets applied, and
+the values are the arguments to which it is applied.
+
+.cindex parameters
+
+The variables in the lambda list are sometimes called 2parameters*,
+by analogy with other languages.  Some other terminologies would refer
+to these as 2formal parameters*, and to arguments as 2actual parameters*.
+
+Lambda lists can have more complex structure than simply being a list of
+variables.  There are additional features accessible by using certain
+keywords (which start with 3&*) and/or lists as elements of the
+lambda list.
+
+The principal weakness of simple lambda lists is that any
+function written with one must only take a certain, fixed number of
+arguments.  As we know, many very useful functions, such as 3list*,
+3append*, 3+*, and so on, accept a varying number of arguments.
+Maclisp solved this problem by the use of 2lexprs* and 2lsubrs*,
+which were somewhat inelegant since the parameters had to be referred to
+by numbers instead of names (e.g. 3(arg 3)*).  (For compatibility
+reasons, Zetalisp supports 2lexpr*s, but they should not be
+used in new programs.)  Simple lambda lists also require that
+arguments be matched with parameters by their position in the
+sequence.  This makes calls hard to read when there are a great many
+arguments.  Keyword parameters enable the use of other, more readable styles of call.
+
+.cindex "keyword parameters"
+.cindex "positional parameters"
+.cindex "optional parameters"
+.cindex "required parameters"
+.cindex "rest parameters"
+
+	In general, a function in Zetalisp has zero or more
+2positional* parameters, followed if desired by a single 2rest*
+parameter, followed by zero or more 2keyword* parameters.  The
+positional parameters may be 2required* or 2optional*,
+but all the optional parameters must follow all the required ones.
+The required/optional distinction does not apply to the rest
+parameter; all keyword parameters are optional.
+
+The caller must provide enough arguments so that each of the required
+parameters gets bound, but he may provide extra arguments for some of
+the optional parameters.  Also, if there is a rest parameter, he can
+provide as many extra arguments as he wants, and the rest parameter
+is bound to a list of all these extras.  Optional parameters may
+have a 2default-form*, which is a form to be evaluated to produce
+the default value for the parameter if no argument is supplied.
+
+Positional parameters are matched with arguments by the position of
+the arguments in the argument list.  Keyword parameters are matched
+with their arguments by matching the keyword name; the arguments need
+not appear in the same order as the parameters.  If an optional
+positional argument is omitted, then no further arguments can be
+present.  Keyword parameters allow the caller to decide independently
+for each one whether to specify it.
+
+Here is the exact algorithm used to
+match up the arguments with the parameters:
+.table 1 0 500 0 80
+.item Required positional parameters:
+The first required positional parameter is bound to the first
+argument.  3apply* continues to bind successive required
+positional parameters
+to the successive arguments.  If, during this process, there are no
+arguments left but there are still some required parameters which have
+not been bound yet, it is an error (``too few arguments'').
+
+.item Optional positional parameters:
+After all required parameters are handled, 3apply* continues with the
+optional positional parameters, if any.  It binds each successive
+parameter to the next argument.  If, during this process, there are no
+arguments left, each remaining optional parameter's default-form is
+evaluated, and the parameter is bound to it.  This is done one parameter
+at a time; that is, first one default-form is evaluated, and then the
+parameter is bound to it, then the next default-form is evaluated, and
+so on.  This allows the default for an argument to depend on the
+previous argument.
+
+.item After the positional parameters:
+Now, if there are no remaining parameters (rest or keyword), and there are no
+remaining arguments, we are finished.  If there are no more parameters
+but there are still some arguments remaining, an error is signaled (``too
+many arguments'').  If parameters remain, all the remaining arguments
+are used for 2both* the rest parameter, if any, and the keyword
+parameters.
+
+.item Rest parameter:
+If there is a rest parameter, it is bound to a list of all
+the remaining arguments.  If there are no
+remaining arguments, it is bound to 3nil*.
+
+.item Keyword parameters:
+If there are keyword parameters, the same remaining arguments are
+used to bind them, as follows.
+	The arguments for the keyword parameters are treated as a list
+of alternating keyword symbols and associated values.  Each symbol is
+matched with 3eq* against the allowed parameter keywords, which have
+by default the same names as the parameters but in the 3keyword*
+package.  (You can specify the keyword symbol explicitly in the lambda
+list if you must; see below.)  Often the symbol arguments are constants
+in the program, and it is convenient for this usage that keywords all
+evaluate to themselves, but it is permissible for them to be computed by
+expressions.
+	If any keyword parameter has not received a value when all the
+arguments have been processed, the default-form for the parameter is
+evaluated and the parameter is bound to its value.  All keyword
+parameters are optional.
+.kindex :allow-other-keys "keyword arguments"
+.setq allow-other-keys-kwd page
+	There may be a keyword symbol among the arguments which does not
+match any keyword parameter name.  By default this is an error, but the
+lambda list can specify that there should be no error using
+3&allow-other-keys*.  Also, if one of the keyword symbols among the
+arguments is 3:allow-other-keys* and the value that follows it is
+non-3nil* then there is no error.  When there is no error, for either
+reason, the non-matching symbols and their associated values are simply
+ignored.  The function can access these symbols and values through the
+rest parameter, if there is one.  It is common for a function to check
+only for certain keywords, and pass its rest parameter to another
+function using 3apply*; that function will check for the keywords that
+concern it.
+.end_table
+
+	The way you express which parameters are required, optional, rest and keyword
+is by means of specially recognized symbols, which are called
+3&-2keywords**, in the lambda list.  All such symbols' print names
+begin with the character `3&*'.  A list of all such symbols is the value of
+the symbol 3lambda-list-keywords*. 
+.setq &rest page
+.setq &key page
+	The keywords used here are 3&key*, 3&optional* and 3&rest*.
+The way they are used is best explained by means of examples;
+the following are typical lambda lists, followed by descriptions
+of which parameters are positional, rest or keyword; and required or optional.
+.table 7
+.item (a b c)
+3a*, 3b*, and 3c* are all required and positional.  The function must be
+passed three arguments.
+.item (a b &optional c)
+3a* and 3b* are required, 3c* is optional.  All three are
+positional.  The function may be passed either two or three arguments.
+.item (&optional a b c)
+3a*, 3b*, and 3c* are all optional and positional.  The function may
+be passed zero, one, two or three arguments.
+.item (&rest a)
+3a* is a rest parameter.  The function may be passed any number of arguments.
+.item (a b &optional c d &rest e)
+3a* and 3b* are required positional, 3c* and 3d* are optional
+positional, and 3e* is rest.  The function may be passed two or more
+arguments.
+.item (&key a b)
+3a* and 3b* are both keyword parameters.  A typical
+call would look like
+.lisp
+(foo :b 69 :a '(some elements))
+.exdent 96 or
+(foo :a '(some elements) :b 69)
+.exdent 96 or
+(foo :a '(some elements))
+.end_lisp
+This illustrates that the parameters can be matched in either order, or omitted.
+If a keyword is specified twice, the first value is used.
+.item (x &optional y &rest z &key a b)
+3x* is required positional, 3y* is optional positional,
+3z* is rest, and 3a* and 3b* are keyword.
+One or more arguments are allowed.  One or two arguments specify only
+the positional parameters.  Arguments beyond the second specify both
+the rest parameter and the keyword parameters, so that
+.lisp
+(foo 1 2 :b '(a list))
+.end_lisp
+specifies 31* for 3x*, 32* for 3y*, 3(:b (a
+list))* for 3z*, and 3(a list)* for 3b*.  It does not
+specify 3a*.
+.item (&rest z &key a b c &allow-other-keys)
+3z* is rest, and 3a*, 3b* and 3c* are keyword
+parameters.  3&allow-other-keys* says that absolutely any keyword
+symbols may appear among the arguments; these symbols and the values
+that follow them have no effect on the keyword parameters, but do
+become part of the value of 3z*.
+.item (&rest z &key &allow-other-keys)
+This is equivalent to 3(&rest z)*.  So, for that matter, is the
+previous example, if the function does not use the values of 3a*,
+3b* and 3c*.
+.end_table
+
+	In all of the cases above, the 2default-form* for each
+optional parameter is 3nil*.  To specify your own default forms,
+instead of putting a symbol as the element of a lambda list, put in a
+list whose first element is the symbol (the parameter itself) and whose
+second element is the default-form.  Only optional parameters may have
+default forms; required parameters are never defaulted, and rest
+parameters always default to 3nil*.  For example:
+.table 7
+.item (a &optional (b 3))
+The default-form for 3b* is 33*.  3a* is a required parameter, and
+so it doesn't have a default form.
+.item (&optional (a 'foo) &rest d &key b (c (symeval a)))
+3a*'s default-form is 3'foo*, 3b*'s is 3nil*, and 3c*'s is
+3(symeval a)*.  Note that if
+the function were called on no arguments,
+3a* would be bound to the symbol 3foo*, and 3c* would be bound
+to the value of the symbol 3foo*; this illustrates the fact
+that each variable is bound immediately after its default-form is evaluated,
+and so later default-forms may take advantage of earlier parameters
+in the lambda list.  3b* and 3d* would be bound to 3nil*.
+.end_table
+
+.cindex supplied-p variable
+
+	Occasionally it is important to know whether a certain optional
+parameter was defaulted or not.  Just by looking at the value one cannot
+distinguish between omitting it and passing the default value
+explicitly as an argument.  The way to tell for sure is to put a third
+element into the list: the third element should be a variable (a
+symbol), and that variable is bound to 3nil* if the parameter was not
+passed by the caller (and so was defaulted), or 3t* if the parameter
+was passed.  The new variable is called a ``supplied-p'' variable; it is
+bound to 3t* if the parameter is supplied.  For example:
+.table 7
+.item (a &optional (b 3 c))
+The default-form for 3b* is 33*, and the supplied-p variable for 3b*
+is 3c*.  If the function is called with one argument, 3b* is bound
+to 33* and 3c* is bound to 3nil*.  If the function is called
+with two arguments, 3b* is bound to the value that was passed
+by the caller (which might be 33*), and 3c* is bound to 3t*.
+.end_table
+
+It is possible to specify a keyword parameter's symbol independently
+of its parameter name.  To do this, use 2two* nested lists to
+specify the parameter.  The outer list is the one which can contain
+the default-form and supplied-p variable, if the parameter is
+optional.  The first element of this list, instead of a symbol, is
+again a list, whose elements are the keyword symbol and the parameter
+variable name.
+For example:
+.table 7
+.item (&key ((:a a)) ((:b b) t))
+This is equivalent to 3(&key a (b t))*.
+.item (&key ((:base base-value)))
+This defines an argument which callers specify with the keyword
+3:base*, but which within the function is referred to as the
+variable 3base-value* so as to avoid binding the value of
+3base*, which is a synonym for 3*print-base** and controls
+how numbers are printed.
+.end_table
+
+	It is also possible to include, in the lambda list, some other
+symbols, which are bound to the values of their default-forms upon
+entry to the function.  These are 2not* parameters, and they are
+never bound to arguments; they just get bound, as if they appeared
+in a 3let** form.  (Whether you use aux-variables or bind the
+variables with 3let** is a stylistic decision.)
+	To include such symbols, put them after any parameters, preceeded
+by the 3&*-keyword 3&aux*.  Examples:
+.table 7
+.item (a &optional b &rest c &aux d (e 5) (f (cons a e)))
+3d*, 3e*, and 3f* are bound, when the function is
+called, to 3nil*, 35*, and a cons of the first argument and 5.
+
+You could, equivalently, use 3(a &optional b &rest c)* as
+the lamda list and write 3(let* (d (e 5) (f (cons a e))) ...)*
+around the body of the function.
+.end_table
+
+	It is important to realize that the list of arguments to which a
+rest-parameter is bound is set up in whatever way is most efficiently
+implemented, rather than in the way that is most convenient for the
+function receiving the arguments.  It is not guaranteed to be a ``real''
+list.  Sometimes the rest-args list is a stack list (see (stack-list))
+stored in the function-calling stack, and loses its validity when the
+function returns.  If a rest-argument is to be returned or made part of
+permanent list-structure, it must first be copied (see 3copylist*,
+(copylist-fun)), as you must always assume that it is one of these
+special lists.  The system does not detect the error of omitting to copy
+a rest-argument; you will simply find that you have a value which seems
+to change behind your back.
+
+At other times the rest-args list may be an argument that was given to
+3apply*; therefore it is not safe to 3rplaca* this list as you may
+modify permanent data structure.  An attempt to 3rplacd* a rest-args
+list is unsafe in this case, while in the first case it would cause
+an error, since lists in the stack are impossible to 3rplacd*.
+
+.defconst lambda-parameters-limit
+Has as its value the limit on the number of parameters that a lambda
+list may have.  The implementation limit on the number of parameters
+allowed is at least this many.  There is no promise that this many is
+forbidden, but it is a promise that any number less than this many is
+permitted.
+.end_defconst
+
+.subsection Lambda-List Keywords
+.cindex lambda-list keywords
+.cindex `&' keywords
+.setq lambda-list-keywords section-page
+
+This section documents all the keywords that may appear in the
+lambda list or argument list (see (lambda-list)) of a function, a
+macro, or a special form.  Some of them are allowed everywhere, while
+others are only allowed in one of these contexts; those are so
+indicated.  You need only know about 3&optional*, 3&key*, and
+3&rest* in order to understand the documentation of system functions
+in this manual.
+
+.defconst lambda-list-keywords
+The value of this variable is a list of all of the allowed `3&*' keywords.
+A list of them follows.
+.end_defconst
+
+.table 3
+.item &optional
+Separates the required arguments of a function from the optional arguments.
+See (lambda-list).
+
+.item &rest
+Separates the required and optional arguments of a function from the rest argument.
+There may be only one rest argument.  See (&rest) for full information about
+rest arguments.  See (lambda-list).
+
+.item &key
+Separates the positional arguments and rest argument of a function from the keyword
+arguments.  See (lambda-list).
+
+.item &allow-other-keys
+In a function that accepts keyword arguments, says that keywords
+that are not recognized are allowed.  They and the corresponding values are
+ignored, as far as keyword arguments are concerned, but they do become
+part of the rest argument, if there is one.
+
+.item &aux
+Separates the arguments of a function from the auxiliary variables.
+Following 3&aux* you can put entries of the form
+.lisp
+(2variable* 2initial-value-form*)
+.end_lisp
+or just 2variable* if you want it initialized to 3nil* or don't care what the initial
+value is.
+
+.item &special
+Declares the following arguments and/or auxiliary variables to be special within
+the scope of this function.
+
+.item &local
+Turns off a preceding 3&special* for the variables that follow.
+
+.item &quote
+Declares that the following arguments are not to be evaluated.  This is how you create
+a special function.  See the caveats about special forms on (special-form-caveat).
+
+.item &eval
+Turns off a preceding 3&quote* for the arguments which follow.
+
+.item &list-of
+This is for macros defined by 3defmacro* only.  Refer to (&list-of).
+
+.item &body
+This is for macros defined by 3defmacro* only.  It is similar to 3&rest*,
+but declares to 3grindef* and the code-formatting module of the editor that
+the body forms of a special form follow and should be indented accordingly.
+Refer to (&body).
+
+.item &whole
+This is for macros defined by 3defmacro* only.  It means that the following
+argument is bound to the entire macro call form being expanded.  Refer to
+(&whole).
+
+.item &environment
+This is for macros defined by 3defmacro* only.  It means that the following
+argument is bound to an environment structure which records the local
+3macrolet* macro definitions in effect for subforms of the macro call form.
+Refer to (&environment).
+.end_table
+
+.subsection Local Functions
+
+The constructs 3flet* and 3labels* permit you to define
+a function name in a lexical context only.  If the same name
+has a global function definition, it is shadowed temporarily.
+Function definitions established by 3flet* (or 3labels*)
+are to global definitions made with 3defun* as lexical variable bindings
+made with 3let* are to global bindings made with 3defvar*.
+They always have lexical scope.
+
+.defspec flet local-functions body...
+Executes 2body* with local function definitions in effect
+according to 2local-functions*.
+
+2local-functions* should be a list of elements which look like
+.lisp
+(2name* 2lambda-list* 2function-body*...)
+.end_lisp
+just like the cdr of a 3defun* form.  The meaning of this element
+of 2local-functions* is to define 2name* locally with the
+indicated definition.
+Within the lexical scope of 2body*, using 2name* as a function name accesses
+the local definition.
+
+.lisp
+.exdent 96 Example:
+(flet ((triple (x) (* x 3)))
+  (print (triple -1))
+  (mapcar (function triple) '(1 2 1.2)))
+.end_lisp
+prints the number -3 and returns a list 3(3 6 3.6)*.
+
+Each local function is closed in the environment outside the 3flet*.
+As a result, the local functions cannot call each other.
+.lisp
+(flet ((foo (x) (bar x t))
+       (bar (y z) (list y z)))
+  (foo t))
+.end_lisp
+calls the local definition of 3foo*, which calls the 2global* definition
+of 3bar*, because the body of 3foo* is not within the scope of the
+local definition of 3bar*.
+
+Functions defined with 3flet* inside of a compiled function
+can be referred to by name in a function spec of the form
+3(:internal 2outer-function-name* 2flet-name*)*.
+See (flet-function-spec).
+.end_defspec
+
+.defspec labels local-functions body...
+Is like 2flet* except that the local functions can call each other.
+They are closed in the environment inside the 3labels*, so all
+the local function names are accessible inside the bodies of the
+local functions.  3labels* is one of the most ancient Lisp constructs,
+but was typically not implemented in second generation Lisp systems
+in which no efficient form of closure existed.
+
+.lisp
+(labels ((walk (x)
+	   (typecase x
+	     (cons (walk (car x)) (walk (cdr x)))
+	     (t (if (eq x 'haha) (print 'found-it))))))
+  (walk foo))
+.end_lisp
+allows 3walk* to call itself recursively because 3walk*'s body
+is inside the scope of the definition of 3walk*.
+.end_defspec
+
+See also 3macrolet*, an analogous construct for defining macros locally
+((macrolet-fun)).
+
+.section Some Functions and Special Forms
+
+This section describes some functions and special forms.  Some are parts
+of the evaluator, or closely related to it.  Some have to do
+specifically with issues discussed above such as keyword arguments.
+Some are just fundamental Lisp forms that are very important.
+
+.defun eval form &optional nohook
+3(eval 2form*)* evaluates 2form*, and returns the result.
+.lisp
+.exdent 96 Example:
+(defvar x 43)
+(defvar foo 'bar)
+(eval (list 'cons x 'foo))
+    => (43 . bar)
+.end_lisp
+The dynamic bindings available at the time 3eval* is called
+are visible for dynamic variables within the expression 2x*.
+No lexical bindings are available for the evaluation of 2x*.
+
+It is unusual to call 3eval* explicitly, since usually
+evaluation is done implicitly.  If you are writing a simple Lisp program and
+explicitly calling 3eval*, you are probably doing something wrong.
+3eval* is primarily useful in programs which deal with Lisp itself,
+rather than programs about knowledge, mathematics or games.
+
+Also, if you are only interested in getting at the dynamic value of a
+symbol (that is, the contents of the symbol's value cell), then you
+should use the primitive function 3symeval* (see (symeval-fun)).
+
+If the argument 2nohook* is non-3nil*, execution of the
+evalhook is inhibited for 2form*, but not for
+evaluation of the subforms of 2form*.  See 3evalhook*, (evalhook-fun).
+3evalhook* is also the way to evaluate in a specified lexical environment
+if you happen to have got your hands on one.
+
+Note: in Maclisp, the second argument to 3eval* is a
+``binding context pointer''.  There is no such thing in Zetalisp;
+closures are used instead (see (closure)).
+.end_defun
+
+.defun si:eval1 form &optional nohook
+Within the definition of a special form, evaluates 2form* in the
+2current* lexical environment.
+.end_defun
+
+.defun funcall f &rest args
+3(funcall 2f* 2a1* 2a2* ... 2an*)* applies the
+function 2f* to the arguments 2a1*, 2a2*, ..., 2an*.
+2f* may not
+be a special form nor a macro; this would not be meaningful.
+.lisp
+.exdent 96 Example:
+(cons 1 2) => (1 . 2)
+(setq cons 'plus)
+(funcall cons 1 2) => 3
+.end_lisp
+This shows that the use of the symbol 3cons* as the name of a function
+and the use of that symbol as the name of a variable do not interact.
+The 3cons* form invokes the function named 3cons*.
+The 3funcall* form evaluates the variable and gets the symbol 3plus*,
+which is the name of a different function.
+.end_defun
+
+Note:  the Maclisp functions 3subrcall*, 3lsubrcall*, and 3arraycall*
+are not needed on the Lisp Machine; 3funcall* is just as efficient.
+3arraycall* is provided for compatibility; it ignores its first
+subform (the Maclisp array type) and is otherwise identical to 3aref*.
+3subrcall* and 3lsubrcall* are not provided.
+'findex "subrcall"
+'findex "lsubrcall"
+.c 'findex "arraycall"  -- commented out since it does exist after all
+
+.defun apply f &rest args
+.defun1 lexpr-funcall f &rest args
+3apply* is like 3funcall* except that the last of 2args* is
+really a list of arguments to give to 2f* rather than a single argument.
+3lexpr-funcall* is a synonym for 3apply*; formerly, 3apply* was
+limited to the two argument case.
+
+3(apply 2f* 2arglist*)* applies the function 2f* to the list of
+arguments 2arglist*.  2arglist* should be a list; 2f* can be any function.
+.lisp
+.exdent 96 Examples:
+(setq fred '+) (apply fred '(1 2)) => 3
+(setq fred '-) (apply fred '(1 2)) => -1
+(apply 'cons '((+ 2 3) 4)) =>
+	((+ 2 3) . 4)	2not* (5 . 4)
+.end_lisp
+Of course, 2arglist* may be 3nil*.
+
+If there is more than one element of 2args*, then all but the last
+of them are individual arguments to pass to 2f*, while the last one
+is a list of arguments as above.
+.lisp
+.exdent 96 Examples:
+(apply 'plus 1 1 1 '(1 1 1)) => 6
+
+(defun report-error (&rest args)
+   (apply 'format *error-output* args))
+.end_lisp
+
+3apply* can also be used with a single argument.  Then this argument
+is a list of a function and some arguments to pass it.
+.lisp
+.exdent 96 Example:
+(apply '(car (a))) => a
+      1;Not the same as 3(eval '(car (a)))**
+.end_lisp
+
+Note: in Maclisp, 3apply* takes two or three arguments, and the third
+argument, when passed, is interpreted as a ``binding context pointer''.
+So the second argument always provides all the args to pass to the function.
+There are no binding context pointers in Zetalisp; true lexical scoping
+exists and is interfaced in other ways.
+.end_defun
+
+.defconst call-arguments-limit
+Has as its value the limit on the number of arguments that can be dealt with in a
+function call.  There is no promise that this many is forbidden, but it is a promise
+that any smaller number is acceptable.
+
+Note that if 3apply* is used with exactly two arguments, the first
+one being a function that takes a rest argument, there is no limit
+except the size of memory on the number of elements in the second
+argument to 3apply*.
+.end_defconst
+
+.defun call function &rest argument-specifications
+Offers a very general way of controlling what arguments you
+pass to a function.  You can provide either individual arguments as in
+3funcall* or lists of arguments as in 3apply*, in any order.  In
+addition, you can make some of the arguments 2optional*.  If the
+function is not prepared to accept all the arguments you specify, no
+error occurs if the excess arguments are optional ones.  Instead, the
+excess arguments are simply not passed to the function.
+
+The 2argument-specs* are alternating keywords (or lists of keywords)
+and values.  Each keyword or list of keywords says what to do with the
+value that follows.  If a value happens to require no keywords,
+provide 3()* as a list of keywords for it.
+
+Two keywords are presently defined: 3:optional* and 3:spread*.
+3:spread* says that the following value is a list of arguments.
+Otherwise it is a single argument.  3:optional* says that all the
+following arguments are optional.  It is not necessary to specify
+3:optional* with all the following 2argument-specs*, because it is
+sticky.
+
+Example:
+.lisp
+(call #'foo () x :spread y '(:optional :spread) z () w)
+.end_lisp
+The arguments passed to 3foo* are the value of 3x*, the
+elements of the value of 3y*, the elements of the value of
+3z*, and the value of 3w*.  The function 3foo* must be
+prepared to accept all the arguments which come from 3x* and
+3y*, but if it does not want the rest, they are ignored.
+.end_defun
+
+.defspec quote object
+'cindex "quote"
+3(quote 2object*)* simply returns 2object*.  3quote* is used to
+include constants in a form.  It is useful specifically because
+2object* is not evaluated; the 3quote* is how you make a form that
+returns an arbitrary Lisp object.
+.lisp
+.exdent 96 Examples:
+(quote x) => x
+(setq x (quote (some list)))   x => (some list)
+.end_lisp
+	Since 3quote* is so useful but somewhat cumbersome to type, the reader normally
+converts any form preceded by a single quote (3'*) character into a 3quote* form.
+.lisp
+.exdent 96 For example,
+(setq x '(some list))
+.exdent 96 is converted by 3read* into
+(setq x (quote (some list)))
+.end_lisp
+.end_defspec
+
+.defspec function f
+3function* has two distinct, though related, meanings.
+
+If 2f* is a symbol or any other function spec (see (function-spec)),
+3(function 2f*)* refers to the function definition of 2f*.
+For example, in 3(mapcar (function car) x)*, the function
+definition of 3car* is passed as the first argument to 3mapcar*.
+3function* used this way is like 3fdefinition*
+except that its argument is unevaluated, and so
+.lisp
+(function fred)  1is like*  (fdefinition 'fred)
+.end_lisp
+
+2f* can also be an explicit function, or lambda-expression, a list such
+as 3(lambda (x) (* x x))* such as could be the function definition of a
+symbol.  Then 3(function 2f*)* represents that function, suitably
+interfaced to execute in the lexical environment where it appears.  To
+explain:
+
+.lisp
+(let (a)
+  (mapcar (lambda (x) (push x a)) l))
+.end_lisp
+
+.nopara
+attempts to call the function 3lambda* and evaluate 3(x)*
+for its first argument.  That is no way to refer to the function
+expressed by 3(lambda (x) (push x a))*.
+
+.lisp
+(let (a)
+  (mapcar (quote (lambda (x) (push x a))) l))
+.end_lisp
+
+.nopara
+passes to 3mapcar* the list 3(lambda (x) (push x a))*.
+This list does not in any way record the lexical environment
+where the 3quote* form appeared, so it is impossible to make
+this environment, with its binding of 3a*, available
+for the execution of 3(push x a)*.  Therefore, the reference
+to 3a* does not work properly.
+
+.lisp
+(let (a)
+  (mapcar (function (lambda (x) (push x a))) l))
+.end_lisp
+
+.nopara
+passes 3mapcar* a specially designed closure made from the
+function represented by 3(lambda (x) (push x a))*.  When 3mapcar*
+calls this closure, the lexical environment of the 3function* form
+is put again into effect, and the 3a* in 3(push x a)* refers
+properly to the binding made by this 3let*.
+
+In addition, the compiler knows that the argument to 3function*
+should be compiled.  The argument of 3quote* cannot be compiled
+since it may be intended for other uses.
+
+To ease typing, the reader converts 3#'2thing** into 3(function 2thing*)*.
+So 3#'* is similar to 3'* except that it produces a
+3function* form instead of a 3quote* form.  The last example
+could be written as 
+.lisp
+(let (a)
+  (mapcar #'(lambda (x) (push x a)) l))
+.end_lisp
+
+Another way of explaining 3function* is that it causes 2f* to be
+treated the same way as it would as the car of a form.  Evaluating
+the form 3(2f* 2arg1* 2arg2*...)* uses the function definition
+of 2f* if it is a symbol, and otherwise expects 2f* to be a list
+which is a lambda-expression.  Note that the car of a form may not be
+a non-symbol function spec, as that would be difficult to make sense of.
+Instead, write
+.lisp
+(funcall (function 2spec*) 2args*...)
+.end_lisp
+
+You should be careful about whether you use 3#'* or 3'*.  Suppose
+you have a program with a variable 3x* whose value is assumed to
+contain a function that gets called on some arguments.  If you want that
+variable to be the 3test* function, there are two things you could say:
+.lisp
+(setq x 'test)
+.exdent 96 or
+(setq x #'test)
+.end_lisp
+The former causes the value of 3x* to be the symbol 3test*, whereas
+the latter causes the value of 3x* to be the function object found in
+the function cell of 3test*.  When the time comes to call the function
+(the program does 3(funcall x ...)*), either expression works
+because calling a symbol as a function uses its function definition instead.
+Using 3'test* is insignificantly slower, because the function
+call has to indirect through the symbol, but it allows the function
+to be redefined, traced (see (trace-fun)), or advised (see (advise-fun)).
+Use of 3#'* picks up the function definition out of
+the symbol 3test* when the 3setq* is done and does not see any later changes to it.
+3#'* should be used only if you wish specifically to prevent redefinition
+of the function from affecting this closure.
+.end_defspec
+
+.defun false
+Takes no arguments and returns 3nil*.
+.end_defun
+
+.defun true
+Takes no arguments and returns 3t*.
+.end_defun
+
+.defun ignore &rest ignore
+Takes any number of arguments and returns 3nil*.  This is often useful
+as a ``dummy'' function; if you are calling a function that takes a function
+as an argument, and you want to pass one that doesn't do anything and
+won't mind being called with any argument pattern, use this.
+.end_defun
+
+.defspec comment
+3comment* ignores its form and returns the symbol 3comment*.
+It is most useful for commenting out function definitions
+that are not needed or correct but worth preserving in the source.
+The 3#|...|#* syntactic construct is an alternative method.
+For comments within code about the code, it is better to use semicolons.
+.lisp
+.exdent 96 Example:
+(comment
+;; This is brain-damaged.  Can someone figure out
+;; how to do this right?
+(defun foo (x)
+  ...)
+) ;End comment
+1;; prevents this definition of 3foo* from being used.*
+.end_lisp
+.end_defspec
+
+.section Declarations
+'cindex declaration
+
+Declarations provide auxiliary information on how to execute a function
+or expression properly.  The most important declarations are 3special*
+declarations, which control the scope of variable names.  Some
+declarations do not affect execution at all and only provide information
+about a function, for the sake of 3arglist*, for example.
+
+Declarations may apply to an entire function or to any expression within
+it.  Declarations can be made around any subexpression by writing a
+3local-declare* around the subexpression or by writing a 3declare*
+at the front of the body of certain constructs.  Declarations can be
+made on an entire function by writing a 3declare* at the front of the
+function's body.
+
+.defspec local-declare (declaration...) body...
+A 3local-declare* form looks like
+
+.lisp
+(local-declare (2decl1* 2decl2* ...)
+   2form1*
+   2form2*
+   ...)
+.end_lisp
+
+Each 2decl* is in effect for the forms in the body of the
+3local-declare* form.
+.end_defspec
+
+.defspec declare declaration...
+The special form 3declare* is used for writing local declarations
+within the construct they apply to.
+
+.need 3000
+A 2declare* inside a function definition, just after the argument
+list, is equivalent to putting a 3local-declare* around the function
+definition.  More specifically,
+
+.lisp
+(defun foo (a b)
+  (declare (special a b))
+  (bar))
+.end_lisp
+
+.nopara
+is equivalent to
+
+.lisp
+(local-declare ((special a b))
+(defun foo (a b)
+  (bar)))
+.end_lisp
+
+Note that
+
+.lisp
+(defun foo (a b)
+  (local-declare ((special a b))
+    (bar)))
+.end_lisp
+
+does not do the job, because the declaration is not in effect for
+the binding of the arguments of 3foo*.
+
+3declare* is preferable to 3local-declare* in this sort of
+situation, because it allows the 3defun*s themselves to be the
+top-level lists in the file.  While 3local-declare* might appear to
+have an advantage in that one 3local-declare* may go around several
+3defun*s, it tends to cause trouble to use 3local-declare* in that
+fashion.
+
+3declare* has a similar meaning at the front of the body of a
+3progn*, 3prog*, 3let*, 3prog**, 3let**, or internal 3lambda*.  For
+example,
+.lisp
+(prog (x)
+      (declare (special x))
+      ...)
+.exdent 96 is equivalent to
+(local-declare ((special x))
+  (prog (x)
+        ...))
+.end_lisp
+
+At top level in the file, 3(declare 2forms*...)* is equivalent to
+3(eval-when (compile) 2forms*...)*.  This use of 3declare*
+is nearly obsolete, and should be avoided.  In Common Lisp, 3proclaim*
+(below) is used for such purposes, with a different calling convention.
+
+Elsewhere, 3declare*'s are ignored.
+.end_defspec
+
+Here is a list of declarations that have system-defined meanings:
+.table 3
+.item (special 2var1 var2 ...*)
+The variables 2var1*, 2var2*, etc. will be treated as special
+variables in the scope of the declaration.
+
+.item (unspecial 2var1 var2 ...*)
+The variables 2var1*, 2var2*, etc. will be treated as lexical
+variables in the scope of the declaration, even if they are
+globally special.
+
+.item (notinline 2fun1* 2fun2 ...*)
+The functions 2fun1*, 2fun2* and so on will not be open coded
+or optimized by the compiler within the scope of the declaration.
+
+.item (inline 2fun1* 2fun2 ...*)
+The functions 2fun1*, 2fun2* and so on will be open coded or
+optimized by the compiler (to whatever extent it knows how) within the
+scope of the declaration.  Merely issuing this declaration does not
+tell the compiler how to do any useful optimization or open coding
+of a function.
+
+.item (ignore 2var1* 2var2 ...*)
+Says that the variables 2var1*, 2var2*, etc., which are bound
+in the construct in which this declaration is found, are going to
+be ignored.  This is currently significant only in a function being compiled;
+the compiler issues a warning if the variables are used, and refrains
+from its usual warning if the variables are ignored.
+
+.item (declaration 2decl1* 2decl2 ...*)
+Says that declarations 2decl1*, 2decl2*, etc. are going to be used,
+and prevents any warning about an unrecognized type of declaration.
+For example:
+.lisp
+(defun hack ()
+  (declare (declaration lose-method)
+	   (lose-method foo bar))
+  2...* (lose foo) 2...*)
+.end_lisp
+might be useful if 3(lose foo)* is a macro whose expander function
+does 3(getdecl 'foo 'lose-method)* to see what to do.
+See (getdecl-fun) for more information on 3getdecl* and declarations.
+.lisp
+(proclaim '(declaration lose-method))
+.end_lisp
+might also be advisable if you expect widespread use of 3lose-method*
+declarations.
+.end_table
+
+The next two are used by the compiler and generally should not
+be written by users.
+.table 3
+.item (def 2name*  . 2definition*)
+2name* will be defined for the compiler in the scope of the declaration.
+The compiler uses this automatically to keep track of macros and
+open-codable functions (3defsubst*s) defined in the file being compiled.
+Note that the cddr of this item is a function.
+
+.item (2propname* 2symbol* 2value*)
+3(getdecl 2symbol* 2propname*)* will return 2value*
+in the scope of the declaration.  This is how the compiler keeps track of
+3defdecl*s.
+.end_table
+
+These declarations are significant only when they apply to an entire 3defun*.
+.table 3
+.item (arglist . 2arglist*)
+Records 2arglist* as the argument list of the function, to be used instead of
+its lambda list if anyone asks what its arguments are.  This is
+purely documentation.
+
+.item (values . 2values*) 1or* (:return-list . 2values*)
+Records 2values* as the return values list of the function, to be used if
+anyone asks what values it returns.  This is purely documentation.
+
+.item (sys:function-parent 2parent-function-spec*)
+Records 2parent-function-spec* as the parent of this function.
+If, in the editor, you ask to see the source of this function,
+and the editor doesn't know where it is, the editor will show you
+the source code for the parent function instead.
+
+For example, the accessor functions generated by 3defstruct*
+have no defuns of their own in the text of the source file.
+So 3defstruct* generates them with 3sys:function-parent*
+declarations giving the 3defstruct*'s name as the parent function spec.
+Visiting the accessor function with 3Meta-.* sees the declaration
+and therefore visits the text of the 3defstruct*.
+
+.item (:self-flavor 2flavorname*)
+Instance variables of the flavor 2flavorname*, in 3self*, will be
+accessible in the function.
+.end_table
+
+.defmac locally &body body
+Executes the 2body*, recognizing declarations at the front of it.
+3locally* is synonymous with 3progn* except that in Common Lisp
+a 3declare* is allowed at the beginning of a 3locally* and not
+at the beginning of a 3progn*.
+
+3locally* does differ from 3progn* in one context: at top level
+in a file being compiled, 3progn* causes each of its elements
+(including declarations, therefore) to be treated as if at top level.
+3locally* does not receive this treatment.  The 3locally* form
+is simply evaluated when the QFASL file is loaded.
+.end_defmac
+
+.defun proclaim &rest declarations
+Each of 2declarations* is put into effect globally.  Currently only
+3special* and 3unspecial* declarations mean anything in this way.
+3proclaim*'s arguments are evaluated, and the values are expected
+to be declarations such as you could write in a 3declare*.
+Thus, you would say 3(proclaim '(special x))* to make a special
+declaration globally.
+
+Top-level 3special* declarations are not the recommended way to make a
+variable special.  Use 3defvar*, 3defconstant* or 3defparameter*,
+so that you can give the variable documentation.  Proclaiming the
+variable special should be done only when the variable is used in a file
+other than the one which defines it, to enable the file to be compiled
+without having to load the defining file first.
+
+3proclaim* is fairly new.  Until recently, top-level 3declare* was
+the preferred way to make global special declarations when 3defvar*,
+etc., could not be used.  Such top-level 3declare*'s are still
+quite common.  In them, the declaration would not be quoted;
+for example, 3(declare (special x))*.
+.end_defun
+
+.defspec special variables...
+Equivalent to 3(proclaim (special 2variables*...))*, this
+declares each of the 2variables* to be globally special.
+This function is obsolete.
+.end_defspec
+
+.defspec unspecial variables...
+Removes any global special declarations of the 2variables*.
+This function is obsolete.
+.end_defspec
+
+.defmac the type-specifier value-form
+Is a Common Lisp construct effectively the same as 2value-form*.  It
+declares that the value of 2value-form* is an object which of type
+2type-specifier*.  This is to assist compilers in generating better
+code for conventional machine architectures.  The Lisp Machine does not
+make use of type declarations so this is the same as writing just
+2value-form*.  2type-specifier* is not evaluated.
+
+If you want the type of an object to be checked at run time, with an
+error if it is not what it is supposed to be, use 3check-type*
+((check-type-fun)).
+.end_defmac
+
+.section Tail Recursion
+.setq tail-recursion section-page
+.cindex tail recursion
+
+When one function ends by calling another function (possibly itself), as in
+.lisp
+(defun last (x)
+  (cond ((atom x) x)
+	((atom (cdr x)) x)
+	(t (last (cdr x)))))
+.end_lisp
+.nopara
+it is called 2tail recursion*.  In general, if 2X* is a form, and
+2Y* is a sub-form of 2X*, then if the value of 2Y* is
+unconditionally returned as the value of 2X*, with no intervening
+computation, then we say that 2X* tail-recursively evaluates 2Y*.
+
+In a tail recursive situation,
+it is not strictly necessary to remember anything about the first call
+to 3last* when the second one is activated.  The stack frame for the
+first call can be discarded completely, allowing 3last* to use a
+bounded amount of stack space independent of the length of its argument.
+A system which does this is called 2tail recursive*.
+
+The Lisp machine system works tail recursively if the variable
+3tail-recursion-flag* is non-3nil*.  This is often faster, because
+it reduces the amount of time spent in refilling the hardware's pdl
+buffer.  However, you forfeit a certain amount of useful debugging
+information: once the outer call to 3last* has been removed from the
+stack, you can no longer see its frame in the debugger.
+
+.defvar tail-recursion-flag
+If this variable is non-3nil*, the calling stack frame is
+discarded when a tail-recursive call is made in compiled code.
+.end_defvar
+
+There are many things which a function can do that can make it dangerous
+to discard its stack frame.  For example, it may have done a 3*catch*;
+it may have bound special variables; it may have a 3&rest* argument on
+the stack; it may have asked for the location of an argument or local
+variable.  The system detects all of these conditions automatically and
+retains the stack frame to ensure proper execution.  Some of these
+conditions occur in 3eval*; as a result, interpreted code is never
+completely tail recursive.
+
+.section Multiple Values
+.cindex multiple values
+.cindex returning multiple values
+.setq multiple-value section-page
+
+The Lisp Machine includes a facility by which the evaluation of a form
+can produce more than one value.  When a function needs to return more
+than one result to its caller, multiple values are a cleaner way of
+doing this than returning a list of the values or 3setq*'ing special
+variables to the extra values.  In most Lisp function calls, multiple
+values are not used.  Special syntax is required both to 2produce*
+multiple values and to 2receive* them.
+
+The primitive for producing multiple values is 3values*, which takes
+any number of arguments and returns that many values.  If the last form
+in the body of a function is a 3values* with three arguments, then
+a call to that function returns three values.  Many system functions
+produce multiple values, but they all do it via 3values*.
+
+.defun values &rest args
+Returns multiple values, its arguments.  This is the primitive
+function for producing multiple values.  It is legal to call 3values* with
+no arguments; it returns no values in that case.
+.end_defun
+
+.defun values-list list
+Returns multiple values, the elements of the 2list*.  3(values-list '(a b c))*
+is the same as 3(values 'a 'b 'c)*.
+2list* may be 3nil*, the empty list, which causes no values to be returned.
+Equivalent to 3(apply 'values 2list*)*.
+.end_defun
+
+3return* and its variants can also be used, within a 3block*, 3do* or
+3prog* special form, to return multiple values.  They are explained on
+(return-fun).
+
+Here are the special forms for receiving multiple values.
+
+.defspec multiple-value (variable...) form
+.defspec1 multiple-value-setq (variable...) form
+3multiple-value* is a special
+form used for calling a function which
+is expected to return more than one value.
+2form* is evaluated, and the 2variables*
+are 2set* (not lambda-bound) to the values returned by 2form*.  If more values
+are returned than there are variables, the extra values
+are ignored.  If there are more variables than values returned,
+extra values of 3nil* are supplied.  If 3nil* appears in the 2var-list*,
+then the corresponding value is ignored (setting 3nil* is not allowed anyway).
+.lisp
+.exdent 96 Example:
+(multiple-value (symbol already-there-p)
+	(intern "goo"))
+.end_lisp
+In addition to its first value (the symbol), 3intern* returns a second
+value, which is non-3nil* if an existing symbol was found,
+or else 3nil* if 3intern* had to create one.  So if
+the symbol 3goo* was already known, the variable 3already-there-p*
+is set non-3nil*, otherwise it is set to 3nil*.  The third value
+returned by 3intern* is ignored by this form of call since there
+is no third variable in the 3multiple-value*.
+
+3multiple-value* is usually used for effect rather than for value; however,
+its value is defined to be the first of the values returned by 2form*.
+
+3multiple-value-setq* is the Common Lisp name for this construct.
+The two names are equivalent.
+.end_defspec
+
+.defspec multiple-value-bind (variable...) form body...
+This is similar to 3multiple-value*, but locally binds the variables which
+receive the values, rather than setting them, and has a body--a set of forms
+which are evaluated with these local bindings in effect.
+First 2form* is evaluated.  Then the 2variables* are
+bound to the values returned by 2form*.  Then the 2body* forms
+are evaluated sequentially, the bindings are undone, and the result
+of the last 2body* form is returned.
+.lisp
+.exdent 96 Example:
+(multiple-value-bind (sym already-there)
+    (intern string)
+  ;; If an existing symbol was found, deallocate the string.
+  (if already-there
+      (return-storage (prog1 string (setq string nil))))
+  sym)
+.end_lisp
+.end_defspec
+
+.defspec multiple-value-call function argforms...
+Evaluates the argforms, saving all of their values, and then calls
+2function* with all those values as arguments.  This differs from
+.lisp
+(funcall 2function* 2argforms*...)
+.end_lisp
+because that would get only one argument for 2function* from each
+2argform*, whereas 3multiple-value-call* gets as many args from each
+2argform* as the 2argform* cares to return.  This works by consing a
+list of all the values returned, and applying 2function* to it.  Example:
+.lisp
+(multiple-value-call 'append
+      (values '(a b) '(c d))
+      '(e f))
+   =>  (a b c d e f)
+.end_lisp
+.end_defspec
+
+.defspec multiple-value-prog1 form forms...
+Evaluates 2form*, saves its values, evaluates the 2forms*, discards their values,
+then returns whatever values 2form* produced.
+This does not cons.  Example:
+.lisp
+(multiple-value-prog1 (values 1 2)
+      (print 'foo))
+   =>  1 2
+.end_lisp
+.end_defspec
+
+.defspec multiple-value-list form
+3multiple-value-list* evaluates 2form*, and returns a list of
+the values it returned.  This is useful for when you don't know how many values
+to expect.
+.lisp
+.exdent 96 Example:
+(setq a (multiple-value-list (intern "goo")))
+a => (goo nil #<Package USER 10112147>)
+.end_lisp
+This is similar to the example of 3multiple-value* above; 3a* is set
+to a list of three elements, the three values returned by 3intern*.
+.end_defspec
+
+.defspec nth-value n form
+Evaluates 2form* and returns its value number 2n*, 2n* = 0 meaning
+the first value.  For example, 3(nth-value 1 (foo))* returns
+the second of 3foo*'s values.  3nth-value* operates without consing
+in compiled code if the first argument's value is known at compile time.
+.end_defspec
+
+When one form finished by tail recursively evaluating a subform (see
+(tail-recursion)), all of the subform's multiple values are passed back
+by the outer form.  For example, the value of a 3cond* is the value of
+the last form in the selected clause.  If the last form in that clause
+produces multiple values, so does the 3cond*.  This 2passing-back*
+of multiple values of course has no effect unless eventually one of the
+special forms for receiving multiple values is reached.
+
+If the outer form returns a value computed by a subform, but not in a
+tail recursive fashion (for example, if the value of the subform is
+examined first), multiple values or only single values may be returned
+at the discretion of the implementation; users should not depend on
+whatever way it happens to work, as it may change in the future or in
+other implementations.  The reason we don't guarantee non-transmission
+of multiple values is because such a guarantee would not be very useful
+and the efficiency cost of enforcing it would be high.  Even
+3setq*'ing a variable to the result of a form, then returning the
+value of that variable, might pass multiple values if an
+optimizing compiler realized that the 3setq*'ing of the variable
+was unnecessary.  Since extra returned values are generally ignored,
+it is not vital to eliminate them.
+
+Note that use of a form as an argument to a function never receives
+multiple values from that form.  That is, if the form 3(foo (bar))*
+is evaluated and the call to 3bar* returns many values, 3foo* is
+still called on only one argument (namely, the first value returned),
+rather than being called on all the values returned.  We choose not to
+generate several separate arguments from the several values, because
+this would make the source code obscure; it would not be syntactically
+obvious that a single form does not correspond to a single argument.
+To pass all returned values to another function, use 3multiple-value-call*, above.
+
+For clarity, descriptions of the interaction of several common special
+forms with multiple values follow.  This can all be deduced from the
+rule given above.  Note well that when it says that multiple values
+are not returned, it really means that they may or may not be returned,
+and you should not write any programs that depend on which way it actually works.
+
+The body of a 3defun* or a 3lambda*, and variations such as the
+body of a function, the body of a 3let*, etc., pass back multiple
+values from the last form in the body.
+
+3eval*, 3apply* and 3funcall*,
+pass back multiple values from the function called.
+
+3progn* passes back multiple values from its last form.  3progv* and
+3progw* do so also.  3prog1* and 3prog2*, however, do not pass
+back multiple values.
+
+Multiple values are passed back only from the last subform of an 3and* or an 3or* form,
+not from previous subforms since the return is conditional.  Remember
+that multiple values are only passed back when the value of a subform
+is unconditionally returned from the containing form.  For example,
+consider the form 3(or (foo) (bar))*.  If 3foo* returns a non-3nil*
+first value, then only that value is returned as the value of the
+form.  But if it returns 3nil* (as its first value), then 3or*
+returns whatever values the call to 3bar* returns.
+
+3cond* passes back multiple values from the last form in the selected
+clause, provided that that last form's value is returned
+unconditionally.  This is true if the clause has two or more forms in
+it, and is always true for the last clause.
+
+The variants of 3cond* such as 3if*, 3select*, 3selectq*, and
+3dispatch* pass back multiple values from the last form in the
+selected clause.
+
+If a 3block* form falls through the end, it returns all the values
+returned by the last expression in it.  If 3return-from* or 3return*
+is used to exit a 3block* form, then the values returned by the
+3block* form depend on the kind of 3return*.  If 3return* is given
+two or more subforms, then 3block* returns as many values as the
+3return* has subforms.  However, if the 3return* has only one
+subform, then the 3block* returns all of the values returned by that
+one subform.
+
+3prog* behaves like 3block* if it is exited with 3return* (or
+3return-from*).  If control falls through the end of a 3prog*, it
+returns the single value 3nil*.  3do* also behaves like 3block*
+with respect to 3return*, but if it is exited through the exit test,
+all the values of the last 2exit-form* are returned.
+
+3unwind-protect* passes back multiple values from its protected form.
+In a sense, this is an exception to the rule; but it is useful, and it
+makes sense to consider the execution of the unwind forms as a byproduct of
+unwinding the stack and not as part of sequential execution.
+
+3catch* passes back multiple values from the last form in its
+body, if it exits normally.  If a throw is done, multiple values are
+passed back from the value form in the 3throw*.
+
+.defconst multiple-values-limit
+The smallest number of values that might possibly fail to work.
+Returning a number of values less than this many cannot possibly
+run into trouble with an implementation limit on number of values returned.
+.end_defconst
+
+.section Evaluation and Function Calling Errors
+
+Here is a description of the error conditions that the evaluator can
+signal.  Some can be signaled by calls to compiled functions also.  This
+is for use by those who are writing condition handlers
+((condition-handlers)).  The novice should skip this section.
+
+.defcondition sys:invalid-function (3error*)
+This is signaled when an object that is
+supposed to be applied to arguments is not a valid Lisp function.
+The condition instance supports the
+operation 3:function*, which returns the supposed function to be called.
+
+The 3:new-function* proceed type is provided; it expects one argument,
+a function to call instead.
+.end_defcondition
+
+.defcondition sys:invalid-lambda-list (3sys:invalid-function* 3error*)
+This condition name is present in addition to 3sys:invalid-function*
+when the function to be called looks like an interpreted function, and
+the only problem is the syntax of its lambda list.
+.end_defcondition
+
+.defcondition sys:too-few-arguments (3error*)
+This condition is signaled when a function is applied to too few arguments.
+The condition instance supports the operations 3:function* and
+3:arguments* which return the function and the list of the arguments
+provided.
+
+The proceed types 3:additional-arguments* and 3:new-argument-list*
+are provided.  Both take one argument.  In the first case, the argument
+is a list of arguments to pass in addition to the ones supplied.  In the
+second, it is a list of arguments to replace the ones actually supplied.
+.end_defcondition
+
+.defcondition sys:too-many-arguments (3error*)
+This is similar to 3sys:too-few-arguments*.  Instead of the
+3:additional-arguments* proceed type, 3:fewer-arguments* is
+provided.  Its argument is a number, which is how many of the originally
+supplied arguments to use in calling the function again.
+.end_defcondition
+
+.defcondition sys:undefined-keyword-argument (3error*)
+This is signaled when a function that takes keyword arguments is given a
+keyword that it does not accept, if 3&allow-other-keys* was not used
+in the function's definition and 3:allow-other-keys* was not specified
+by the caller (see (allow-other-keys-kwd)).  The 3:keyword* operation
+on the condition instance returns the extraneous keyword, and the
+3:value* operation returns the value supplied with it.
+
+The proceed type 3:new-keyword* is provided.  It expects one
+argument, which is a keyword to use instead of the one supplied.
+.end_defcondition
+
+.defcondition-flavor sys:cell-contents-error (3error*)
+This condition name categorizes all the errors signaled because of
+references to void memory locations.  It includes ``unbound'' variables,
+``undefined'' functions, and other things.
+
+.table 3
+.item :address
+A locative pointer to the referenced cell.
+.item :current-address
+A locative pointer to the cell which currently contains the contents
+that were found in the referenced cell when the error happened.  This
+can be different from the original address in the case of dynamic
+variable bindings, which move between special PDLs and symbol value
+cells.
+.item :cell-type
+A keyword saying what type of cell was referred to: 3:function*,
+3:value*, 3:closure*, or 3nil* for a cell that is not one of
+those.
+.item :containing-structure
+The object (list, array, symbol) inside which the referenced memory cell is found.
+.item :data-type
+.item1 :pointer
+The data type and pointer fields of the contents of the memory cell, at
+the time of the error.  Both are fixnums.
+.end_table
+
+The proceed type 3:no-action* takes no argument.  If the cell's
+contents are now valid, the program proceeds, using them.  Otherwise
+the error happens again.
+
+The proceed type 3:package-dwim* looks for symbols with the same name
+in other packages; but only if the containing structure is a symbol.
+
+Two other proceed types take one argument: 3:new-value* and 3:store-new-value*.
+The argument is used as the contents of the memory cell.
+3:store-new-value* also permanently stores the argument into the cell.
+.end_defcondition-flavor
+
+.defcondition sys:unbound-variable (3sys:cell-contents-error* 3error*)
+This condition name categorizes all errors of variables whose values are void.
+.end_defcondition
+
+.defcondition sys:unbound-special-variable
+.defcondition1 sys:unbound-closure-variable
+.defcondition1 sys:unbound-instance-variable
+These condition names appear in addition to 3sys:unbound-variable* to subcategorize
+the kind of variable reference that the error happened in.
+.end_defcondition
+
+.defcondition sys:undefined-function (3sys:cell-contents-error* 3error*)
+This condition name categorizes errors of function specs that are undefined.
+.end_defcondition
+
+.defcondition sys:wrong-type-argument (3error*)
+This is signaled when a function checks the type of its argument and
+rejects it; for example, if you do 3(car 1)*.
+
+The condition instance supports these extra operations:
+.table 3
+.item :arg-name
+The name of the erroneous argument.  This may be 3nil* if there is no
+name, or if the system no longer remembers which argument it was.
+.item :old-value
+The value that was supplied for the argument.
+.item :function
+The function which received and rejected the argument.
+.item :description
+A type specifier which says what sort of object was expected for this argument.
+.end_table
+
+The proceed type 3:argument-value* is provided; it expects one argument,
+which is a value to use instead of the erroneous value.
+.end_defcondition

@@ -15,8 +15,8 @@
 
 ;; Configuration
 
-(defvar *input-directory* #p"/home/hans/cadr2/lmman/orig6ed/")
-(defvar *output-directory* #p"/home/hans/cadr2/lmman/6ed-xml/")
+(defvar *input-directory* #p"/home/hans/cadr2/doc/lmman-6ed-orig/")
+(defvar *output-directory* #p"/home/hans/cadr2/doc/lmman-6ed-xml/")
 
 ;; Document constants
 

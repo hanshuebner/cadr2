@@ -1,0 +1,1656 @@
+.c -*-mode:bolio; fonts:tr12,cptfont,tr12i,tr12b-*-
+
+.chapter Errors and Debugging
+.cindex error system
+.cindex handling errors
+.setq error-chapter chapter-number
+
+The first portion of this chapter explains how programs
+can handle errors, by means of condition handlers.  It also explains how
+a program can signal an error if it detects something it doesn't like.
+
+The second explains how users can handle errors, by means of an interactive debugger;
+that is, it explains how to recover if you do something wrong.
+A new user of the Lisp Machine, or someone who just wants to know how
+to deal with errors and not how to cause them, should ignore the first
+sections and skip ahead to (debugger).
+
+	The remaining sections describe some other debugging facilities.
+Anyone who is going to be writing programs for the Lisp Machine should
+familiarize himself with these.
+
+	The 2trace* facility provides the ability to perform certain
+actions at the time a function is called or at the time it returns.  The
+actions may be simple typeout, or more sophisticated debugging functions.
+
+	The 2advise* facility is a somewhat similar facility for modifying
+the behavior of a function.
+
+	The 2breakon* facility allows you to cause the debugger to be
+entered when a certain function is called.  You can then use the debugger's
+stepping commands to step to the next function call or return.
+
+	The 2step* facility allows the evaluation of a form to be
+intercepted at every step so that the user may examine just what is happening
+throughout the execution of the form.  Stepping works only on interpreted code.
+
+	The 2MAR* facility provides the ability to cause a trap
+on any memory reference to a word (or a set of words) in memory.  If
+something is getting clobbered by agents unknown, this can help track
+down the source of the clobberage.
+
+.section Conditions
+.setq condition section-page
+.cindex condition names
+.cindex conditions
+.cindex condition instances
+
+	Programmers often want to control what action is taken by their programs
+when errors or other exceptional situations occur.  Usually different situations
+are handled in different ways, and in order to express what kind of handling
+each situation should have, each situation must have an associated name.  In
+Zetalisp, noteworthy events are represented by objects called 2condition instances*.
+When an event occurs, a condition instance is created; it is then 2signaled*, and a
+2handler* for that condition may be invoked.
+
+When a condition is signaled, the system (essentially) searches
+up the stack of nested function invocations looking for a handler
+established to handle that condition.  The handler is a function that
+gets called to deal with the condition.  The condition mechanism itself
+is just a convenient way for finding an appropriate handler function
+for a particular exceptional situation.
+
+When a condition is signaled, a 2condition instance* is created to represent the
+event and hold information about it.  This information includes 2condition
+names* then classify the condition and any other data that is likely to be of
+interest to condition handlers.  A condition instance is immutable once it has
+been created.  Some conditions are 2errors*, which means that the debugger is
+invoked if they are signaled and not handled.
+
+Condition instances are flavor instances.  The flavor 3condition* is the
+base flavor from which all flavors of condition are built.  Several
+operations that are defined on condition instances are described below.
+The flavor 3error*, which is built on 3condition*, is the base flavor for all kinds of
+conditions which are errors. 
+
+A 2condition name* is a symbol then is used to identify a category of conditions.
+Each condition instance possesses one or more condition names.  Each condition
+handler specifies one or more condition names that it should apply to.  A
+handler applies to a condition if they have any condition names in common.
+This is the sole purpose of condition names: to match condition instances with
+their handlers.  The meaning of every condition name signaled by the system is
+described in this manual.  The condition name index is a directory for them.
+Conditions that are errors possess the condition name 3error*.
+
+In PL/I, CLU, ADA and most other systems that provide named conditions, each
+condition has only one name.  That is to say, the categories identified by
+condition names are disjoint.  In Zetalisp, each condition instance can have
+multiple condition names, which means that the categories identified by
+condition names can overlap and be subdivided.
+
+For example, among the condition names defined by the system are 3condition*,
+3error*, 3sys:arithmetic-error*, 3sys:floating-exponent-underflow* and 3sys:divide-by-zero*.
+3condition* is a condition name that all condition instances possess.  3error*
+identifies the category of conditions that are considered errors.
+3sys:arithmetic-error* identifies the category of errors that pertain to arithmetic
+operations.  3sys:floating-exponent-underflow* and 3sys:divide-by-zero* are the most specific level
+of categorization.  So, the condition signaled when you evaluate 3(* 1s-30 1s-30 1s-30 1s-30)*
+possesses condition names 3sys:floating-exponent-underflow*, 3sys:arithmetic-error*, 3error* and
+3condition*, while the one signaled if you evaluate 3(// 1 0)* possesses condition
+names 3sys:divide-by-zero*, 3sys:arithmetic-error*, 3error* and 3condition*.  In this
+example, the categories fall into a strict hierarchy, but this does not need to be
+the case.
+
+Condition names are documented throughout the manual, with definitions like this:
+
+.defcondition_no_index sys:divide-by-zero (3sys:arithmetic-error* 3error*)
+The condition name 3sys:divide-by-zero* is always accompanied by
+3sys:arithmetic-error* and 3error* (that is, it categorizes a subset of those categories).
+The presence of 3error* implies that all 3sys:divide-by-zero* conditions are errors.
+.end_defcondition
+
+The condition instance also records additional information about the
+event.  For example, the condition instance signaled by dividing by
+zero handles the 3:function* operation by returning the function
+that did the division (it might be 3truncate*, 3floor*,
+3ceiling* or 3round*, as well as 3//*).  In general, for each
+condition name there are conventions saying what additional
+information is provided and what operations to use to obtain it.
+
+The flavor of the condition instance is always one of the condition names, and so
+are its component flavors (with a few exceptions; 3si:vanilla-flavor* and some
+other flavor components are omitted, since they are not useful categories for
+condition handlers to specify).  In our example, the flavor of the condition is
+3sys:arithmetic-error*, and its components include 3error* and 3condition*.
+Condition names require new flavors only when they require significantly
+different handling by the error system; you will understand in detail after
+finishing this section.
+
+.defun condition-typep condition-instance condition-name
+Returns 3t* if 2condition-instance* possesses condition name 2condition-name*.
+2condition-name* can also be a combination of condition names using 3and*, 3or*
+and 3not*; then the condition tested for is a boolean combination of the
+presence or absence of various condition names.  Example:
+.lisp
+(condition-typep error 'fs:file-not-found)
+(condition-typep error 
+   '(or fs:file-not-found fs:directory-not-found))
+.end_lisp
+.end_defun
+
+.defun errorp object
+Returns 3t* if 2object* is a condition instance and its flavor incorporates 3error*.
+This is normally equivalent to 3(typep 2object* 'error)*.  Some functions such as
+3open* optionally return the condition instance rather than signaling it, if an error
+occurs.  3errorp* is useful in testing the value returned.
+.end_defun
+
+.defmethod condition :condition-names
+Returns a list of all the condition names possesses by this condition instance.
+.end_defmethod
+
+.section Handling Conditions
+.cindex condition handlers
+.setq condition-handlers section-page
+
+A condition handler is a function that is associated with certain
+condition names (categories of conditions).  The variable
+3eh:condition-handlers* contains a list of the handlers that are current;
+handlers are established using macros which bind this variable.  When a condition is
+signaled, this list is scanned and all the handlers which apply are called,
+one by one, until one of the handlers either throws or returns non-3nil*.
+
+Since each new handler is pushed onto the front of 3eh:condition-handlers*, the
+innermost-established handler gets the first chance to handle the condition.
+When the handler is run, 3eh:condition-handlers* is bound so that the running
+handler (and all the ones that were established farther in) are not in effect.  This
+avoids the danger of infinite recursion due to an error in a handler invoking the
+same handler.
+
+One thing a handler can do is throw to a tag.  Often the 3catch* for this
+tag is right next to the place where the handler is established, but this
+does not have to be so.  A simple handler that applies to all errors and just
+throws to a tag is established using 3ignore-errors*.
+
+.defmac ignore-errors body...
+An error within the execution of 2body* causes control to return
+from the 3ignore-errors* form.  In this case, the values are
+3nil*, 3t*.  If there is no error inside 2body*, the first value
+is that of the last form in the 2body* and the second is 3nil*.
+
+Errors whose condition instances return true for the 3:dangerous-condition-p* operation
+are not handled.  These include such things as running out of virtual memory.
+.end_defmac
+
+A handler can also signal another condition.  For example, signaling 3sys:abort*
+has the effect of pretending that the user typed the 3Abort* key.  The following
+function creates a handler which signals 3sys:abort*.
+
+.defun si:eval-abort-trivial-errors form
+Evaluates 2form* with a condition handler for many common error conditions such as
+3:wrong-type-argument*, 3:unbound-variable* and 3:unclaimed-message*.
+The handler asks the user whether to allow the debugger to be entered.
+If the user says `no', the handler signals the 3sys:abort* condition.  If the user
+says `yes', the handler does not handle the condition, allowing the debugger
+to do so.
+
+In some cases the handler attempts to determine whether the incorrect variable,
+operation, or argument appeared in 2form*; if it did not, the debugger is always
+allowed to run.  The assumption is that 2form* was typed in by the user, and
+the intention is to distinguish trivial mistakes from program bugs.
+.end_defun
+
+The handler can also ask to proceed from the condition.  This is done by
+returning a non-3nil* value.  See the section on proceeding, (proceeding), for
+more information.
+
+The handler can also decline to handle the condition, by returning 3nil*.
+Then the next applicable handler is called, and so on until either some
+handler does handle the condition or there are no more handlers.
+
+The handler function is called in the environment where the condition
+was signaled, and in the same stack group.  All special variables have the
+values they had at the place where the signaling was done, and all catch
+tags that were available at the point of signaling may be thrown to.
+
+The handler receives the condition instance as its first argument.  When
+establishing the handler, you can also provide additional arguments to
+pass to the handler when it is called.  This allows the same function to
+be used in varying circumstances.
+
+The fundamental means of establishing a condition handler is the macro
+3condition-bind*.
+
+.defmac condition-bind (handlers...) body...
+.defmac1 condition-bind-default (handlers...) body...
+A 3condition-bind* form looks like this:
+.lisp
+(condition-bind ((2conditions* 2handler-form* 2additional-arg-forms*...)
+                 (2conditions* 2handler-form* 2additional-arg-forms*...))
+  2body*...)
+.end_lisp
+
+The purpose is to execute 2body* with one or more condition handlers
+established.
+
+Each list of conditions and handler-form establishes one handler.
+2conditions* is a condition name or a list of condition names to which the
+handler should apply.  It is 2not* evaluated.  2handler-form* is evaluated to
+produce the function that is the actual handler.  The
+2additional-arg-forms* are evaluated, on entry to the 3condition-bind*, to
+produce additional arguments that are passed to the handler
+function when it is called.  The arguments to the handler function are
+the condition instance being signaled, followed by the values of any
+2additional-arg-forms*.
+
+2conditions* can be 3nil*; then the handler applies to all conditions that
+are signaled.  In this case it is up to the handler function to decide whether to
+do anything.  It is important for the handler to refrain from handling
+certain conditions that are used for debugging, such as 3break* and
+3eh:call-trap*.  The 3:debugging-condition-p* operation on condition
+instances returns non-3nil* for these conditions.  Certain other
+conditions such as 3sys:virtual-memory-overflow* should be handled only
+with great care.  The 3:dangerous-condition-p* operation returns non-3nil*
+for these conditions.  Example:
+
+.lisp
+(condition-bind ((nil 'myhandler "it happened here" 45))
+  (catch 'x
+    ...))
+
+(defun myhandler (condition string value)
+  (unless (or (condition-typep condition 'fs:file-error)
+              (send condition :dangerous-condition-p)
+              (send condition :debugging-condition-p))
+    (format error-output "~&~A:~%~A~%" string condition)
+    (throw 'x value)))
+.end_lisp
+
+3myhandler* declines to handle file errors, and all debugging conditions and
+dangerous errors.  For all other conditions, it prints the string specified
+in the condition bind and throws to the tag 3x* the value specified there (45).
+
+3condition-bind-default* is like 3condition-bind* but establishes a 2default* 2handler*
+instead of an ordinary handler.  Default handlers work like ordinary handlers, but
+they are tried in a different order: first all the applicable ordinary handlers are
+given a chance to handle the condition, and then the default handlers get their
+chance.  A more flexible way of doing things like this is described under
+3signal-condition* ((signal-condition-fun)).
+.end_defmac
+
+Condition handlers that simply throw to the function that established
+them are very common, so there are special constructs provided for
+defining them.
+
+.defmac condition-case (variables...) body-form clauses...
+.lisp
+(condition-case (2variable*)
+    2body-form*
+  (2condition-names* 2forms*...)
+  (2condition-names* 2forms*...)
+  ...)
+.end_lisp
+2body-form* is executed with a condition handler established that will
+throw back to the 3condition-case* if any of the specified condition names
+is signaled.
+
+Each list starting with some condition names is a 2clause*, and specifies
+what to do if one of those condition names is signaled.  2condition-names*
+is either a condition name or a list of condition names; it is not
+evaluated.
+
+Once the handler per se has done the throw, the clauses are tested in
+order until one is found that applies.  This is almost like a 3selectq*,
+except that the signaled condition can have several condition names, so
+the first clause that matches any of them gets to run.  The forms in the
+clause are executed with 2variable* bound to the condition instance that
+was signaled.  The values of the last form in the clause are returned
+from the 3condition-case* form.
+
+If none of the specified conditions is signaled during the execution of
+2body-form* (or if other handlers, established within 2body-form*, handle
+them) then the values of 2body-form* are returned from the
+3condition-case* form.
+
+2variable* may be omitted if it is not used.
+
+It is also possible to have a clause starting with 3:no-error* in place of a
+condition name.  This clause is executed if 2body-form* finishes normally.
+Instead of just one 2variable* there can be several variables; during the
+execution of the 3:no-error* clause, these are bound to the values returned
+by 2body-form*.  The values of the last form in the clause become the
+values of the 3condition-case* form.
+
+Here is an example:
+.lisp
+(condition-case ()
+    (print foo)
+  (error (format t " <<Error in printing>>")))
+.end_lisp
+.end_defmac
+
+.defmac condition-call (variables...) body-form clauses...
+3condition-call* is an extension of 3condition-case* that allows you to
+give each clause an arbitrary conditional expression instead of just a list
+of condition names.  It looks like this:
+.lisp
+(condition-call (2variables*...)
+    2body-form*
+  (2test* 2forms*...)
+  (2test* 2forms*...)
+  ...)
+.end_lisp
+The difference between this and 3condition-case* is the 2test* in
+each clause.  The clauses in a 3condition-call* resemble the clauses of a
+3cond* rather than those of a 3selectq*.
+
+When a condition is signaled, each 2test* is executed while still within the
+environment of the signaling (that is, within the actual handler function).  The
+condition instance can be found in the first 2variable*.  If any 2test* returns
+non-3nil*, then the handler throws to the 3condition-call* and the corresponding
+clause's 2forms* are executed.  If every 2test* returns 3nil*, the condition is not
+handled by this handler.
+
+In fact, each 2test* is computed a second time after the throw has
+occurred in order to decide which clause to execute.  The code for the
+2test* is copied in two different places, once into the handler
+function to decide whether to throw, and once in a 3cond* which follows
+the catch.
+
+The last clause can be a 3:no-error* clause just as in 3condition-case*.
+It is executed if the body returns without error.
+The values returned by the body are stored in the 2variables*.
+The values of the last form in the 3:no-error* clause are returned by the
+3condition-call*.
+
+Only the first of 2variables* is used if there is no 3:no-error* clause.
+The 2variables* may be omitted entirely in the unlikely event that none is used.
+Example:
+.lisp
+(condition-call (instance)
+    (do-it)
+  ((condition-typep instance
+     '(and fs:file-error (not fs:no-more-room)))
+   (compute-what-to-return)))
+.end_lisp
+The condition name 3fs:no-more-room* is a subcategory of
+3fs:file-error*; therefore, this handles all file errors 2except* for
+3fs:no-more-room*.
+.end_defmac
+
+Each of the four condition handler establishing constructs has a
+conditional version that decides at run time whether to establish the
+handlers.
+
+.defmac condition-bind-if cond-form (handlers...) body...
+.lisp
+(condition-bind-if 2cond-form*
+                   ((2conditions* 2handler-form* 2additional-arg-forms*...)
+                    (2conditions* 2handler-form* 2additional-arg-forms*...))
+  2body*...)
+.end_lisp
+begins by executing 2cond-form*.  If it returns non-3nil*, then all proceeds
+as for a regular 3condition-bind*.  If 2cond-form* returns 3nil*, then the 2body*
+is still executed but without the condition handler.
+.end_defmac
+
+.defmac condition-case-if cond-form (variables...) body-form clauses...
+.lisp
+(condition-case-if 2cond-form* (2variables*...)
+    2body-form*
+  (2condition-names* 2forms*...)
+  (2condition-names* 2forms*...)
+  ...)
+.end_lisp
+begins by executing 2cond-form*.  If it returns non-3nil*, then all proceeds
+as for a regular 3condition-case*.  If 2cond-form* returns 3nil*, then the
+2body-form* is still executed but without the condition handler.
+2body-form*'s values are returned, or, if there is a 3:no-error* clause, it is
+executed and its values returned.
+.end_defmac
+
+.defmac condition-call-if cond-form ([variable]) body-form clauses...
+.lisp
+(condition-call-if 2cond-form* (2variables*...)
+    2body-form*
+  (2test* 2forms*...)
+  (2test* 2forms*...)
+  ...)
+.end_lisp
+begins by executing 2cond-form*.  If it returns non-3nil*, then everything proceeds
+as for a regular 3condition-call*.  If 2cond-form* returns 3nil*, then the
+2body-form* is still executed but without the condition handler.
+In that case, 2body-form*'s values are returned, or, if there is a 3:no-error* clause, it is
+executed and its values returned.
+.end_defmac
+
+.defmac condition-bind-default-if cond-form (handlers...) body...
+This is used just like 3condition-bind-if*, but establishes a default handler
+instead of an ordinary handler.
+.end_defmac
+
+.defvar eh:condition-handlers
+This is the list of established condition handlers.  Each element looks
+like this:
+.lisp
+(2condition-names* 2function* 2additional-arg-values*...)
+.end_lisp
+2condition-names* is a condition name or a list of condition names, or 3nil*
+which means all conditions.
+
+2function* is the actual handler function.
+
+2additional-arg-values* are additional arguments to be passed to the
+2function* when it is called.  2function*'s first argument is always the
+condition instance.
+
+Both the links of the value of 3eh:condition-handlers* and the elements
+are usually created with 3with-stack-list*, so copy them if you want to
+save them for any period of time.
+.end_defvar
+
+.defvar eh:condition-default-handlers
+This is the list of established default condition handlers.  The data
+format is the same as that of 3eh:condition-handlers*.
+.end_defvar
+
+.section Standard Condition Flavors
+
+.defflavor condition
+The flavor 3condition* is the base flavor of all conditions, and provides default
+definitions for all the operations described in this chapter.
+
+3condition* incorporates 3si:property-list-mixin*, which defines operations
+3:get* and 3:plist*.  Each property name on the property list is also an operation
+name, so that sending the 3:foo* message is equivalent to
+3(send instance :get :foo)*.  In addition, 3(send instance :set :foo 2value*)* is equivalent
+to 3(send instance :set :get :foo 2value*)*.
+
+3condition* also provides two instance variables, 3eh:format-string* and 3eh:format-args*.
+3condition*'s method for the the 3:report* operation passes these to 3format* to print
+the error message.
+.end_defflavor
+
+.defflavor error
+The flavor 3error* makes a condition an error condition.  3errorp* returns 3t* for such
+conditions, and the debugger is entered if they are signaled and not otherwise
+handled.
+.end_defflavor
+
+.defflavor sys:no-action-mixin
+This mixin provides a definition of the proceed type 3:no-action*.
+.end_defflavor
+
+.defflavor sys:proceed-with-value-mixin
+This mixin provides a definition of the proceed type 3:new-value*.
+.end_defflavor
+
+.defflavor ferror
+This flavor is a mixture of 3error*, 3sys:no-action-mixin* and
+3sys:proceed-with-value-mixin*.  It is the flavor used by default by the functions
+3ferror* and 3cerror*, and is often convenient for users to instantiate.
+.end_defflavor
+
+.defflavor sys:warning
+This flavor is a mixture of 3sys:no-action-mixin* and 3condition*.
+.end_defflavor
+
+.defflavor sys:bad-array-mixin
+This mixin provides a definition of the proceed type 3:new-array*.
+.end_defflavor
+
+.Section Condition Operations
+
+Every condition instance can be asked to print an 2error message* which describes
+the circumstances that led to the signaling of the condition.  The easiest way
+to print one is to print the condition instance without escaping (3princ*, or
+3format* operation 3~A*).  This actually uses the 3:report* operation, which
+implements the printing of an error message.  When a condition instance is
+printed with escaping, it uses the 3#* syntax so that it can be read back in.
+This is done using 3si:print-readably-mixin*, (si:print-readably-mixin-flavor).
+
+.defmethod condition :report stream
+Prints on 2stream* the condition's error message, a description of the circumstances
+for which the condition instance was signaled.  The output should neither start
+nor end with a carriage return.
+
+If you are defining a new flavor of condition and wish to change the way the
+error message is printed, this is the operation to redefine.  All others use this
+one.
+.end_defmethod
+
+.defmethod condition :report-string
+Returns a string containing the text that the 3:report* operation would
+print.
+.end_defmethod
+
+.nopara
+Operations provided specifically for condition handlers to use:
+
+.defmethod condition :dangerous-condition-p
+Returns 3t* if the condition instance is one of those that indicate events
+that are considered extremely dangerous, such as running out of memory.
+Handlers that normally handle all conditions might want to
+make an exception for these.
+.end_defmethod
+
+.defmethod condition :debugging-condition-p
+Returns 3t* if the condition instance is one of those that are signaled as
+part of debugging, such as 3break*, which is signaled when you type
+3Meta-Break*.  Although these conditions normally enter the debugger,
+they are not errors; this serves to prevent most condition
+handlers from handling them.  But any condition handler which is
+written to handle 2all* conditions should probably make a specific
+exception for these.
+.end_defmethod
+
+See also the operations 3:proceed-types* and 3:proceed-type-p*, which have to do
+with proceeding ((proceeding)).
+
+.subsection Condition Operations for the Debugger
+
+Some operations are intended for the debugger to use.  They are documented
+because some flavors of condition redefine them so as to cause the debugger to
+behave differently.  This section is of interest only to advanced users.
+
+.defmethod condition :print-error-message stack-group brief-flag stream
+This operation is used by the debugger to print a complete error message.  This
+is done primarily using the 3:report* operation.
+
+Certain flavors of condition define a 3:after* 3:print-error-message* method which,
+when 2brief-flag* is 3nil*, prints additional helpful information which is not part of
+the error message per se.  Often this requires access to the stack group in
+addition to the data in the condition instance.  The method can assume that if
+2brief-flag* is 3nil* then 2stack-group* is not the one which is executing.
+
+For example, the 3:print-error-message* method of the condition signaled when you call
+an undefined function checks for the case of calling a function such as 3bind*
+that is meaningful only in compiled code; if that is what happened, it searches
+the stack to look for the name of the function in which the call appears.  This is
+information that is not considered crucial to the error itself, and is therefore
+not recorded in the condition instance.
+.end_defmethod
+
+.defmethod condition :maybe-clear-input stream
+This operation is used on entry to the debugger to discard input.
+Certain condition flavors, used by stepping redefine this operation to do nothing,
+so that input is not discarded.
+.end_defmethod
+
+.defmethod condition :bug-report-recipient-system
+The value returned by this operation is used to determine what address to mail
+bug reports to, when the debugger 3Control-M* command is used.
+By default, it returns 3"LISPM"*.  The value is passed to the function 3bug*.
+.end_defmethod
+
+.defmethod condition :bug-report-description stream &optional numeric-arg
+This operation is used by the 3Control-M* command to print on 2stream* the
+information that should go in the bug report.  2numeric-arg* is the numeric
+argument, if any, that the user gave to the 3Control-M* command.
+.end_defmethod
+
+.defmethod condition :find-current-frame stack-group
+Returns the stack indices of the stack frames that the debugger should operate
+on.
+
+The first value is the frame ``at which the error occurred.''  This is not the
+innermost stack frame; it is outside the calls to such functions as 3ferror* and
+3signal-condition* which were used to signal the error.
+
+The second value is the initial value for the debugger command loop's current
+frame.
+
+The third value is the innermost frame that the debugger should be willing to let the
+user see.  By default this is the innermost active frame, but it is safe to use
+an open but not active frame within it.
+
+The fourth value, if non-3nil*, tells the debugger to consider the innermost frame
+to be ``interesting''.  Normally, frames that are part of the interpreter (calls to
+3si:eval1*, 3si:apply-lambda*, 3prog*, 3cond*, etc.) are considered uninteresting.
+
+This is a flavor operation so that certain flavors of condition can redefine it.
+.end_defmethod
+
+.defmethod condition :debugger-command-loop stack-group &optional error-object
+Enters the debugger command loop.  The initial error message and backtrace have
+already been printed.  This message is sent in an error handler stack group;
+2stack-group* is the stack group in which the condition was signaled.  2error-object*
+is the condition object which was signaled; it defaults to the one the message is
+sent to.
+
+This operation uses 3:or* method combination (see (method-combination)).
+Some condition flavors add methods that perform some other sort of
+processing or enter a different command loop.  For example, unbound variable
+errors look for look-alike symbols in other packages at this point.  If the added
+method returns 3nil*, the original method that enters the usual debugger
+command loop is called.
+.end_defmethod
+
+.section Signaling Conditions
+.cindex signaling conditions
+
+Signaling a condition has two steps, creating a condition instance and signaling
+the instance.  There are convenience interface functions that combine the two
+steps.  You can also do them separately.  If you just want to signal an error and
+do not want to worry much about condition handling, the function 3ferror* is all
+you need to know.
+
+.subsection Convenience Functions for Signaling
+
+.defun ferror &rest make-condition-arguments
+Creates a condition instance using 3make-condition* and then signals it
+with 3signal-condition*, specifying no local proceed types, and with 3t* as the
+2use-debugger* argument so the debugger is always entered if the condition is not
+otherwise handled.
+
+The first argument to 3ferror* is always a signal name (often 3nil*).  The second
+argument is usually a format string and the remaining arguments are additional
+arguments for 3format*; but this is under the control of the definition of the
+signal name.  Example:
+.lisp
+(ferror 'math:singular-matrix
+        "The matrix ~S cannot be inverted." matrix)
+.end_lisp
+For compatibility with the Symbolics system, if the first argument to 3ferror* is a
+string, then a signal name of 3nil* is assumed.  The arguments to 3ferror* are passed
+on to 3make-condition* with an additional 3nil* preceding them.
+
+If you prefer, you can use the formatted output functions
+((format:outfmt-fun)) to generate the error message.  Here is an example,
+though in a simple case like this using 3format* is easier:
+.lisp
+(ferror 'math:singular-matrix
+  (format:outfmt
+    "The matrix "
+    (prin1 matrix)
+    " cannot be inverted.")
+  number)
+.end_lisp
+In this case, arguments past the second one are not used for printing the error
+message, but the signal name may still expect them to be present so it can put
+them in the condition instance.
+.end_defun
+
+.defun cerror proceed-type ignore signal-name &rest signal-name-arguments
+Creates a condition instance, by passing the 2signal-name* and
+2signal-name-arguments* to 3make-condition*, and then signals it.
+If 2proceed-type* is non-3nil* then it is provided to
+3signal-condition* as a proceed type.  For compatibility with old
+uses of 3cerror*, if 2proceed-type* is 3t*, 3:new-value* is
+provided as the proceed type.  If 2proceed-type* is 3:yes*,
+3:no-action* is provided as the proceed type.
+
+The second argument to 3cerror* is not used and is present for historical
+compatibility.  It may be given a new meaning in the future.
+
+If a condition handler or the debugger decides to proceed, the second value it
+returns becomes the value of 3cerror*.
+
+Common Lisp defines another calling sequence for this function:
+.lisp
+(cerror 2continue-format-string* 2error-format-string* 2args*...)
+.end_lisp
+This signals an error of flavor 3eh:common-lisp-cerror*, which prints an
+error message using 2error-format-string* and 2args*.  It allows one proceed type,
+whose documentation is 2continue-format-string*, and which proceeds silently,
+returning 3nil* from 3cerror*.
+3cerror* can tell which calling sequence has been used and behaves accordingly.
+.end_defun
+
+.defun warn format-string &rest args
+Prints a warning on 3*error-output** by passing the args to 3format*,
+starting on a fresh line, and then returns.
+
+If 3*break-on-warnings** is non-3nil*, however, 3warn* signals a
+procedable error, using the arguments to make an error message.
+If the user proceeds, 3warn* simply returns.
+.end_defun
+
+.defun *break-on-warnings*
+If non-3nil*, 3warn* signals an error rather than just printing a message.
+.end_defun
+
+.defmac check-type place type-spec [description]
+.defmac1 check-arg-type place type-spec [description]
+'cindex argument checking
+Signals a correctable error if the value of 2place* does not
+fit the type 2type-spec*.  2place* is something that 3setf* can store in.
+2type-spec* is a type specifier, a suitable second argument to 3typep*,
+and is not evaluated (see (type-specifiers)).  A simple example is:
+.lisp
+(check-type foo (integer 0 10))
+.end_lisp
+This signals an error unless 3(typep foo '(integer 0 10))*; that is, unless
+3foo*'s value is an integer between zero and ten, inclusive.
+
+If an error is signaled, the error message contains the name of the variable or
+place where the erroneous value was found, and the erroneous value itself.  An
+English description of the type of object that was wanted is computed
+automatically from the type specifier for use in the error message.  For the
+commonly used type specifiers this computed description is adequate.  If it is
+unsatisfactory in a particular case, you can specify 2description*, which is used
+instead.  In order to make the error message grammatical, 2description* should start
+with an indefinite article.
+
+The error signaled is of condition 3sys:wrong-type-argument* (see
+(sys:wrong-type-argument-condition)).  The proceed type 3:argument-value* is
+provided.  If a handler proceeds using this proceed type, it should specify one
+additional argument; that value is stored into 2place* with 3setf*.  The new value is
+then tested, and so on.  3check-type* returns when a value passes the test.
+
+3check-arg-type* is an older name for this macro.
+.end_defmac
+
+.defmac check-arg var-name predicate description [type-symbol]
+3check-arg* is an obsolete variant of 3check-type*.
+2predicate* is either a symbol which is predicate (a function of one argument)
+or a list which is a form.  If it is a predicate, it is applied to the
+value of 2var-name*, which is valid if the predicate returns non-3nil*.
+If it is a form, it is evaluated, and the value is valid of the form
+returns non-3nil*.  The form ought to make use of 2var-name*, but
+nothing checks this.
+
+There is no way to compute an English description of valid values
+from 2predicate*, so a 2description* string must always be supplied.
+
+2type-symbol* is a symbol that is used by condition handlers to determine what type
+of argument was expected.  If 2predicate* is a symbol, you may omit 2type-symbol*, and
+2predicate* is used for that purpose as well.  The use of the 2type-symbol* is not really
+well-defined, and 3check-type*, where a type specifier serves both purposes,
+is superior to 3check-arg* for this reason.
+
+.lisp
+.exdent 96 Examples:
+
+(check-arg foo stringp "a string")
+
+(check-arg h
+           (or (stringp h) (typep h 'fs:host))
+           "a host name"
+           fs:host)
+.end_lisp
+.end_defmac
+
+Other functions that can be used to test for invalid values include
+3ecase* and 3ccase* ((ecase-fun)), which are error-checking versions of
+3selectq*, and 3etypecase* and 3ctypecase* ((etypecase-fun)), error-checking
+versions of 3typecase*.
+
+.defmac assert 2test-form* [(2places*...) [2string* 2args*...]]
+Signals an error if 2test-form* evaluates to 3nil*.  The rest of the 3assert* form is
+relevant only if the error happens.
+
+First of all, the 2places* are forms that can be stored into with 3setf*, and which are used
+(presumably) in 2test-form*.  The reason that the 2places* are specified again
+in the 3assert* is so that the expanded code can arrange for the user to
+be able to specify a new value to be stored into any one of them when
+he proceeds from the error.  When the error is signaled, one proceed-type
+is provided for each 2place* that is given.  The condition object has flavor
+3eh:failed-assertion*.
+
+If the user does proceed with a new value in that fashion, the 2test-form* is
+evaluated again, and the error repeats until the 2test-form* comes out non-3nil*.
+
+The 2string* and 2args* are used to print the error message.  If they are omitted,
+3"Failed assertion"* is used.  They are evaluated only when an error is signaled,
+and are evaluated again each time an error is signaled.  3setf*'ing the 2places* may
+also involve evaluation, which happens each time the user proceeds and sets one.
+
+.lisp
+.exdent 96 Example:
+(assert (neq (car a) (car b)) ((car a) (car b))
+	"The CARS of A and B are EQ: ~S and ~S" 
+	(car a) (car b))
+.end_lisp
+The 2places* here are 3(car a)* and 3(car b)*.  The 2args* happen to be the same
+two forms, by not-exactly-coincidence; the current values of the 2places* are
+often useful in the error message.
+.end_defmac
+
+.nopara
+The remaining signaling functions are provided for compatibility only.
+
+.defun error &rest make-condition-arguments
+3error* exists for compatibility with Maclisp and the Symbolics version of Zetalisp.
+It takes arguments in three patterns:
+.lisp
+(error 2string* 2object* [2interrupt*])
+.end_lisp
+which is used in Maclisp, and
+.lisp
+(error 2condition-instance*)
+(error 2flavor-name* 2init-options*...)
+.end_lisp
+which are used by Symbolics.  (In fact, the arguments to 3error* are simply passed
+along to 3make-condition* if they do not appear to fit the Maclisp pattern).
+
+If the Maclisp argument pattern is not used then there is no difference between
+3error* and 3ferror*.
+.end_defun
+
+.defun cli:error 2format-string* &rest 2args*
+The Common Lisp version of 3error*
+signals an uncorrectable error whose error message is printed by passing
+2format-string* and 2args* to 3format*.
+.end_defun
+
+.defun fsignal format-string &rest format-args
+This function is for Symbolics compatibility only, and is equivalent to
+.lisp
+(cerror :no-action nil nil 2format-string* 2format-args*...)
+.end_lisp
+.end_defun
+
+.defun signal signal-name &rest remaining-make-condition-arguments
+The 2signal-name* and 2remaining-make-condition-arguments* are passed to
+3make-condition*, and the result is signaled with 3signal-condition*.
+
+If the 2remaining-make-condition-arguments* are keyword arguments and
+3:proceed-types* is one of the keywords, the associated value is used as the list of
+proceed types.  In particular, if 2signal-name* is actually a condition instance, so
+that the remaining arguments will be ignored by 3make-condition*, it works to
+specify the proceed types this way.
+
+If the proceed types are not specified, a list of all the proceed types that the
+condition instance knows how to prompt the user about is used by default.
+.end_defun
+
+.defmac errset form [flag]
+Catches errors during the evaluation of 2form*.  If an error occurs, the usual
+error message is printed unless 2flag* is 3nil*.  Then control is thrown and the
+errset-form returns 3nil*.  2flag* is evaluated first and is optional, defaulting to 3t*.  If
+no error occurs, the value of the errset-form is a list of one element, the value
+of 2form*.
+
+3errset* is an old, Maclisp construct, implemented much like 3condition-case*.
+Many uses of 3errset* or 3errset*-like constructs really ought to be checking for
+more specific conditions instead.
+.end_defmac
+
+.defmac catch-error form [flag]
+3catch-error* is a variant of 3errset*.  This construct catches errors during the
+evaluation of 2form* and returns two values.  If 2form* returns normally, the first value is
+2form*'s first value and the second value is 3nil*.  If an error occurs, the usual error message
+is printed unless 2flag* is 3nil*, and then control is thrown out of the 3catch-error*
+form, which returns two values, first 3nil* and second a non-3nil* value that
+indicates the occurrence of an error.  2flag* is evaluated before 2form* and is optional,
+defaulting to 3t*.
+.end_defmac
+
+.defvar errset
+If this variable is non-3nil*, 3errset* forms are not allowed to trap errors.
+The debugger is entered just as if there were no 3errset*.  This is intended mainly
+for debugging.  The initial value of 3errset* is 3nil*.
+.end_defvar
+
+.defmac err
+This is for Maclisp compatibility only and should not be used.
+
+3(err)* is a dumb way to cause an error.  If executed inside an 3errset*,
+that 3errset* returns 3nil*, and no message is printed.
+Otherwise an error is signaled with error message just 3"ERROR>>"*.
+
+3(err 2form*)* evaluates 2form* and causes the containing 3errset*
+to return the result.  If executed when not inside an 3errset*, an error
+is signaled with 2form*'s value printed as the error message.
+
+3(err 2form* 2flag*)*, which exists in Maclisp, is not supported.
+.end_defmac
+
+.subsection Creating Condition Instances
+
+You can create a condition instance quite satisfactorily with 3make-instance* if
+you know which instance variables to initialize.  For example,
+.lisp
+(make-instance 'ferror :condition-names '(foo)
+               :format-string "~S loses."
+               :format-args losing-object)
+.end_lisp
+creates an instance of 3ferror* just like the one that would be signaled if you do
+.lisp
+(ferror 'foo "~S loses." losing-object)
+.end_lisp
+
+Note that the flavor name and its components' names are added in automatically
+to whatever you specify for the 3:condition-names* keyword.
+
+.cindex signal names
+Direct use of 3make-instance* is cumbersome, however, and it is usually handier
+to define a 2signal* 2name* with 3defsignal* or 3defsignal-explicit* and then create the
+instance with 3make-condition*.
+.setq signal-name page
+
+A signal name is a sort of abbreviation for all the things that are always the same
+for a certain sort of condition: the flavor to use, the condition names, and what
+arguments are expected.  In addition, it allows you to use a positional syntax for
+the arguments, which is usually more convenient than a keyword syntax in
+simple use.
+
+Here is a typical 3defsignal*:
+.lisp
+(defsignal series-not-convergent sys:arithmetic-error (series)
+  "Signaled by limit extractor when SERIES does not converge.")
+.end_lisp
+This defines a signal name 3series-not-convergent*, together with the name of the
+flavor to use (3sys:arithmetic-error*, whose meaning is being stretched a little),
+an interpretation for the arguments (3series*, which is explained below),
+and a documentation string.  The documentation string is not used in printing
+the error message; it is documentation for the signal name.  It becomes accessible
+via 3(documentation 'series-not-convergent 'signal)*.
+
+3series-not-convergent* could then be used to signal an error, or just to create a
+condition instance:
+
+.lisp
+(ferror 'series-not-convergent
+        "The series ~S went to infinity." myseries)
+
+(make-condition 'series-not-convergent
+                "The series ~S went to infinity." myseries)
+.end_lisp
+
+The list 3(series)* in the 3defsignal* is a list of implicit instance variable
+names.  They are matched against arguments to 3make-condition* following the
+format string, and each implicit instance variable name becomes an operation
+defined on the condition instance to return the corresponding argument.  (You
+can imagine that 3:gettable-instance-variables* is in effect for all the implicit
+instance variables.)  In this example, sending a 3:series* message to the condition
+instance returns the value specified via 3myseries* when the condition was
+signaled.  The implicit instance variables are actually implemented using the
+condition instance's property list.
+
+Thus, 3defsignal* spares you the need to create a new flavor merely in
+order to remember a particular datum about the condition.
+
+.defmac defsignal signal-name (flavor condition-names...) implicit-instance-variables documentation extra-init-keyword-forms
+Defines 2signal-name* to create an instance of 2flavor* with condition names
+2condition-names*, and implicit instance variable whose names are taken from the list
+2implicit-instance-variables* and whose values are taken from the 3make-condition* arguments
+following the format string.
+
+Instead of a list 3(2flavor** 2condition-names3...)** there may appear just a flavor name.
+This is equivalent to using 2signal-name* as the sole condition name.
+
+The2 extra-init-keyword-forms* are forms to be evaluated to produce additional
+keyword arguments to pass to 3make-instance*.  These can be used to initialize
+other instance variables that particular flavors may have.  These expressions can
+refer to the 2implicit-instance-variables*.
+
+2documentation* is a string which is recorded so that it can be accessed via
+the function 3documentation*, as in 3(documentation 2signal-name* 'signal)*.
+.end_defmac
+
+.defmac defsignal-explicit signal-name (flavor condition-names...) signal-arglist documentation init-keyword-forms...
+Like 3defsignal*, 3defsignal-explicit* defines a signal name.  This signal name is
+used the same way, but the way it goes about creating the condition instance is
+different.
+
+First of all, there is no list of implicit instance variables.  Instead, 2signal-arglist* is
+a lambda list which is matched up against all the arguments to 3make-condition*
+except for the signal-name itself.  The variables bound by the lambda list can
+be used in the 2init-keyword-forms*, which are evaluated to get arguments to pass
+to 3make-instance*.  For example:
+.lisp
+(defsignal-explicit mysignal-3 
+           (my-error-flavor mysignal-3 my-signals-category)
+           (format-string losing-object &rest format-args)
+  "The third kind of thing I like to signal."
+  :format-string format-string
+  :format-args (cons losing-object (copylist format-args))
+  :losing-object-name (send losing-object :name))
+.end_lisp
+Since implicit instance variables are really just properties on the property list of
+the instance, you can create them by using init keyword 3:property-list*.  The
+contents of the property list determines what implicit instance variables exist
+and their values.
+.end_defmac
+
+.defun make-condition signal-name &rest arguments
+3make-condition* is the fundamental way that condition instances are created.
+The 2signal-name* says how to interpret the 2arguments* and come up with a flavor
+and values for its instance variables.  The handling of the 2arguments* is
+entirely determined by the 2signal-name*.
+
+If 2signal-name* is a condition instance, 3make-condition* returns it.
+It is not useful to call 3make-condition* this way explicitly, but this allows
+condition instances to be passed to the convenience functions 3error* and 3signal*
+which call 3make-condition*.
+
+If the 2signal-name* was defined with 3defsignal* or 3defsignal-explicit*, then that
+definition specifies exactly how to interpret the 2arguments* and create the
+instance.  In general, if the 2signal-name* has an 3eh:make-condition-function*
+property (which is what 3defsignal* defines), this property is a function to which
+the 2signal-name* and 2arguments* are passed, and it does the work.
+
+Alternatively, the 2signal-name* can be the name of a flavor.  Then the 2arguments*
+are passed to 3make-instance*, which interprets them as init keywords and values.
+This mode is not really recommended and exists for compatibility with
+Symbolics software.
+
+If the 2signal-name* has no 3eh:make-condition-function* property and is not a
+flavor name, then a trivial 3defsignal* is assumed as a default.  It looks like this:
+.lisp
+(defsignal 2signal-name* ferror ())
+.end_lisp
+So the value is an instance of 3ferror*, with the 2signal-name* as a condition name,
+and the 2arguments* are interpreted as a format string and args for it.
+
+The 2signal-name* 3nil* actually has a definition of this form.  3nil* is frequently used
+as a signal name in the function 3ferror* when there is no desire to use any
+condition name in particular.
+.end_defun
+
+.subsection Signaling a Condition Instance
+
+Once you have a condition instance, you are ready to invoke the condition
+handling mechanism by signaling it.  A condition instance can be signaled any number
+of times, in any stack groups.
+
+.defun signal-condition condition-instance &optional proceed-types invoke-debugger ucode-error-status inhibit-resume-handlers
+Invoke the condition handling mechanism on 2condition-instance*.
+The list of 2proceed-types* says which proceed types (among those conventionally
+defined for the type of condition you have signaled) you are prepared to
+implement, should a condition handler return one (see ``proceeding'').
+These are in addition to any proceed types implemented nonlocally by
+3condition-resume* forms.
+
+2ucode-error-status* is used for internal purposes in signaling errors detected by
+the microcode.
+.end_defun
+
+3signal-condition* tries various possible handlers for the
+condition.  First 3eh:condition-handlers* is scanned for handlers
+that are applicable (according to the condition names they specify) to
+this condition instance.  After this list is exhausted,
+3eh:condition-default-handlers* is scanned the same way.  Each
+handler that is tried can terminate the act of signaling by throwing
+out of 3signal-condition*, or it can specify a way to proceed from
+the signal.  The handler can also return 3nil* to decline to handle the condition;
+then the next possible handler is offered a chance.
+
+If all handlers decline to handle the condition and
+2invoke-debugger* is non-3nil*, the debugger is the handler of
+last resort.  With the debugger, the user can ask to throw or to
+proceed.  The default value of 2invoke-debugger* is non-3nil* if
+the 2condition-instance* is an error.
+
+If all handlers decline to act and 2invoke-debugger* is 3nil*,
+3signal-condition* proceeds using the first proceed type on the list
+of available ones, provided it is a nonlocal proceed type.  If it is a
+local proceed type, or if there are no proceed types,
+3signal-condition* just returns 3nil*.  (It would be slightly
+simpler to proceed using the first proceed type whether it is local or
+not.  But in the case of a local proceed type, this would just mean
+returning the proceed type instead of 3nil*.  It is considered
+slightly more useful to return 3nil*, allowing the signaler to
+distinguish the case of a condition not handled.  The signaler knows
+which proceed types it specified, and can if it wishes consider 3nil* as
+equivalent to the first of them.)
+
+Otherwise, by this stage, a proceed type has been chosen from the available list.
+If the proceed type was among those specified by the caller of 3signal-condition*,
+then proceeding consists simply of returning to that caller.  The chosen proceed
+type is the first value, and arguments (returned by the handler along with the
+proceed type) may follow it.  If the proceed type was implemented nonlocally
+with 3condition-resume* (see (condition-resume-fun)), then the associated
+proceed handler function on 3eh:condition-resume-handlers* is called.
+
+If 2inhibit-resume-handlers* is non-3nil*, resume handlers are not invoked.  If a
+handler returns a nonlocal proceed type, 3signal-condition* just returns to its caller
+as if the proceed type were local.  If the condition is not handled,
+3signal-condition* returns 3nil*.
+
+The purpose of 3condition-bind-default* is so that you can define a
+handler that is allowed to handle a signal only if none of the callers' handlers handle it.
+A more flexible technique for doing this sort of thing is to make an ordinary
+handler signal the same condition instance recursively by calling
+3signal-condition*, like this:
+.lisp
+(multiple-value-list 
+  (signal-condition 2condition-instance*
+                    eh:condition-proceed-types nil nil t))
+.end_lisp
+This passes along the same list of proceed types specified by the original
+signaler, prevents the debugger from being called, and prevents resume handlers
+from being run.  If the first value 3signal-condition* returns is non-3nil*, one of
+the outer handlers has handled the condition; your handler's simplest option is to
+return those same values so that the other handler has its way (but it could
+also examine them and return modified values).  Otherwise, you go on to handle
+the condition in your default manner.
+
+.defvar eh:trace-conditions
+This variable may be set to a list of condition names to be
+2traced*.  Whenever a condition possessing a traced condition name
+is signaled, an error is signaled to report the fact.  (Tracing of
+conditions is turned off while this error is signaled and handled).
+Proceeding with proceed type 3:no-action* causes the signaling of
+the original condition to continue.
+
+If 3eh:trace-conditions* is 3t*, all conditions are traced.
+.end_defvar
+
+.section Proceeding
+.cindex proceed types
+.setq proceeding page
+
+Both condition handlers and the user (through the debugger) have the
+option of proceeding certain conditions.
+
+Each condition name can define, as a convention, certain 2proceed types*, which are
+keywords that signify a certain conceptual way to proceed.  For example,
+condition name 3sys:wrong-type-argument* defines the proceed type
+3:argument-value* which means, ``Here is a new value to use as the argument.''
+
+Each signaler may or may not implement all the proceed types which are
+meaningful in general for the condition names being signaled.  For example, it is
+futile to proceed from a 3sys:wrong-type-argument* error with 3:argument-value*
+unless the signaler knows how to take the associated value and store it into the
+argument, or do something else that fits the conceptual specifications of
+3:argument-value*.  For some signalers, it may not make sense to do this at all.
+Therefore, one of the arguments to 3signal-condition* is a list of the proceed
+types that this particular signaler knows how to handle.
+
+In addition to the proceed types specified by the individual signaler, other
+proceed types can be provided nonlocally; they are implemented by a 2resume
+handler* which is in effect through a dynamic scope.  See below,
+(nonlocal-proceed).
+
+A condition handler can use the operations 3:proceed-types* and 3:proceed-type-p*
+on the condition instance to find out which proceed types are available.  It can
+request to proceed by returning one of the available proceed types as a value.
+This value is returned from 3signal-condition*, and the condition's signaler can
+take action as appropriate.
+
+If the handler returns more than one value, the remaining values are
+considered 2arguments* of the proceed type.  The meaning of the
+arguments to a proceed type, and what sort of arguments are expected,
+are part of the conventions associated with the condition name that
+gives the proceed type its meaning.  For example, the 3:argument-value*
+proceed type for 3sys:wrong-type-argument* errors conventionally takes
+one argument, which is the new value to use.  All the values returned by
+the handler are returned by 3signal-condition* to the signaler.
+
+Here is an example of a condition handler that proceeds from
+3sys:wrong-type-argument* errors.  It makes any atom effectively equivalent to
+3nil* when used in 3car* or any other function that expects a list.  The handler uses
+the 3:description* operation, which on 3sys:wrong-type-argument* condition
+instances returns a keyword describing the data type that was desired.
+.lisp
+(condition-bind
+    ((sys:wrong-type-argument
+	 #'(lambda (condition)
+	       (if (eq (send condition :description) 'cons)
+		   (values :argument-value nil)))))
+2  body*...)
+.end_lisp
+.nopara
+Here the argument to the 3:argument-value* proceed type is 3nil*.
+
+.defmethod condition :proceed-types
+Returns a list of the proceed types available for this condition instance.
+This operation should be used only within the signaling of the condition
+instance, as it refers to the special variable in which 3signal-condition*
+stores its second argument.
+.end_defmethod
+
+.defmethod condition :proceed-type-p proceed-type
+3t* if 2proceed-type* is one of the proceed types available for this condition instance.
+This operation should be used only within the signaling of the condition
+instance, as it refers to the special variable in which 3signal-condition*
+stores its second argument.
+.end_defmethod
+
+.subsection Proceeding and the Debugger
+
+If the condition invokes the debugger, then the user has the
+opportunity to proceed.  When the
+debugger is entered, the available proceed types are assigned
+command characters starting with 3Super-A*.  Each character becomes a
+command to proceed using the corresponding proceed type.
+
+Three additional facilities are required to make it convenient for the
+user to proceed using the debugger.  Each is provided by methods
+defined on condition flavors.  When you define a new condition flavor,
+you must provide methods to implement these facilities.
+.table 0 0 500
+.item Documentation:
+It must be possible to tell the user what each proceed type is 2for*.
+.item Prompting for arguments:
+The user must be asked for the arguments for the proceed type.
+Each proceed type may have different arguments to ask for.
+.item Not always the same proceed types:
+Usually the user can choose among the same set of proceed types that a
+handler can, but sometimes it is useful to provide the user with a
+few extra ones, or to suppress some of them for him.
+.end_table
+
+These three facilities are provided by methods defined on condition
+flavors.  Each proceed type that is provided by signalers should be
+accompanied by suitable methods.  This means that you must normally
+define a new flavor if you wish to use a new proceed type.
+
+The 3:document-proceed-type* operation is supposed to print
+documentation of what a proceed type is for.  For example, when sent to
+a condition instance describing an unbound variable error, if the
+proceed type specified is 3:new-value*, the text printed is something
+like ``Proceed, reading a value to use instead.''
+
+.defmethod condition :document-proceed-type proceed-type stream
+Prints on 2stream* a description of the purpose of proceed type 2proceed-type*.  This
+operation uses 3:case* method combination (see (method-combination)), to
+make it convenient to define the way to document an individual proceed type.
+The string printed should start with an imperative verb form, capitalized,
+and end with a period.  Example:
+
+This example is an 3:or* method so that it can consider any proceed type.
+If it returns non-3nil*, the system considers that it has handled the proceed type
+and no other methods get a chance.  3eh:places* is an instance variable of
+the flavor 3sys:failed-assertion*; its values are the proceed types this method
+understands.
+
+.lisp
+(defmethod (sys:failed-assertion :or :document-proceed-type)
+	   (proceed-type stream ignore)
+  (when (memq proceed-type eh:places)
+    (format stream
+            "Try again, setting ~S.~
+	     You type an expression for it."
+            proceed-type)
+    t))
+.end_lisp
+
+As a last resort, if the condition instance has a 3:case* method for
+3:proceed-asking-user* with 2proceed-type* as the suboperation, and this
+method has a documentation string, it is printed.  This is in fact the
+usual way that a proceed type is documented.
+.end_defmethod
+
+The 3:proceed-asking-user* operation is supposed to ask for suitable
+arguments to pass with the proceed type.  Sending 3:proceed-asking-user*
+to an instance of 3sys:unbound-variable* with argument 3:new-value* would
+read and evaluate one expression, prompting appropriately.
+
+.defmethod condition :proceed-asking-user proceed-type continuation read-object-fn
+The method for 3:proceed-asking-user* embodies the knowledge of how to
+prompt for and read the additional arguments that go with 2proceed-type*.
+
+3:case* method combination is used (see (method-combination)), making it
+possible to define the handling of each proceed type individually in a separate
+function.  The documentation string of the 3:case* method for a proceed type is
+also used as the default for 3:document-proceed-type* on that proceed type.
+
+The argument 2continuation* is an internal function of the debugger which actually
+proceeds from the signaled condition if the 3:proceed-asking-user* method calls
+it.  This is the only way to cause proceeding actually to happen.  Call 2continuation* with
+3funcall*, giving a proceed type and suitable arguments.  The proceed type passed
+to 2continuation* need not be the same as the one given to 3:proceed-asking-user*; it should
+be one of the proceed types available for handlers to use.
+
+Alternatively, the 3:prompt-and-read* method can return without calling 2continuation*; then
+the debugger continues to read commands.  The options which the
+3fs:no-more-room* condition offers in the debugger, to run Dired or expunge a
+directory, work this way.
+
+The argument 2read-object-fn* is another internal function of the debugger whose
+purpose is to read arguments from the user or request confirmation.  If you wish
+to do those things, you must 3funcall* 2read-object-function* to do it.  Use the calling
+sequence documented for the function 3prompt-and-read* (see
+(prompt-and-read-fun)).  (The 2read-object-fn* may or may not actually use
+3prompt-and-read*.)
+.end_defmethod
+
+Here is how 3sys:proceed-with-value-mixin* provides for the proceed type
+3:new-value*.  Note the documentation string, which is automatically
+use by 3:document-proceed-type* since no 3:case* method for that operation
+is provided.
+.lisp
+(defmethod (proceed-with-value-mixin 
+		 :case :proceed-asking-user :new-value)
+	   (continuation read-object-function)
+  "Return a value; the value of an expression you type."
+  (funcall continuation :new-value
+	   (funcall read-object-function
+		    :eval-read
+		    "~&Form whose value to use instead: ")))
+.end_lisp
+
+The 3:user-proceed-types* operation is given the list of proceed types
+actually available and is supposed to return the list of proceed types to
+offer to the user.  By default, this operation returns its argument: all
+proceed types are available to the user through the debugger.
+
+For example, the condition name 3sys:unbound-variable* conventionally
+defines the proceed types 3:new-value* and 3:no-action*.  The first
+specifies a new value; the second attempts to use the variable's current
+value and gets another error if the variable is still unbound.  These are
+clean operations for handlers to use.  But it is more convenient for the
+user to be offered only one choice, which will use the variable's new
+value if it is bound now, but otherwise ask for a new value.  This is
+implemented with a 3:user-proceed-types* method that replaces the two
+proceed types with a single one.
+
+Or, you might wish to offer the user two different proceed types
+that differ only in how they ask the user for additional information.
+For handlers, there would be only one proceed type.
+
+Finally, there may be proceed types intended only for the debugger
+which do not actually proceed; these should be inserted into the list
+by the 3:user-proceed-types* method.
+
+.defmethod condition :user-proceed-types proceed-types
+Assuming that 2proceed-types* is the list of proceed types available for
+condition handlers to return, this operation returns the list of
+proceed types that the debugger should offer to the user.
+
+Only the proceed types offered to the user need to be handled
+by 3:document-proceed-type* and 3:proceed-asking-user*.
+
+The flavor 3condition* itself defines this to return its argument.
+Other condition flavors may redefine this to filter the argument
+in some appropriate fashion.
+
+3:pass-on* method combination is used (see (method-combination)), so
+that if multiple mixins define methods for 3:user-proceed-types*, each method
+gets a chance to add or remove proceed types.  The methods should not
+actually modify the argument, but should cons up a new list in which certain
+keywords are added or removed according to the other keywords that are there.
+
+Elements should be removed only if they are specifically recognized.
+This is to say, the method should make sure that any unfamiliar elements
+present in the argument are also present in the value.  Arranging to omit
+certain specific proceed types is legitimate; returning only
+the intersection with a constant list is not legitimate.
+.end_defmethod
+
+Here is an example of nontrivial use of 3:user-proceed-types*:
+.lisp
+(defflavor my-error () (error))
+
+(defmethod (my-error :user-proceed-types) (proceed-types)
+  (if (memq :foo proceed-types)
+      (cons :foo-two-args proceed-types)
+    proceed-types))
+
+(defmethod (my-error :case :proceed-asking-user :foo) 
+	       (cont read-object-fn)
+  "Proceeds, reading a value to foo with."
+  (funcall cont :foo
+	   (funcall read-object-fn :eval-read
+		    "Value to foo with: ")))
+
+(defmethod (my-error :case :proceed-asking-user :foo-two-args)
+	       (cont read-object-fn)
+  "Proceeds, reading two values to foo with."
+  (funcall cont :foo
+	   (funcall read-object-fn :eval-read
+		    "Value to foo with: ")
+	   (funcall read-object-fn :eval-read
+		    "Value to foo some more with: ")))
+.end_lisp
+
+In this example, if the signaler provides the proceed type 3:foo*, then it is
+described for the user as ``proceeds, reading a value to foo with''; and if
+the user specifies that proceed type, he is asked for a single value,
+which is used as the argument when proceeding.  In addition, the
+user is offered the proceed type 3:foo-two-args*, which has its own
+documentation and which reads two values.  But for condition handlers
+there is really only one proceed type, 3:foo*.  3:foo-two-args* is just an
+alternate interface for the user to proceed type 3:foo*, and this is why the
+3:user-proceed-types* method offers 3:foo-two-args* only if the signaler
+is willing to accept 3:foo*.
+
+.subsection How Signalers Provide Proceed Types
+
+Each condition name defines a conceptual meaning for certain
+proceed types, but this does not mean that all of those proceed types
+may be used every time the condition is signaled.  The signaler must
+specifically implement the proceed types in order to make them do what
+they are conventionally supposed to do.  For some signalers it may be
+difficult to do, or may not even make sense.  For example, it is no use
+having a proceed type 3:store-new-value* if the signaler does not have a
+suitable place to store, permanently, the argument the handler supplies.
+
+Therefore, we require each signaler to specify just which proceed types
+it implements.  Unless the signaler explicitly specifies proceed types
+one way or another, no proceed types are allowed (except for nonlocal ones,
+described in the following section).
+
+One way to specify the proceed types allowed is to call 3signal-condition* and
+pass the list of proceed types as the second argument.
+
+Another way that is less general but more convenient is
+3signal-proceed-case*.
+
+.defmac signal-proceed-case ((variables...) make-condition-arguments...) clauses...
+Signals a condition, providing proceed types and code to implement them.  Each
+clause specifies a proceed type to provide, and also contains code to be run if a
+handler should proceed with that proceed type.
+.lisp
+(signal-proceed-case ((2argument*-2vars...*)
+                     2signal-name* 2signal-name-arguments*...)
+  (2proceed-type* 2forms*...)
+  (2proceed-type* 2forms*...)
+  ...)
+.end_lisp
+
+A condition-object is created with 3make-condition* using the
+2signal-name* and 2signal-name-arguments*; then it is signaled giving a list
+of the proceed types from all the clauses as the list of proceed types
+allowed.
+
+The variables 2argument-vars* are bound to the values
+returned by 3signal-condition*, except for the first value, which is tested
+against the 2proceed-type* from each clause, using a 3selectq*.  The clause that
+matches is executed.
+.end_defmac
+
+.lisp
+.exdent 96 Example:
+(defsignal my-wrong-type-arg 
+           (eh:wrong-type-argument-error sys:wrong-type-argument)
+  (old-value arg-name description)
+  "Wrong type argument from my own code.")
+
+(signal-proceed-case
+	 ((newarg)
+	  'my-wrong-type-arg
+	  "The argument ~A was ~S, which is not a cons."
+	  'foo foo 'cons)
+  (:argument-value (car newarg)))
+.end_lisp
+.nopara
+The signal name 3my-wrong-type-arg* creates errors with condition name
+3sys:wrong-type-argument*.  The 3signal-proceed-case* shown signals such an
+error, and handles the proceed type 3:argument-value*.  If a handler proceeds
+using that proceed type, the handler's value is put in 3newarg*, and then its car is
+returned from the 3signal-proceed-case*.
+
+.subsection Nonlocal Proceed Types
+.setq nonlocal-proceed section-page
+.cindex resume handlers
+.cindex nonlocal proceed types
+
+When the caller of 3signal-condition* specifies proceed types, these are called
+2local proceed types*.  They are implemented at the point of signaling.  There are
+also 2nonlocal proceed types*, which are in effect for all conditions (with appropriate
+condition names) signaled during the execution of the body of the establishing
+macro.  We say that the macro establishes a 2resume handler* for the proceed type.
+
+The most general construct for establishing a resume handler is 3condition-resume*.
+For example, in
+.lisp
+(condition-resume
+    '(fs:file-error :retry-open t
+		    ("Proceeds, opening the file again.")
+		    (lambda (ignore) (throw 'tag nil)))
+  (do-forever
+    (catch 'tag (return (open pathname)))))
+.end_lisp
+the proceed type 3:retry-open* is available for all 3fs:file-error* conditions signaled
+within the call to 3open*.
+
+.defmac condition-resume handler-form &body body
+.defmac1 condition-resume-if cond-form handler-form &body body
+Both execute 2body* with a resume handler in effect for a nonlocal proceed type according to
+the value of 2handler-form*.  For 3condition-resume-if*, the resume handler is in
+effect only if 2cond-form*'s value is non-3nil*.
+
+.lisp
+.exdent 96 The value of the 2handler-form* should be a list with at least five elements:
+(2condition-names* 2proceed-type* 2predicate* 2format-string-and-args* 
+ 2handler-function* 2additional-args*...)
+.end_lisp
+
+2condition-names* is a condition name or a list of them.  The resume handler
+applies to these conditions only.
+
+2proceed-type* is the proceed type implemented by this resume handler.
+
+2predicate* is either 3t* or a function that is applied to a condition instance and
+determines whether the resume handler is in effect for that condition instance.
+
+2format-string-and-args* is a list of a string and additional arguments that can be
+passed to 3format* to print a description of what this proceed type is for.
+These are needed only for anonymous proceed types.
+
+2handler-function* is the function called to do the work of proceeding, once this
+proceed type has been returned by a condition handler or the debugger.
+.end_defmac
+
+3catch-error-restart-explicit-if* makes it easy to establish a particular
+simple kind of resume handler.
+
+.defmac catch-error-restart-explicit-if cond-form (condition-names proceed-type format-string format-args...) body...
+Executes 2body* with (if 2cond-form* produces a non-3nil* value) a resume handler for
+proceed type 2proceed-type* and condition(s) 2condition-names*.  2condition-names*
+should be a symbol or a list of symbols; it is not evaluated.  2proceed-type* should be
+a symbol.
+
+If proceeding is done using this resume handler, control returns from the
+3catch-error-restart-explicit-if* form.  The first value is 3nil* and the second is
+non-3nil*.
+
+2format-string* and the 2format-args*, all of which are evaluated, are used by the
+3:document-proceed-type* operation to describe the proceed type, if it is
+anonymous.
+.end_defmac
+
+For condition handlers there is no distinction between local and nonlocal
+proceed types.  They are both included in the list of available proceed types
+returned by the 3:proceed-types* operation (all the local proceed types come
+first), and the condition handler selects one by returning the proceed type and
+any conventionally associated arguments.  The debugger's 3:user-proceed-types*,
+3:document-proceed-type* and 3:proceed-asking-user* operations are also make
+no distinction.
+
+The difference comes after the handler or the debugger returns
+to 3signal-condition*.  If the proceed type is a local one (one of those in the
+second argument to 3signal-condition*), 3signal-condition* simply returns.
+If the proceed type is not among those the caller handles, 3signal-condition* looks for
+a resume handler
+associated with the proceed type, and calls its handler function.  The arguments to the handler
+function are the condition instance, the 2additional-args* specified in the resume
+handler, and any arguments returned by the condition handler in addition to
+the proceed type.  The handler function is supposed to do a throw.  If it returns
+to 3signal-condition*, an error is signaled.
+
+You are allowed to use ``anonymous'' nonlocal proceed types, which have no
+conventional meaning and are not specially known to the
+3:document-proceed-type* and 3:proceed-asking-user* operations.  The anonymous
+proceed type may be any Lisp object.  The default definition of
+3:proceed-asking-user* handles an anonymous proceed type by simply calling the
+continuation passed to it, reading no arguments.  The default definition of
+3:document-proceed-type* handles anonymous proceed types by passing 3format*
+the 2format-string-and-args* list found in the resume handler (this is what that list
+is for).
+
+Anonymous proceed types are often lists.  Such proceed types are usually made by some variant
+of 3error-restart*, and they are treated a little bit specially.  For one
+thing, they are all put at the end of the list returned by the 3:proceed-types*
+operation.  For another, the debugger command 3Control-C* or 3Resume* never uses
+a proceed type which is a list.  If no atomic proceed type is available, 3Resume* or
+3Control-C* is not allowed.
+
+.defmac error-restart (condition-names format-string format-args...) body...
+.defmac1 error-restart-loop
+.defmac1 catch-error-restart
+.defmac1 catch-error-restart-if cond-form (condition-names format-string format-args...) body...
+All execute body with an anonymous resume handler for 2condition-names*.
+The proceed type for this resume handler is a list, so the 3Resume* key will not use it.
+2condition-names* is either a single condition name or a list of them, or 3nil*
+meaning all conditions; it is not evaluated.
+
+2format-string* and the 2format-args*, all of which are evaluated, are used by the
+3:document-proceed-type* operation to describe the anonymous proceed type.
+
+If the resume handler made by 3error-restart* is invoked by proceeding from a
+signal, the automatically generated resume handler function does a throw back to
+the 3error-restart* and the body is executed again from the beginning.  If body
+returns, the values of the last form in it are returned from the 3error-restart*
+form.
+
+3error-restart-loop* is like 3error-restart* except that it loops to the beginning of
+body even if body completes normally.  It is like enclosing an 3error-restart* in an
+iteration.
+
+3catch-error-restart* is like 3error-restart* except that it never loops back to the
+beginning.  If the anonymous proceed type is used for proceeding, the
+3catch-error-restart* form returns with 3nil* as the first value and a non-3nil* second
+value.
+
+3catch-error-restart-if* is like 3catch-error-restart* except that the resume
+handler is only in effect if the value of the 2cond-form* is non-3nil*.
+
+All of these variants of 3error-restart* can be written in terms of
+3condition-resume-if*.
+.end_defmac
+
+These forms are typically used by any sort of command loop, so that aborting
+within the command loop returns to it and reads another command.
+3error-restart-loop* is often right for simple command loops.  3catch-error-restart*
+is useful when aborting should terminate execution rather than retry, or with an
+explicit conditional to test whether a throw was done.
+
+3error-restart* forms often specify 3(error sys:abort)* as the 2condition-names*.
+The presence of 3error* causes them to be listed (and assigned command
+characters) by the debugger, for all errors, and the presence of 3sys:abort* causes
+the 3Abort* key to use them.  If you would like a procede type to be offered as an option
+by the debugger, but do not want the 3Abort* key to use it, specify just 3error*.
+
+.defun eh:invoke-resume-handler condition-instance proceed-type &rest args
+Invokes the innermost applicable resume handler for 2proceed-type*.
+Applicability of a resume handler is determined by matching its condition names
+against those possessed by 2condition-instance* and by applying its predicate, if not
+3t*, to 2condition-instance*.
+
+If 2proceed-type* is 3nil*, the innermost applicable resume handler is invoked
+regardless of its proceed type.  However, in this case, the scan stops if 3t* is
+encountered as an element of 3eh:condition-resume-handlers*.
+.end_defun
+
+.defvar eh:condition-resume-handlers
+The current list of resume handlers for nonlocal proceed types.
+3condition-resume* works by binding this variable.  Elements are usually lists
+that have the format described above under 3condition-resume*.  The symbol 3t*
+is also meaningful as an element of this list.  It terminates the scan for a resume
+handler when it is made by 3signal-condition* for a condition that was not
+handled.  3t* is pushed onto the list by break loops and the debugger to shield the
+evaluation of your type-in from automatic invocation of resume handlers
+established outside the break loop or the error.
+
+The links of this list, and its elements, are often created using 3with-stack-list*.
+so be careful if you try to save the value outside the context in which you
+examine it.
+.end_defvar
+
+.defcondition sys:abort (3condition*)
+This condition is signaled by the 3Abort* key; it is how that key is implemented.
+Most command loops use some version of 3error-restart* to set up a resume
+handler for 3sys:abort* so that it will return to the innermost command loop if (as
+is usually the case) no handler handles it.  These resume handlers usually apply
+to 3error* as well as 3sys:abort*, so that the debugger will offer a specific command
+to return to the command loop even if it is not the innermost one.
+.end_defcondition
+
+.insert debug
+.insert db-aid

@@ -1,0 +1,1218 @@
+.c This file is part of the Lisp Machine Manual.		-*-Bolio-*-
+
+.chapter Characters and Strings
+.setq string-chapter chapter-number
+.cindex string
+
+	A string is a one-dimensional array representing a sequence of
+characters.  The printed representation of a string is its characters
+enclosed in quotation marks, for example 3"foo bar"*.  Strings are
+constants, that is, evaluating a string returns that string.  Strings
+are the right data type to use for text-processing.
+
+.cindex character object
+Individual characters can be represented by 2character objects* or by
+fixnums.  A character object is actually the same as a fixnum except
+that it has a recognizably different data type and prints differently.
+Without escaping, a character object is printed by outputting the
+character it represents.  With escaping, a character object prints as
+3#\2char** in Common Lisp syntax or as 3#/2char** in
+traditional syntax; see (character-set) and (sharp-slash).  By
+contrast, a fixnum would in all cases print as a sequence of digits.
+Character objects are accepted by most numeric functions in place of
+fixnums, and may be used as array indices.  When evaluated, they are
+constants.
+
+The character object data type was introduced recently for Common Lisp
+support.  Traditionally characters were always represented as fixnums,
+and nearly all system and user code still does so.  Character objects
+are interchangeable with fixnums in most contexts, but not in 3eq*,
+which is often used to compare the result of the stream input operations
+such as 3:tyi*, since that might be 3nil*.  Therefore, the
+stream input operations still return fixnums that represent characters.
+Aside from this, Common Lisp functions that return a character return a
+character object, while traditional functions return a fixnum.  The
+fixnum which is the character code representing 2char* can be written
+as 3#/2char** in traditional syntax.  This is equivalent to writing
+the fixnum using digits, but does not require you to know the character
+code.
+
+Most strings are arrays of type 3art-string*, where each element is
+stored in eight bits.  Only characters with character code less than 256
+can be stored in an ordinary string; these characters form the type
+3string-char*.  A string can also be an array of type
+3art-fat-string*, where each element holds a sixteen-bit unsigned
+fixnum.  The extra bits allow for multiple fonts or an expanded character
+set.
+
+	Since strings are arrays, the usual array-referencing function
+3aref* is used to extract characters from strings.  For example,
+3(aref "frob" 1)* returns the representation of lower case 3r*.
+The first character is at index zero.
+
+.setq string-element-type page
+Conceptually, the elements of a string are character objects.
+This is what Common Lisp programs expect to see when they do
+3aref* (or 3char*, which on the Lisp
+Machine is synonymous with 3aref*) on a string.  But nearly all
+Lisp Machine programs are traditional, and expect elements of strings
+to be fixnums.  Therefore, 3aref* of a string actually returns
+a fixnum.  A distinct version of 3aref* exists for Common Lisp
+programs.  It is 3cli:aref* and it does return character objects
+if given a string.  For all other kinds of arrays, 3aref* and 3cli:aref*
+are equivalent.
+.lisp
+(aref "Foo" 1)  =>  #o157
+(cli:aref "Foo" 1)  =>  #/o
+.end_lisp
+
+It is also legal to store into strings, for example using 3setf* of
+3aref*.  As with 3rplaca* on lists, this changes the actual object;
+you must be careful to understand where side-effects will propagate.  It
+makes no difference whether a character object or a fixnum is stored.
+When you are making strings that you intend to change later, you
+probably want to create an array with a fill-pointer (see
+(fill-pointer)) so that you can change the length of the string as well
+as the contents.  The length of a string is always computed using
+3array-active-length*, so that if a string has a fill-pointer, its
+value is used as the length.
+
+The functions described in this section provide a variety of useful
+operations on strings.  In place of a string, most of these functions
+accept a symbol or a fixnum as an argument, coercing it into a
+string.  Given a symbol, its print name, which is a string, is used.
+Given a fixnum, a one-character string containing the character designated
+by that fixnum is used.  Several of the functions actually work on any
+type of one-dimensional array and may be useful for other than string
+processing; these are the functions such as 3substring* and 3string-length*
+which do not depend on the elements of the string being characters.
+
+The generic sequence functions in chapter (sequence-chapter) may
+also be used on strings.
+
+.section Characters
+.setq characters section-page
+.cindex characters
+
+The Lisp Machine data type for character objects is a recent addition
+to the system.  Most programs still use fixnums to represent characters.
+
+Common Lisp programs typically work with actual character objects but
+programs traditionally use fixnums to represent characters.  The new
+Common Lisp functions for operating with characters have been implemented
+to accept fixnums as well, so that they can be used equally well from
+traditional programs.
+
+.defun characterp object
+3t* if 2object* is a character object; 3nil* otherwise.
+In particular, it is 3nil* if 2object* is a fixnum such as
+traditional programs use to represent characters.
+.end_defun
+
+.defun character object
+Coerces 3object* to a single character,
+represented as a fixnum.  If 3object* is a number, it is returned.  If
+3object* is a string or an array, its first element is returned.  If
+3object* is a symbol, the first character of its pname is returned.
+Otherwise an error occurs.  The way characters are represented as fixnums
+is explained in (character-set).
+.end_defun
+
+.defun cli:character object
+Coerces 2object* into a character and returns the character as a character object
+for Common Lisp programs.
+.end_defun
+
+.defun int-char fixnum
+Converts 2fixnum*, regarded as representing a character, to a
+character object.  This is a special case of 3cli:character*.
+3(int-char #o101)* is the character object for 3A*.  If a character
+object is given as an argument, it is returned unchanged.
+.end_defun
+
+.defun char-int char
+Converts 2char*, a character object, to the fixnum which represents
+the same character.  This is the inverse of 3int-char*.  It may also
+be given a fixnum as argument, in which case the value is the same
+fixnum.
+.end_defun
+
+.subsection Components of a Character
+.cindex character code
+.cindex font (of a character)
+.cindex bits (of a character)
+.cindex modifier bits (of a character)
+.cindex character set
+.setq character-set section-page
+
+A character object, or a fixnum which is interpreted as a character,
+contains three separate pieces of information: the 2character code*,
+the 2font number*, and the 2modifier bits*.  Each of these things
+is an integer from a fixed range.  The character code ranges from 0 to
+377 (octal), the font number from 0 to 377 (octal), and the modifier
+bits from 0 to 17 (octal).  These numeric constants should not appear
+in programs; instead, use the constant symbols 3char-code-limit*,
+and so on, described below.
+
+Ordinary strings can hold only characters whose font number and modifier
+bits are zero.  Fat strings can hold characters with any font number,
+but the modifier bits must still be zero.
+
+Character codes less than 200 octal are printing graphics;
+when output to a device they are assumed to print a character and move
+the cursor one character position to the right.  (All software provides
+for variable-width fonts, so the term ``character position'' shouldn't
+be taken too literally.)
+
+Character codes 200 through 236 octal are used for special characters.
+Character 200 is a ``null character'', which does not correspond to any
+key on the keyboard.  The null character is not used for anything much;
+3fasload* uses it internally.  Characters 201 through 236 correspond
+to the special function keys on the keyboard such as 3Return* and
+3Call*.  The remaining character codes 237 through 377 octal are reserved
+for future expansion.
+
+	Most of the special characters do not normally appear in files
+(although it is not forbidden for files to contain them).  These
+characters exist mainly to be used as ``commands'' from the keyboard.  A
+few special characters, however, are ``format effectors'' which are just
+as legitimate as printing characters in text files.  The names and
+meanings of these characters are:
+
+.table 3
+.item Return
+The ``newline'' character, which separates lines of text.  We do not use
+the PDP-10 convention which separates lines by a pair of characters, a
+``carriage return'' and a ``linefeed''.
+
+.item Page
+The ``page separator'' character, which separates pages of text.
+
+.item Tab
+The ``tabulation'' character, which spaces to the right until the next ``tab stop''.
+Tab stops are normally every 8 character positions.
+.end_table
+
+The space character is considered to be a printing character whose printed image
+happens to be blank, rather than a format effector.
+
+	When a letter is typed with any of the modifier bit keys
+(3Control*, 3Meta*, 3Super*, or 3Hyper*), the letter is normally
+upper-case.  If the 3Shift* key is pressed as well, then the letter
+becomes lower-case.  This is exactly the reverse of what the 3Shift*
+key does to letters without control bits.  (The 3Shift-lock* key has
+no effect on letters with control bits.)
+
+.defun char-code char
+.defun1 char-font char
+.defun1 char-bits char
+Return the character code of 2char*, the font number of 2char*,
+and the modifier bits value of 2char*.  2char* may
+be a fixnum or a character object; the value is always a fixnum.
+
+These used to be written as
+.lisp
+(ldb %%ch-char 2char*)
+(ldb %%ch-font 2char*)
+(ldb %%ch-control-meta 2char*)
+.end_lisp
+Such use of 3ldb* is frequent but obsolete.
+.end_defun
+
+.defconst char-code-limit
+A constant whose value is a bound on the maximum code of any character.
+In the Lisp Machine, currently, it is 400 (octal).
+.end_defconst
+
+.defconst char-font-limit
+A constant whose value is a bound on the maximum font number value of
+any character.  In the Lisp Machine, currently, it is 400 (octal).
+.end_defconst
+
+.defconst char-bits-limit
+A constant whose value is a bound on the maximum modifier bits value of
+any character.  In the Lisp Machine, currently, it is 20 (octal).  Thus,
+there are four modifier bits.  These are just the familiar Control, Meta,
+Super and Hyper bits.
+.end_defconst
+
+.defconst char-control-bit
+.defconst1 char-meta-bit
+.defconst1 char-super-bit
+.defconst1 char-hyper-bit
+Constants with values 1, 2, 4 and 8.
+These give the meanings of the bits within the bits-field of a character object.
+Thus, 3(bit-test char-meta-bit (char-bits 2char*))* would be non-3nil*
+if 2char* is a meta-character.  (This can also be tested with 3char-bit*.)
+.end_defconst
+
+.defun char-bit char name
+3t* if 2char* has the modifier bit named by 2name*.  2name* is
+one of the following four symbols: 3:control*, 3:meta*,
+3:super*, and 3:hyper*.
+.lisp
+(char-bit #\meta-x :meta) => t.
+.end_lisp
+.end_defun
+
+.defun set-char-bit char name newvalue
+Returns a character like 2char* except that the bit specified by 2name*
+is present if 2newvalue* is non-3nil*, absent otherwise.  Thus,
+.lisp
+(set-char-bit #\x :meta t) => #\meta-x.
+.end_lisp
+The value is a fixnum if 2char* is one; a character object if 2char* is one.
+.end_defun
+
+.c  	Since the control bits are not part of the fundamental 8-bit
+.c character codes, there is no way to express keyboard input in terms of
+.c simple character codes.  However, there is a convention accepted by the
+.c relevant programs for encoding keyboard input into a string of
+.c characters: if a character has its 3Control* bit on, prefix it with an
+.c alpha.  If a character has its 3Meta* bit on, prefix it with a
+.c beta.  If a character has both its 3Control* and 3Meta* bits on,
+.c prefix it with an epsilon.  If a character has its 3Super* bit on,
+.c prefix it with a pi.  If a character has its 3Hyper* bit on,
+.c prefix it with a lambda.  To get an alpha, beta,
+.c epsilon, pi, lambda, or equivalence into the string,
+.c quote it by prefixing it with an equivalence.
+
+.cindex keyboard character
+Until recently the only way to access
+the character code, font and modifier bits was with 3ldb*,
+using the byte field names listed below.
+Most code still uses that method, but it is obsolete; 3char-bit*
+should be used instead.
+.setq %%kbd page
+.cindex %%kbd fields
+
+.table 3
+.item %%kbd-char
+.item1 %%ch-char
+'vindex %%kbd-char
+'vindex %%ch-char
+Specifies the byte containing the character code.
+
+.item %%ch-font
+'vindex %%ch-font
+Specifies the byte containing the font number.
+
+.item %%kbd-control
+'vindex %%kbd-control
+Specifies the byte containing the Control bit.
+
+.item %%kbd-meta
+'vindex %%kbd-meta
+Specifies the byte containing the Meta bit.
+
+.item %%kbd-super
+'vindex %%kbd-super
+Specifies the byte containing the Super bit.
+
+.item %%kbd-hyper
+'vindex %%kbd-hyper
+Specifies the byte containing the Hyper bit.
+
+.item %%kbd-control-meta
+'vindex %%kbd-control-meta
+Specifies the byte containing all the modifier bits.
+.end_table
+
+Characters are sometimes used to represent mouse clicks.  The character
+says which button was pressed and how many times.  Refer to the Window
+System manual for an explanation of how these characters are generated.
+
+.defun tv:kbd-mouse-p char
+3t* if 2char* is a character used to represent a mouse click.
+Such characters are always distinguishable from characters that represent
+keyboard input.
+.end_defun
+
+.defconst %%kbd-mouse-button
+The value of 3%%kbd-mouse-button* is a byte specifier for the field in
+a mouse signal that says which button was clicked.  The byte contains
+30*, 31*, or 32* for the left, middle, or right button,
+respectively.
+.end_defconst
+
+.defconst %%kbd-mouse-n-clicks
+The value of 3%%kbd-mouse-n-clicks* 
+is a byte specifier for the field in a mouse signal
+that says how many times the button was clicked.
+The byte contains one less than the number of times the button was clicked.
+.end_defconst
+
+.subsection Constructing Character Objects
+
+.defun code-char code &optional (bits 30*) (font 30*)
+.defun1 make-char code &optional (bits 30*) (font 30*)
+Returns a character object made from 2code*, 2bits* and 2font*.
+Common Lisp says that not all combinations may be valid, and that 3nil*
+is returned for an invalid combination.  On the Lisp Machine, any combination
+is valid if the arguments are valid individually.
+
+According to Common Lisp, 3code-char* requires a number as a first
+argument, whereas 3make-char* requires a character object, whose character
+code is used.  On the Lisp Machine, either function may be used in either way.
+.end_defun
+
+.defun digit-char weight &optional (radix 310.*) (font 30*)
+Returns a character object which is the digit with the specified weight,
+and with font as specified.  However, if there is no suitable character
+which has weight 2weight* in the specified radix, the value is 3nil*.
+If the ``digit'' is a letter (which happens if 2weight* is greater than
+9), it is returned in upper case.
+.end_defun
+
+.defun tv:make-mouse-char button n-clicks
+Returns the fixnum character code that represents a mouse click in the
+standard way.  3tv:mouse-char-p* of this value is 3t*.
+2button* is 0 for the leftbutton, 1 for the middle button,
+or 2 for the right button.  2n-clicks* is one less than the
+number of clicks (1 for a double click, 0 normally).
+.end_defun
+
+.subsection The Character Set
+.cindex character code values
+.setq character-code-values section-page
+
+Here are the numerical values of the characters in the Zetalisp
+character set.  It should never be necessary for a user or a source
+program to know these values.  Indeed, they are likely to be
+changed in the future.  There are symbolic names for all characters; see
+the section on character names, below.
+
+It is worth pointing out that the Zetalisp character
+set is different from the ASCII character set.   File servers
+operating on hosts that use ASCII for storing text files
+automatically perform character set conversion when text files
+are read or written.  The details of the mapping are explained in
+(character-set-differences).
+7
+.group
+.nofill
+000 center-dot ( )             040 space       100 @           140 `
+001 down arrow ()             041 !           101 A           141 a
+002 alpha ()                  042 "           102 B           142 b
+003 beta ()                   043 #           103 C           143 c
+004 and-sign ()               044 $           104 D           144 d
+005 not-sign ()               045 %           105 E           145 e
+006 epsilon ()                046 &           106 F           146 f
+007 pi ()                     047 '           107 G           147 g
+010 lambda ((ctl-h))                 050 (           110 H           150 h
+011 gamma (	)                  051 )           111 I           151 i
+012 delta ((ctl-j))                  052 *           112 J           152 j
+013 uparrow ()                053 +           113 K           153 k
+014 plus-minus ()             054 ,           114 L           154 l
+015 circle-plus ((ctl-m))            055 -           115 M           155 m
+016 infinity ()               056 .           116 N           156 n
+017 partial delta ()          057 /           117 O           157 o
+020 left horseshoe ()         060 0           120 P           160 p
+021 right horseshoe ()        061 1           121 Q           161 q
+022 up horseshoe ()           062 2           122 R           162 r
+023 down horseshoe ()         063 3           123 S           163 s
+024 universal quantifier ()   064 4           124 T           164 t
+025 existential quantifier () 065 5           125 U           165 u
+026 circle-X ()               066 6           126 V           166 v
+027 double-arrow ()           067 7           127 W           167 w
+030 left arrow ()             070 8           130 X           170 x
+031 right arrow ()            071 9           131 Y           171 y
+032 not-equals ()             072 :           132 Z           172 z
+033 diamond (altmode) ()      073 ;           133 [           173 {
+034 less-or-equal ()          074 <           134 \           174 |
+035 greater-or-equal ()       075 =           135 ]           175 }
+036 equivalence ()            076 >           136 ^           176 ~
+037 or ()                     077 ?           137 _           177 (ctl-qm)
+200 Null character     210 Overstrike    220 Stop-output   230 Roman-iv
+201 Break              211 Tab           221 Abort         231 Hand-up
+202 Clear              212 Line          222 Resume        232 Hand-down
+203 Call               213 Delete        223 Status        233 Hand-left
+204 Terminal escape    214 Page          224 End           234 Hand-right
+205 Macro/backnext     215 Return        225 Roman-i       235 System
+206 Help               216 Quote         226 Roman-ii      236 Network
+207 Rubout             217 Hold-output   227 Roman-iii
+237-377 reserved for the future
+
+
+                    The Lisp Machine Character Set
+			(all numbers in octal)
+.fill
+.apart
+*
+
+.subsection Classifying Characters
+
+.defun string-char-p char
+3t* if 2char* is a character that can be stored in a string.  On the
+Lisp Machine, this is true if the font and modifier bits of 2char* are zero.
+.end_defun
+
+.defun standard-char-p char
+3t* if 2char* is a standard Common Lisp character: any of the 95
+ASCII printing characters (including 3Space*), and the 3Return* character.
+Thus 3(standard-char-p #\end)* is 3nil*.
+.end_defun
+
+.defun graphic-char-p char
+3t* if 2char* is a graphic character; one which has a printed shape.
+3A*, 3-*, 3Space* and 7* are all graphic characters; 3Return*,
+3End* and 3Abort* are not.  A character whose modifier bits are
+nonzero is never graphic.
+
+Ordinary output to windows prints graphic characters using the current font.
+Nongraphic characters are printed using lozenges unless they have special
+formatting meanings (as 3Return* does).
+.end_defun
+
+.defun alpha-char-p char
+3t* if 2char* is a letter with zero modifier bits.
+.end_defun
+
+.defun digit-char-p char &optional (radix 310.*)
+If 2char* is a digit available in the specified radix, returns the
+2weight* of that digit.  Otherwise, it returns 3nil*.  If the modifier
+bits of 2char* are nonzero, the value is always 3nil*.  (It would be
+more useful to ignore the modifier bits, but this decision provides
+Common Lisp with a foolish consistency.)  Examples:
+.lisp
+(digit-char-p #\8 8) => nil
+(digit-char-p #\8 9) => 8
+(digit-char-p #\F 16.) => 15.
+(digit-char-p #\c-8 2anything*) => nil
+.end_lisp
+.end_defun
+
+.defun alphanumericp char
+3t* if 2char* is a letter or a digit 0 through 9, with zero modifier bits.
+.end_defun
+
+.subsection Comparing Characters
+
+.defun char-equal &rest chars
+This is the primitive for comparing characters for equality; many of the
+string functions call it.  The arguments may be fixnums or character
+objects indiscriminately.  The result is 3t* if the characters are
+equal ignoring case, font and modifier bits, otherwise 3nil*.
+.end_defun
+
+.defun char-not-equal &rest chars
+3t* if the arguments are all different as characters, ignoring
+case, font and modifier bits.
+.end_defun
+
+.defun char-lessp &rest chars
+.defun1 char-greaterp &rest chars
+.defun1 char-not-lessp &rest chars
+.defun1 char-not-greaterp &rest chars
+Ordered comparison of characters, ignoring case, font and modifier bits.
+These are the primitives for comparing characters for order; many of the
+string functions call it.  The arguments may be fixnums or character
+objects.  The result is 3t* if the arguments are in strictly increasing
+(strictly decreasing, nonincreasing, nondecreasing) order.  Details of the
+ordering of characters are in (character-set).
+.end_defun
+
+.defun char= char1 &rest chars
+.defun1 char//= char1 &rest chars
+.defun1 char> char1 &rest chars
+.defun1 char< char1 &rest chars
+.defun1 char>= char1 &rest chars
+.defun1 char<= char1 &rest chars
+These are the Common Lisp functions for comparing characters and 
+including the case, font and bits in the comparison.  On the Lisp Machine
+they are synonyms for the numeric comparison functions 3=*, 3>*, etc.
+Note that in Common Lisp syntax you would write 3char/=*, not 3char//=*.
+.end_defun
+
+.subsection Character Names
+.setq xr-special-character-names section-page
+.cindex special character
+
+Characters can sometimes be referred to by long names; as, for
+example, in the 3#\* construct in Lisp programs.  Every basic
+character (zero modifier bits) which is not a graphic character has
+one or more standard names.  Some graphic characters have standard
+names too.  When a non-graphic character is output to a window, it
+appears as a lozenge containing the character's standard name.
+
+.defun char-name char
+Returns the standard name (or one of the standard names) of 2char*, or
+3nil* if there is none.  The name is returned as a string.
+3(char-name #\space)* is the string 3"SPACE"*.
+
+If 2char* has nonzero modifier bits, the value
+is 3nil*.  Compound names such as 3Control-X* are not constructed by
+this function.
+.end_defun
+
+.defun name-char name
+Returns (as a character object) the character for which 2name* is a name,
+or returns 3nil* if 2name* is not a recognized character name.
+2name* may be a symbol or a string.
+Compound names such as 3Control-X* are not recognized.
+
+3read* uses this function to process the 3#\* construct when
+a character name is encountered.
+.end_defun
+
+The following are the recognized special character names, in alphabetical order except
+with synonyms together.  Character names are encoded and decoded by the functions
+3char-name* and 3name-char* ((char-name-fun)).
+
+First a list of the special function keys.
+.lisp
+3abort		break		call		clear-input,  clear
+delete		end		hand-down	hand-left
+hand-right	hand-up		help		hold-output
+line,  lf		macro,  back-next	network
+overstrike,  backspace,  bs		page,  form,  clear-screen
+quote		resume		return, cr		
+roman-i		roman-ii		roman-iii		roman-iv
+rubout		space,  sp		status		stop-output
+system		tab		terminal,  esc*
+.end_lisp
+
+These are printing characters that also have special names because they may be hard
+to type on the hosts that are used as file servers.
+.c This table has to be formatted "wrong" when you look at it here
+.c to come out right when you print it.
+.lisp
+3altmode		circle-plus	delta		gamma
+integral		lambda		plus-minus	uparrow
+center-dot	down-arrow	alpha		beta
+and-sign		not-sign		epsilon		pi
+lambda		gamma		delta		up-arrow
+plus-minus	circle-plus	infinity		partial-delta
+left-horseshoe	right-horseshoe	up-horseshoe	down-horseshoe
+universal-quantifier			existential-quantifier
+circle-x		double-arrow	left-arrow		right-arrow
+not-equal		altmode		less-or-equal	greater-or-equal
+equivalence	or-sign*
+.end_lisp
+
+The following names are for special characters sometimes used to
+represent single and double mouse clicks.  The buttons can be called
+either 3l*, 3m*, 3r* or 31*, 32*, 33* depending on stylistic
+preference.
+.lisp
+3mouse-l-1 1or* mouse-1-1		mouse-l-2 1or* mouse-1-2
+mouse-m-1 1or* mouse-2-1		mouse-m-2 1or* mouse-2-2
+mouse-r-1 1or* mouse-3-1		mouse-r-2 1or* mouse-3-2*
+.end_lisp
+
+.section Conversion to Upper or Lower Case
+.cindex case conversion
+.cindex alphabetic case
+.cindex upper case letter
+.cindex lower case letter
+
+.defun upper-case-p char
+3t* if 2char* is an upper case letter with zero modifier bits.
+.end_defun
+
+.defun lower-case-p char
+3t* if 2char* is an lower case letter with zero modifier bits.
+.end_defun
+
+.defun both-case-p char
+This Common Lisp function is defined to return
+3t* if 2char* is a character which has distinct upper and lower case forms.
+On the Lisp Machine it returns 3t* if 2char* is a letter with zero
+modifier bits.
+.end_defun
+
+.defun char-upcase char
+	If 2char*, is a lower-case alphabetic
+character its upper-case form is returned; otherwise, 2char* itself is
+returned.  If font information or modifier bits are present, they are preserved.
+If 2char* is a fixnum, the value is a fixnum.  If 2char* is a character
+object, the value is a character object.
+.end_defun
+
+.defun char-downcase char
+Similar, but converts to lower case.
+.end_defun
+
+.defun string-upcase string &key (start 30*) end
+Returns a string like 2string*, with all lower-case alphabetic
+characters replaced by the corresponding upper-case characters.
+If 2start* or 2end* is specified, only the specified portion
+of the string is converted, but in any case the entire string is
+returned.
+
+The result is a copy of 2string* unless no change is necessary.
+2string* itself is never modified.
+.end_defun
+
+.defun string-downcase string &key (start 30*) end
+Similar, but converts to lower case.
+.end_defun
+
+.defun string-capitalize string &key (start 30*) end
+Returns a string like 2string* in which all, or the specified portion, has been
+processed by capitalizing each word.  For this function, a word is any maximal
+sequence of letters or digits.  It is capitalized by putting the first character
+(if it is a letter) in upper case and any letters in the rest of the word in lower case.
+
+The result is a copy of 2string* unless no change is necessary.
+2string* itself is never modified.
+.end_defun
+
+.defun nstring-upcase string &key (start 30*) end
+.defun1 nstring-downcase string &key (start 30*) end
+.defun1 nstring-capitalize string &key (start 30*) end
+Like the previous functions except that they modify 2string* itself and return it.
+.end_defun
+
+.defun string-capitalize-words string &optional (copy-p 3t*) (spaces 3t*)
+Puts each word in 2string* into lower-case with an upper case initial,
+and if 2spaces* is non-3nil* replaces each hyphen character with a space.
+
+If 2copy-p* is 3t*, the value is a copy of 2string*, and
+2string* itself is unchanged.  Otherwise, 2string* itself is
+returned, with its contents changed.
+
+This function is somewhat obsolete.  One can use 3string-capitalize*
+followed optionally by 3string-subst-char*.
+.end_defun
+
+See also the 3format* operation 3~(*...3~)* on (format-case-convert).
+
+.section Basic String Operations
+
+.defun make-string size &key (initial-element 30*)
+Creates and returns a string of length 2size*, with each element
+initialized to 2initial-element*, which may be a fixnum
+or a character.
+.end_defun
+
+.defun string x
+Coerces 2x* into a string.  Most of the string functions apply this to
+their string arguments.  If 2x* is a string (or any array), it is
+returned.  If 2x* is a symbol, its pname is returned.  If 2x* is a
+non-negative fixnum less than 400 octal, a one-character-long string
+containing it is created and returned.  If 2x* is an instance that
+supports the 3:string-for-printing* operation (such as, a pathname)
+then the result of that operation is returned.  Otherwise, an error is
+signaled.
+
+If you want to get the printed representation of an object into the
+form of a string, this function is 2not* what you should use.
+You can use 3format*, passing a first argument of 3nil* (see (format-fun)).
+You might also want to use 3with-output-to-string* (see
+(with-output-to-string-fun)).
+.end_defun
+
+.defun string-length string
+Returns the number of characters in 2string*.  This is 1
+if 2string* is a number or character object, the 3array-active-length*
+(see (array-active-length-fun))
+if 2string*
+is an array, or the 3array-active-length* of the pname if 2string* is a symbol.
+.end_defun
+
+.defun string-equal string1 string2 &key (start1 30*) (start2 30*) end1 end2
+Compares two strings, returning 3t* if
+they are equal and 3nil* if they are not.  The comparison ignores
+the font and case of the characters.  3equal* calls 3string-equal* if
+applied to two strings.
+	The keyword arguments 2start1* and 2start2* are the starting
+indices into the strings.  2end1* and 2end2*
+are the final indices; the comparison stops just 2before* the final index.
+3nil* for 2end1* or 2end2* means stop at the end of the string.
+.lisp
+.exdent 96 Examples:
+(string-equal "Foo" "foo") => t
+(string-equal "foo" "bar") => nil
+(string-equal "element" "select" 0 1 3 4) => t
+.end_lisp
+
+An older calling sequence in which the 2start* and 2end* arguments are
+positional rather than keyword is still supported.  The arguments
+come in the order 2start1* 2start2* 2end1* 2end2*.  This calling
+sequence is obsolete and should be changed whenever found.
+.end_defun
+
+.defun string-not-equal string1 string2 &key (start1 30*) end1 (start2 30*) end2
+3(not (string-equal ...))*
+.end_defun
+
+.defun string= string1 string2 &key (start1 30*) (start2 30*) end1 end2
+is like 3string-equal* except that case is significant.
+.lisp
+(string= "A" "a") => nil
+.end_lisp
+.end_defun
+
+.defun string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string//= string1 string2 &key (start1 30*) end1 (start2 30*) end2
+3(not (string= ...))*.  Note that in Common Lisp syntax you would
+write 3string/=*, not 3string//=*.
+.end_defun
+
+.defun string-lessp string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string-greaterp string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string-not-greaterp string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string-not-lessp string1 string2 &key (start1 30*) end1 (start2 30*) end2
+Compare all or the specified portions of 2string1* and 2string2*
+using dictionary order.  Characters are compared using 3char-lessp*
+and 3char-equal* so that font and alphabetic case are ignored.
+
+You can use these functions as predicates, but they do more.
+If the strings fit the condition (e.g. 2string1* is strictly less in
+3string-lessp*) then the value is a number, the index in 2string1*
+of the first point of difference between the strings.  This equals
+the length of 2string1* if the strings match.  If the condition is
+not met, the value is 3nil*.
+.lisp
+(string-lessp "aa" "Ab") => 1
+(string-lessp "aa" "Ab" :end1 1 :end2 1) => nil
+(string-not-greaterp "Aa" "Ab" :end1 1 :end2 1) => 1
+.end_lisp
+.end_defun
+
+.defun string< string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string> string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string>= string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string<= string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+Like 3string-lessp*, etc., but treat case and font as significant
+when comparing characters.
+.lisp
+(string< "AA" "aa") => 0
+(string-lessp "AA" "aa") => nil
+.end_lisp
+.end_defun
+
+.defun string-compare string1 string2 &optional (start1 30*) (start2 30*) end1 end2
+Compares two strings using dictionary order (as defined
+by 3char-lessp*).  The arguments are interpreted as in 3string-equal*.
+The result is 30* if the strings are equal, a negative number if 2string1*
+is less than 2string2*, or a positive number if 2string1* is greater than
+2string2*.  If the strings are not equal, the absolute value of the
+number returned is one greater than the index (in 2string1*) where the first
+difference occurred.
+.end_defun
+
+.defun substring string start &optional end area
+Extracts a substring of 2string*, starting at the
+character specified by 2start* and going up to but not including
+the character specified by 2end*.  2start* and 2end* are
+0-origin indices.  The length of the returned string is 2end* minus
+2start*.  If 2end* is not specified it defaults to the length
+of 2string*.  The area in which the result is to be consed may be
+optionally specified.
+.cindex paper tape punch
+.lisp
+.exdent 96 Example:
+(substring "Nebuchadnezzar" 4 8) => "chad"
+.end_lisp
+.end_defun
+
+.defun nsubstring string start &optional end area
+Is like 3substring* except that the substring
+is not copied; instead an indirect array (see (indirect-array)) is created which shares part
+of the argument 2string*.  Modifying one string will modify the other.
+
+Note that 3nsubstring* does not necessarily use less storage than
+3substring*; an 3nsubstring* of any length uses at least as much
+storage as a 3substring* 12 characters long.  So you shouldn't use
+this for efficiency; it is intended for uses in which it is important
+to have a substring which, if modified, will cause the original string
+to be modified too.
+.end_defun
+
+.defun string-append &rest strings
+Copies and concatenates any number of strings into a single string.
+With a single argument, 3string-append* simply copies it.  If there
+are no arguments, the value is an empty string.  In fact, vectors of any
+type may be used as arguments, and the value is a vector capable of
+holding all the elements of all the arguments.  Thus 3string-append*
+can be used to copy and concatenate any type of vector.  If the first
+argument is not an array (for example, if it is a character), the value
+is a string.
+.lisp
+.exdent 96 Example:
+(string-append #\! "foo" #\!) => "!foo!"
+.end_lisp
+.end_defun
+
+.defun string-nconc modified-string &rest strings
+Is like 3string-append* except that instead
+of making a new string containing the concatenation of its arguments,
+3string-nconc* modifies its first argument.  2modified-string*
+must have a fill-pointer so that additional characters can be tacked
+onto it.  Compare this with 3array-push-extend*
+((array-push-extend-fun)).  The value of 3string-nconc* is
+2modified-string* or a new, longer copy of it; in the latter case
+the original copy is forwarded to the new copy (see 3adjust-array-size*,
+(adjust-array-size-fun)).  Unlike 3nconc*, 3string-nconc*
+with more than two arguments modifies only its first argument, not
+every argument but the last.
+.end_defun
+
+.defun string-trim char-set string
+Returns a 3substring* of 2string*, with all characters
+in 2char-set* stripped off the beginning and end.
+2char-set* is a set of characters, which can be represented as a list
+of characters, a string of characters or a single character.
+.lisp
+.exdent 96 Example:
+(string-trim '(#\sp) "  Dr. No  ") => "Dr. No"
+(string-trim "ab" "abbafooabb") => "foo"
+.end_lisp
+.end_defun
+
+.defun string-left-trim char-set string
+Returns a 3substring* of 2string*, with all characters
+in 2char-set* stripped off the beginning.
+2char-set* is a set of characters, which can be represented as a list
+of characters, a string of characters or a single character.
+.end_defun
+
+.defun string-right-trim char-set string
+Returns a 3substring* of 2string*, with all characters
+in 2char-set* stripped off the end.
+2char-set* is a set of characters, which can be represented as a list
+of characters, a string of characters or a single character.
+.end_defun
+
+.defun string-remove-fonts string
+	Returns a copy of 2string* with each character truncated to 8
+bits; that is, changed to font zero.
+
+If 2string* is an ordinary string of array type 3art-string*, this
+does not change anything, but it makes a difference if 2string* is an
+3art-fat-string*.
+.end_defun
+
+.defun string-reverse string
+.defun1 string-nreverse string
+Like 3reverse* and 3nreverse*, but on strings only (see (reverse-fun)).
+There is no longer any reason to use these functions except
+that they coerce numbers
+and symbols into strings like the other string functions.
+.end_defun
+
+.defun string-pluralize string
+Returns a string containing the plural of the
+word in the argument 2string*.  Any added characters go in the same
+case as the last character of 2string*.
+.lisp
+.exdent 96 Example:
+(string-pluralize "event") => "events"
+(string-pluralize "trufan") => "trufen"
+(string-pluralize "Can") => "Cans"
+(string-pluralize "key") => "keys"
+(string-pluralize "TRY") => "TRIES"
+.end_lisp
+For words with multiple plural forms depending on the
+meaning, 3string-pluralize* cannot always do the right thing.
+.end_defun
+
+.defun string-select-a-or-an word
+Returns 3"a"* or 3"an"* according to the string 2word*;
+whichever one appears to be correct to use before 2word* in English.
+.end_defun
+
+.defun string-append-a-or-an word
+Returns the result of appending 3"a "* or 3"an "*, whichever is
+appropriate, to the front of 2word*.
+.end_defun
+
+.defun %string-equal string1 start1 string2 start2 count
+3%string-equal* is the microcode primitive used by 3string-equal*.
+It returns 3t* if the 2count* characters of 2string1* starting
+at 2start1* are 3char-equal* to the 2count* characters of 2string2*
+starting at 2start2*, or 3nil* if the characters are not equal or
+if 2count* runs off the length of either array.
+
+Instead of a fixnum, 2count* may also be 3nil*.  In this case,
+3%string-equal* compares
+the substring from 2start1* to 3(string-length 2string1*)*
+against the substring from 2start2* to 3(string-length 2string2*)*.
+If the lengths of these substrings differ, then they are not equal and
+3nil* is returned.
+
+Note that 2string1* and 2string2* must really be strings; the
+usual coercion of symbols and fixnums to strings is not performed.
+This function is documented because certain programs which require
+high efficiency and are willing to pay the price of less generality
+may want to use 3%string-equal* in place of 3string-equal*.
+
+.lisp
+.exdent 96 Examples:
+1To compare the two strings 2foo* and 2bar*:*
+(%string-equal 2foo* 0 2bar* 0 nil)
+1To see if the string 2foo* starts with the characters 3"bar"*:*
+(%string-equal 2foo* 0 "bar" 0 3)
+.end_lisp
+.end_defun
+
+.defvar alphabetic-case-affects-string-comparison
+If this variable is 3t*, the functions 3%string-equal* and 3%string-search*
+consider case (and font) significant in comparing characters.
+Normally this variable is 3nil* and those primitives ignore differences of case.
+
+This variable may be bound by user programs around calls to
+3%string-equal* and 3%string-search-char*, but do not set it globally,
+for that may cause system malfunctions.
+.end_defvar
+
+.section String Searching
+
+.defun string-search-char char string &optional (from 30*) to consider-case
+Searches through 2string* starting at the index 2from*,
+which defaults to the beginning, and returns the index of the first
+character that is 3char-equal* to 2char*, or 3nil* if none is found.
+If 2to* is non-3nil*, it is used in place of 3(string-length 2string*)*
+to limit the extent of the search.
+.lisp
+.exdent 96 Example:
+(string-search-char #\a "banana") => 1
+.end_lisp
+Case (and font) is significant in comparison of characters if 2consider-case*
+is non-3nil*.  In other words, characters are compared using 3char=* rather
+than 3char-equal*.
+.lisp
+(string-search-char #\a "BAnana" 0 nil t) => 3
+.end_lisp
+.end_defun
+
+.defun %string-search-char char string from to
+3%string-search-char* is the microcode primitive called by 3string-search-char*
+and other functions.  2string* must be an array and 2char*, 2from*,
+and 2to* must be fixnums.  The arguments are all required.
+Case-sensitivity is controlled by the value of the variable
+3alphabetic-case-affects-string-comparison* rather than by an argument.
+Except for these these differences, 3%string-search-char* is the same as
+3string-search-char*.  This function is documented for the benefit of
+those who require the maximum possible efficiency in string searching.
+.end_defun
+
+.defun string-search-not-char char string &optional (from 30*) to consider-case
+Like 3string-search-char* but searches 2string* for a character different
+from 2char*.
+.lisp
+.exdent 96 Example:
+(string-search-not-char #\B "banana") => 1
+(string-search-not-char #\B "banana" 0 nil t) => 0
+.end_lisp
+.end_defun
+
+.defun string-search key string &optional (from 30*) to (key-from 30*) key-to consider-case
+Searches for the string 2key* in the string
+2string*.
+The search begins at 2from*, which defaults to the beginning of
+2string*.  The value returned is the index of the first character of
+the first instance of 2key*, or 3nil* if none is found.  If
+2to* is non-3nil*, it is used in place of 3(string-length
+2string*)* to limit the extent of the search.
+
+The arguments 2key-from* and 2key-to* can be used to specify the
+portion of 2key* to be searched for, rather than all of 2key*.
+
+Case and font are significant in character
+comparison if 2consider-case* is non-3nil*.
+.lisp
+.exdent 96 Example:
+(string-search "an" "banana") => 1
+(string-search "an" "banana" 2) => 3
+(string-search "tank" "banana" 2 nil 1 3) => 3
+(string-search "an" "BAnaNA" 0 nil 0 nil t) => nil
+.end_lisp
+.end_defun
+
+.defun string-search-set char-set string &optional (from 30*) to consider-case
+Searches through 2string* looking for a character that is in
+2char-set*.  2char-set* is a set of characters, which can be
+represented as a sequence of characters or a single character.
+
+The search begins at the index 2from*, which defaults to the
+beginning.  It returns the index of the first character that is
+3char-equal* to some element of 2char-set*, or 3nil* if none is
+found.  If 2to* is non-3nil*, it is used in place of
+3(string-length 2string*)* to limit the extent of the search.
+
+Case and font are significant in character
+comparison if 2consider-case* is non-3nil*.
+.lisp
+.exdent 96 Example:
+(string-search-set '(#\n #\o) "banana") => 2
+(string-search-set "no" "banana") => 2
+.end_lisp
+.end_defun
+
+.defun string-search-not-set char-set string &optional (from 30*) to consider-case
+Like 3string-search-set* but searches for a character that is 2not*
+in 2char-set*.
+.lisp
+.exdent 96 Example:
+(string-search-not-set '(#\a #\b) "banana") => 2
+.end_lisp
+.end_defun
+
+.defun string-reverse-search-char char string &optional from (to 30*) consider-case
+Searches through 2string* in reverse
+order, starting from the index one less than 2from* (3nil* for
+2from* starts at the end of 2string*), and returns the index of the
+first character which is 3char-equal* to 2char*, or 3nil* if none
+is found.  Note that the index returned is from the beginning of the
+string, although the search starts from the end.
+The last (leftmost) character of 2string* examined is the one at index 2to*.
+
+Case and font are significant in character
+comparison if 2consider-case* is non-3nil*.  In this case,
+3char=* is used for the comparison rather than 3char-equal*.
+.lisp
+.exdent 96 Example:
+(string-reverse-search-char #\n "banana") => 4
+.end_lisp
+.end_defun
+
+.defun string-reverse-search-not-char char string &optional from (to 30*) consider-case
+Like 3string-reverse-search-char* but searches for a character in 2string*
+that is different from 2char*.
+.lisp
+.exdent 96 Example:
+(string-reverse-search-not-char #\a "banana") => 4
+;14 is the index of the second "n"*
+.end_lisp
+.end_defun
+
+.defun string-reverse-search key string &optional from (to 30*) (key-from 30*) key-to consider-case
+Searches for the string 2key* in the string 2string*.
+The search proceeds in reverse order, starting
+from the index one less than 2from*,
+and returns the index of the first (leftmost) character of the first instance found,
+or 3nil* if none is found.  Note that the index returned
+is from the beginning of the string, although the search starts from the end.
+The 2from* condition, restated, is that the instance of 2key* found
+is the rightmost one whose rightmost character is before the 2from*'th character
+of 2string*.  3nil* for 2from* means the search starts at the end of 2string*.
+The last (leftmost) character of 2string* examined is the one at index 2to*.
+
+.lisp
+.exdent 96 Example:
+(string-reverse-search "na" "banana") => 4
+.end_lisp
+
+The arguments 2key-from* and 2key-to* can be used to specify the
+portion of 2key* to be searched for, rather than all of 2key*.
+Case and font are significant in character
+comparison if 2consider-case* is non-3nil*.
+.end_defun
+
+.defun string-reverse-search-set char-set string &optional from (to 30*) consider-case
+Searches through 2string* in reverse order for a character
+which is 3char-equal* to some element of 2char-set*.
+2char-set* is a set of characters, which can be represented as a list
+of characters, a string of characters or a single character.
+
+The search starts from an index one less than 2from*, and returns the
+index of the first suitable character found, or 3nil* if none is
+found.  3nil* for 2from* means the search starts at the end of
+2string*.  Note that the index returned is from the beginning of the
+string, although the search starts from the end.  The last (leftmost)
+character of 2string* examined is the one at index 2to*.
+
+Case and font are significant in character
+comparison if 2consider-case* is non-3nil*.  In this case,
+3char=* is used for the comparison rather than 3char-equal*.
+
+.lisp
+(string-reverse-search-set "ab" "banana") => 5
+.end_lisp
+.end_defun
+
+.defun string-reverse-search-not-set char-set string &optional from (to 30*) consider-case
+Like 3string-reverse-search-set* but searches for a character which
+is 2not* in 2char-set*.
+.lisp
+(string-reverse-search-not-set '(#\a #\n) "banana") => 0
+.end_lisp
+.end_defun
+
+.defun string-subst-char new-char old-char string (copy-p 3t*) (retain-font-p 3t*)
+Returns a copy of 2string* in which all occurrences of 2old-char*
+have been replaced by 2new-char*.
+
+Case and font are ignored in comparing 2old-char* against characters of 2string*.
+Normally the font information of the character replaced is preserved, so that an 2old-char*
+in font 3 is replaced by a 2new-char* in font 3.  If 2retain-font-p* is 3nil*,
+the font specified in 2new-char* is stored whenever a character is replaced.
+
+If 2copy-p* is 3nil*, 2string* is modified destructively and returned.
+No copy is made.
+.end_defun
+
+.defun substring-after-char char string &optional start end area
+Returns a copy of the portion of 2string* that follows the next
+occurrence of 2char* after index 2start*.  The portion copied ends
+at index 2end*.  If 2char* is not found before 2end*, a null
+string is returned.
+
+The value is consed in area 2area*, or in 3default-cons-area*,
+unless it is a null string.
+2start* defaults to zero, and 2end* to the length of 2string*.
+.end_defun
+
+See also 3make-symbol* ((make-symbol-fun)), which given a string makes
+a new uninterned symbol with that print name, and 3intern*
+((intern-fun)), which given a string returns the one and only symbol
+(in the current package) with that print name.
+
+.section Maclisp-Compatible Functions
+
+The following functions are provided primarily for Maclisp compatibility.
+
+.defun alphalessp string1 string2
+3(alphalessp 2string1 string2*)* is equivalent to
+3(string-lessp 2string1 string2*)*.
+.end_defun
+
+.defun samepnamep sym1 sym2
+This predicate is equivalent to 3string=*.
+.end_defun
+
+.defun getchar string index
+	Returns the 2index*'th character of 2string*
+as a symbol.  Note that 1-origin indexing is used.  This function
+is mainly for Maclisp compatibility; 3aref* should be used
+to index into strings (but 3aref* does not coerce symbols
+or numbers into strings).
+.end_defun
+
+.defun getcharn string index
+	Returns the 2index*'th character of 2string*
+as a fixnum.  Note that 1-origin indexing is used.  This function
+is mainly for Maclisp compatibility; 3aref* should be used
+to index into strings (but 3aref* does not coerce symbols
+or numbers into strings).
+.end_defun
+
+.defun ascii x
+Like 3character*, but returns a symbol
+whose printname is the character instead of returning a fixnum.
+.lisp
+.exdent 96 Examples:
+(ascii #o101) => A
+(ascii #o56) => /.
+.end_lisp
+The symbol returned is interned in the current package (see (package)).
+.end_defun
+
+.defun maknam char-list
+Returns
+an uninterned symbol whose print-name is a string made up of the characters in 2char-list*.
+.lisp
+.exdent 96 Example:
+(maknam '(a b #\0 d)) => ab0d
+.end_lisp
+.end_defun
+
+.defun implode char-list
+	3implode* is like 3maknam* except that the returned symbol
+is interned in the current package.
+.end_defun

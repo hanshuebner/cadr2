@@ -1,0 +1,140 @@
+; -*- Lisp -*-
+(caseq (status site)
+  (OZ (defprop lmman (src l/.man) ppn)
+      (defprop lmwind (src l/.wind) ppn))
+  (AI (defprop lmman (dsk lmman) ppn)
+      (defprop lmwind (dsk lmwind) ppn)))
+
+
+(setq index-in-small-font t)
+
+
+(default-manual-style t '|Lisp Machine Manual| 'DOVER 10.)
+(setq alarm-vpos 9900.)		;Temporary until Bolio 153
+
+; This is the order I want the indices to come out in
+(setq sorted-trailing-listings
+      '(concept-index flavor-index message-index keyword-index
+	initoption-index meter-index variable-index function-index))
+(setq print-summary-table-of-contents t)
+(setq index-page-number-alignment ':flush-left)
+
+(deflisting concept-index
+  (:type :index
+     (:package-prefix-mode :normal)
+     (:leading-between-initial-letters 150.))
+  (:columns 2))
+
+(deflisting function-index
+  (:type :index
+	 (:package-prefix-mode :twice)
+	 (:leading-between-initial-letters 150.)))
+
+(deflisting variable-index
+  (:type :index (:package-prefix-mode :twice)
+	 (:leading-between-initial-letters 150.))
+  (:columns 2))
+
+(deflisting keyword-index
+  (:type :index (:package-prefix-mode :by-pname)
+	 (:leading-between-initial-letters 150.))
+  (:columns 2))
+
+(deflisting message-index
+  (:type :index (:package-prefix-mode :by-pname)
+	 (:leading-between-initial-letters 150.)))
+
+(deflisting initoption-index
+  (:type :index (:leading-between-initial-letters 150.))
+  (:title |Object Creation Options|))
+
+(deflisting flavor-index
+  (:type :index )
+  (:title |Flavor Index|))
+
+(SETQ INHIBIT-AUTOMAGIC-SECOND-PASS 'ASK)
+
+;Control the style of what .defspec and .defmac do
+(SETQ SPECIAL-FORM-MARKER-EXDENTATION 1000.)	;1 inch in from right margin
+(SETQ SPECIAL-FORM-MARKER-SPACE 750.)		;At least 3/4 inch between it and template
+(SETQ SPECIAL-FORM-MARKER-FONT 2)		;Put it in italics I guess
+
+;Meters are documented like Variables
+
+(deflisting meter-index
+  (:title |Meter Index|)
+  (:columns 2)
+  (:type :index))
+
+
+(DEFPROP DEFMETER DEFMETER-REQUEST REQUEST)
+(DEFPROP END_DEFMETER END-DEFMETER-REQUEST REQUEST)
+
+(DEFUN DEFMETER-REQUEST ()
+  (CHECK-ENV 'TEXT 'DEFMETER)
+  (OR (NEED-SPACE-MILLS 1000.)	;1 INCH
+      (OUTPUT-LEADING-MILLS DEFUN-PRE-LEADING))
+  ((LAMBDA (LEFT-INDENT ENVIRONMENT-TYPE EXTRA-LEFT-INDENT-FIRST-LINE-OF-PARAGRAPH)
+     (defmeter1-request)
+     (DEFUN-HORRIBLE-TAB-CROCK)
+     (*CATCH 'DEFMETER (MAIN-LOOP)))
+   (CONVERT-MILLS 500.) ;1/2 INCH INDENT
+   'DEFMETER
+   0))
+
+(defprop defmeter1 defmeter1-request request)
+
+(defun defmeter1-request ()
+  (CHECK-FONT-STATUS 1)
+  (SETQ CUR-HPOS 0)
+  ((LAMBDA (METER-NAME JIN-CUR-FONT)
+      (OR METER-NAME (BARF '|Meter name missing in .defmeter|))
+      (ADD-TO-INDEX METER-NAME 'METER-INDEX)
+      (AUTO-SETQ METER-NAME '|METER|)
+      (SET-HPOS LEFT-MARGIN)
+      (PUT-STRING-FLUSH-LEFT METER-NAME)
+      (JOUT-WHITE-SPACE (CONVERT-MILLS 200.))
+      (SETQ JIN-CUR-FONT 2)  ;ITALIC
+      (PUT-STRING-FLUSH-LEFT (STRING '|Meter|))
+      (SETQ JIN-CUR-FONT 1)
+      (LINE-ADVANCE)
+      (SETQ BEGIN-NEW-PARAGRAPH NIL))
+   (GET-WORD-STRING)
+   8))
+
+(DEFUN END-DEFMETER-REQUEST ()
+  (CHECK-ENV 'DEFMETER 'END_DEFMETER)
+  (CHECK-FONT-STATUS 1)
+  (*THROW 'DEFMETER NIL))
+
+;For examples
+
+(DEFUN (DEFUN_NO_INDEX REQUEST) ()
+  (LET ((FUNCTION-INDEX NIL))
+    (DEFUN-REQUEST)))
+
+(DEFUN (DEFSPEC_NO_INDEX REQUEST) ()
+  (LET ((FUNCTION-INDEX NIL))
+    (DEFSPEC-REQUEST)))
+
+(DEFUN (DEFMAC_NO_INDEX REQUEST) ()
+  (LET ((FUNCTION-INDEX NIL))
+    (DEFMAC-REQUEST)))
+
+(DEFUN (DEFVAR_NO_INDEX REQUEST) ()
+  (LET ((VARIABLE-INDEX NIL))
+    (DEFVAR-REQUEST)))
+
+(DEFUN (DEFMETHOD_NO_INDEX REQUEST) ()
+  (LET ((MESSAGE-INDEX NIL))
+    (DEFMETHOD-REQUEST)))
+
+;Characters that make it difficult to edit the file on the Lisp machine
+(PUTPROP 'CTL-M (TO-STRING '(21 15)) 'JUST-VALUE)	;^Q so JIN-MORE doesn't discard
+(PUTPROP 'CTL-H (TO-STRING '(21 10)) 'JUST-VALUE)
+(PUTPROP 'CTL-QM (TO-STRING '(177)) 'JUST-VALUE)
+
+;For LOOP chapter
+(load '((lmman)looptm lispm))
+
+(SSTATUS UUOLINKS)

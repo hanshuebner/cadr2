@@ -1,0 +1,1653 @@
+.c This file is part of the Lisp Machine Manual.  -*-Bolio-*-
+.c Function Description: Array Functions
+
+.chapter Arrays
+.setq array section-page
+.setq array-chapter chapter-number
+.cindex array
+.cindex rank of an array
+.cindex vector
+
+	An 2array* is a Lisp object that consists of a group of cells,
+each of which may contain an object.  The individual cells are
+selected by numerical 2subscripts*.  The type predicate 3arrayp*
+((arrayp-fun)) can be used to test whether an object is an array.
+.cindex subscript
+
+	The 2rank* of an array (the number of dimensions which the
+array has) is the number of subscripts used to refer to one of the
+elements of the array.  The rank may be any integer from zero to seven,
+inclusively.  An array of rank zero has a single element which is
+addressed using no subscripts.  An array of rank one is called a
+2vector*; the predicate 3vectorp* (see (vectorp-fun)) tests whether an
+object is a vector.  A series of functions called the generic sequence
+functions accept either a vector or a list as argument indiscriminantly
+(see (generic-sequence-functions)).
+
+.defconst array-rank-limit
+A constant giving the upper limit on the rank of an array.  It is 8,
+indicating that 7 is the highest possible rank.
+.end_defconst
+
+	The lowest value for any subscript is zero; the highest value
+is a property of the array.  Each dimension has a size, which is
+the lowest number which is too great to be used as a subscript.
+For example, in a one-dimensional array of five elements, the size
+of the one and only dimension is five, and the acceptable
+values of the subscript are zero, one, two, three, and four.
+
+.defconst array-dimension-limit
+Any one dimension of an array must be smaller than this constant.
+.end_defconst
+
+.cindex total size of an array
+
+The 2total size* of an array is the number of elements in it.
+It is the product of the sizes of the dimensions of the array.
+
+.defconst array-total-size-limit
+The total number of elements of any array must be smaller than this constant.
+.end_defconst
+
+.cindex fill pointer
+.cindex simple array
+
+A vector can have a 2fill pointer* which is a number saying how
+many elements of the vector are 2active*.  For many purposes,
+only that many elements (starting with element zero) are used.
+
+	The most basic primitive functions for handling arrays are:
+3make-array*, which is used for the creation of arrays, 3aref*,
+which is used for examining the
+contents of arrays, and 3aset*, which
+is used for storing into arrays.
+
+	An array is a regular Lisp object, and it is common for an
+array to be the binding of a symbol, or the car or cdr of a cons,
+or, in fact, an element of an array.  There are many functions,
+described in this chapter, which take arrays as arguments and
+perform useful operations on them.
+
+Another way of handling arrays, inherited from Maclisp, is to treat them
+as functions.  In this case each array has a name, which is a symbol
+whose function definition is the array.  Zetalisp supports this
+style by allowing an array to be 2applied* to arguments, as if it were
+a function.  The arguments are treated as subscripts and the array is
+referenced appropriately.  The 3store* special form (see (store-fun))
+is also supported.  This kind of array referencing is considered to be
+obsolete and is slower than the usual kind.  It should not be used in
+new programs.
+
+.section Array Types
+.cindex general array
+.cindex specialized array
+.cindex numeric array
+.cindex bit array
+.cindex string
+.setq array-type page
+.cindex types of arrays
+
+	There are several types of arrays, which differ primarily in
+which kinds of elements they are allowed to hold.  Some types of arrays
+can hold Lisp objects of any type; such arrays are called 2general*
+arrays.  The other types of array restrict the possible elements to a
+certain type, usually a numeric type.  Arrays of these types are called
+2specialized* arrays, or 2numeric* arrays if the elements must be
+numbers.  For example, one array type permits only complex numbers with
+floating components to be stored in the array.  Another permits only the
+numbers zero and one; Common Lisp calls these 2bit arrays*.  The
+contents of a black-and-white screen are stored in a bit array.  Several
+predicates exist for finding out which of these classifications an array
+belongs to: 3simple-vector-p* ((simple-vector-p-fun)),
+3bit-vector-p*, 3simple-bit-vector-p*, 3stringp* ((stringp-fun)),
+and 3simple-string-p*.
+
+The array types are known by a set of symbols whose names
+begin with 3art-* (for `ARray Type').
+
+.vindex art-q
+	The most commonly used type is called 3art-q*.  An 3art-q*
+array simply holds Lisp objects of any type.
+
+.vindex art-q-list
+.setq art-q-list-var page
+	Similar to the 3art-q* type is the 3art-q-list*.  Like the
+3art-q*, its elements may be any Lisp object.  The difference is that
+the 3art-q-list* array doubles as a list; the function 3g-l-p*
+takes an 3art-q-list* array and returns a list whose elements are
+those of the array, and whose actual substance is that of the array.  If
+you 3rplaca* elements of the list, the corresponding element of the
+array is changed, and if you store into the array, the corresponding
+element of the list changes the same way.  An attempt to 3rplacd*
+the list causes a 3sys:rplacd-wrong-representation-type* error,
+since arrays cannot implement that operation.
+
+.vindex art-string
+The most important type of specialized array is the 2string*, which is
+a vector of character objects.	Character strings are implemented by the
+3art-string* array type.  Many important system functions, including
+3read*, 3print*, and 3eval*, treat 3art-string* arrays very
+differently from the other kinds of arrays.  There are also many
+functions specifically for operating on strings, described in chapter
+(string-chapter).
+
+As viewed by Common Lisp programs, the elements of a string are character
+objects.  As viewed by traditional programs, the elements are integers in
+the range 0 to 255.  While most code still accesses strings in the
+traditional manner and gets integers out, the Common Lisp viewpoint is
+considered the correct one.  See (string-element-type) for a discussion
+of this conflict of conventions and its effect on programs.
+
+.vindex art-fat-string
+	An 3art-fat-string* array is a character string with wider
+characters, containing 16 bits rather than 8 bits.  The extra bits are
+ignored by many string operations, such as comparison, on these strings;
+typically they are used to hold font information.
+
+.vindex art-1b
+.vindex art-2b
+.vindex art-4b
+.vindex art-8b
+.vindex art-16b
+	There is a set of types called 3art-1b, art-2b, art-4b, art-8b*, 
+and 3art-16b*;
+these names are short for `1 bit', `2 bits', and so on.  Each element
+of an 3art-2n*b* array is a non-negative fixnum, and only the
+least significant 2n* bits are remembered in the array; all of the others are discarded.  Thus 3art-1b* arrays store only 0 and 1, and
+if you store a 5 into an 3art-2b* array and look at it
+later, you will find a 1 rather than a 5.
+	These arrays are used when it is known beforehand that the
+fixnums which will be stored are non-negative and limited in size to a
+certain number of bits.  Their advantage over the 3art-q* array is
+that they occupy less storage, because more than one element of the
+array is kept in a single machine word.  (For example, 32 elements
+of an 3art-1b* array or 2 elements of an 3art-16b* array
+fit into one word).
+
+.vindex art-32b
+	There are also 3art-32b* arrays which have 32 bits per element.
+Since fixnums only have 24 bits anyway, these are the same as 3art-q*
+arrays except that they only hold fixnums.  They are not compatible
+with the other ``bit'' array types and generally should not be used.
+
+.vindex art-half-fix
+	An 3art-half-fix* array contains half-size fixnums.  Each element
+of the array is a signed 16-bit integer; the range is from -32768 to 32767
+inclusive.
+
+.vindex art-float
+	The 3art-float* array type is a special-purpose type whose
+elements are floats.  When storing into such an array the value (any
+kind of number) is converted to a float, using the 3float*
+function (see (float-fun)).  The advantage of
+storing floats in an 3art-float* array rather than an 3art-q*
+array is that the numbers in an 3art-float* array are not true Lisp
+objects.  Instead the array remembers the numerical value, and when it
+is 3aref*'ed creates a Lisp object (a float) to hold the value.
+Because the system does special storage management for bignums and
+floats that are intermediate results, the use of 3art-float* arrays
+can save a lot of work for the garbage collector and hence greatly
+increase performance.  An intermediate result is a Lisp object passed
+as an argument, stored in a local variable, or returned as the value of
+a function, but not stored into a special variable, a non-3art-float*
+array, or list structure.  3art-float* arrays also provide a locality
+of reference advantage over 3art-q* arrays containing floats, since
+the floats are contained in the array rather than being separate objects
+probably on different pages of memory.
+
+.vindex art-fps-float
+	The 3art-fps-float* array type is another special-purpose type
+whose elements are floats.  The internal format of this array is compatible
+with the PDP-11/VAX single-precision floating-point format.  The primary purpose
+of this array type is to interface with the FPS array processor, which can
+transfer data directly in and out of such an array.
+	Any type of number may be stored into an 3art-fps-float*
+array, but it is, in effect, converted to a float, and then rounded
+off to the 24-bit precision of the PDP-11.  If the magnitude of the
+number is too large, the largest valid floating-point number is
+stored.  If the magnitude is too small, zero is stored.
+	When an element of an 3art-fps-float* array is read, a new
+float is created containing the value, just as with an 3art-float*
+array.
+
+.vindex art-complex
+	The 3art-complex* array type is a special purpose type whose
+elements are arbitrary numbers, which may be complex numbers.  (Most of
+the numeric array types can only hold real numbers.)  As compared with
+an ordinary 3art-q* array, 3art-complex* provides an advantage in
+garbage collection similar to what 3art-float* provides for floating
+point numbers.
+
+.vindex art-complex-float
+	The 3art-complex-float* array type is a special purpose type whose
+elements are numbers (real or complex) whose real and imaginary parts
+are both floating point numbers.  (If you store a non-floating-point
+number into the array, its real and imaginary parts are converted to
+floating point.)  This provides maximum advantage in garbage collection
+if all the elements you wish to store in the array are numbers with
+floating point real and imaginary parts.
+
+.vindex art-complex-fps-float
+	The 3art-complex-fps-float* array type is similar to
+3art-complex-float* but each real or imaginary part is stored in the
+form used by the FPS array processor.  Each element occupies two words,
+the first being the real part and the second being the imaginary part.
+
+.vindex art-stack-group-head
+.vindex art-reg-pdl
+.vindex art-special-pdl
+	There are three types of arrays which exist only for the
+implementation of 2stack groups*; these types are called
+3art-stack-group-head, art-special-pdl*, and 3art-reg-pdl*.  Their elements
+may be any Lisp object; their use is explained in the section on
+stack groups (see (stack-group)).
+'cindex "stack group"
+
+.defconst array-types
+The value of 3array-types* is a list of all of the array type symbols
+such as 3art-q*, 3art-4b*, 3art-string* and so on.  The values
+of these symbols are internal array type code numbers for the corresponding
+type.
+.end_defconst
+
+.defun array-types array-type-code
+Given an internal numeric array-type code, returns the symbolic name
+of that type.
+.end_defun
+
+.defconst array-elements-per-q
+3array-elements-per-q* is an association list (see (alist)) which
+associates each array type symbol with the number of array elements
+stored in one word, for an array of that type.  If the value is negative,
+it is instead the number of words per array element, for arrays whose
+elements are more than one word long.
+.end_defconst
+
+.defun array-elements-per-q array-type-code
+Given the internal array-type code number, returns the number of array
+elements stored in one word, for an array of that type.  If the value
+is negative, it is instead the number of words per array element, for
+arrays whose elements are more than one word long.
+.end_defun
+
+.defconst array-bits-per-element
+The value of 3array-bits-per-element* is an association list (see (alist))
+which associates each array type symbol with the number of
+bits of unsigned number it can hold, or 3nil* if it can
+hold Lisp objects.  This can be used to tell whether an array
+can hold Lisp objects or not.
+.end_defconst
+
+.defun array-bits-per-element array-type-code
+Given the internal array-type code numbers, returns the number of bits
+per cell for unsigned numeric arrays, or 3nil* for a type of array
+that can contain Lisp objects.
+.end_defun
+
+.defun array-element-size array
+Given an array, returns the number of bits that fit in an element of
+that array.  For arrays that can hold general Lisp objects, the result is
+25., based on the assumption that you will be storing fixnums in the array.
+.end_defun
+
+.section Extra Features of Arrays
+.cindex array leader
+	Any array may have an 2array leader*.  An array leader is
+like a one-dimensional 3art-q* array which is attached to the main
+array.  So an array which has a leader acts like two arrays joined
+together.  The leader can be stored into and examined by a special set
+of functions, different from those used for the main array:
+3array-leader* and 3store-array-leader*.  The leader is always
+one-dimensional, and always can hold any kind of Lisp object,
+regardless of the type or rank of the main part of the array.
+
+Very often the main part of an array is used as a homogeneous set of objects,
+while the leader is used to remember a few associated non-homogeneous pieces of data.
+In this case the leader is not used like an array; each slot is used
+differently from the others.  Explicit numeric subscripts should not be
+used for the leader elements of such an array; instead the leader should be described
+by a 3defstruct* (see (defstruct-fun)).
+
+	By convention, element 0 of the array leader of an array is used
+to hold the number of elements in the array that are ``active''.  When the
+zeroth element is used this way, it is called a 2fill pointer*.
+'cindex "fill pointer"
+'setq fill-pointer page
+Many array-processing functions recognize the fill pointer.
+For instance, if a string (an array of type 3art-string*) has
+seven elements, but its fill pointer contains the value five, then only elements
+zero through four of the string are considered to be active; the string's
+printed representation is five characters long, string-searching
+functions stop after the fifth element, etc.  Fill pointers are
+a Common Lisp standard, but the array leader which is the Lisp Machine's
+way of implementing them is not standard.
+
+.defun fill-pointer array
+Returns the fill pointer of 2array*, or 3nil* if it does
+not have one.  This function can be used with 3setf* to set the
+array's fill pointer.
+.end_defun
+
+	The system does not provide a way to turn off the fill-pointer
+convention; any array that has a leader must reserve element 0 for the
+fill pointer or avoid using many of the array functions.
+
+	Leader element 1 is used in conjunction with the ``named
+structure'' feature to associate a user-defined data type with the array; see
+(named-structure).  Element 1 is treated specially only if the array is
+flagged as a named structure.
+
+.subsection Displaced Arrays
+.setq displaced-array section-page
+.cindex displaced array
+	The following explanation of 2displaced arrays*
+is probably not of interest to a beginner; the section may
+be passed over without losing the continuity of the manual.
+
+	Normally, an array is represented as a small amount of header
+information, followed by the contents of the array.  However, sometimes
+it is desirable to have the header information removed from the actual
+contents.  One such occasion is when the contents of the array must be
+located in a special part of the Lisp Machine's address space, such as
+the area used for the control of input/output devices, or the bitmap
+memory which generates the TV image.  Displaced arrays are also used to
+reference certain special system tables, which are at fixed addresses
+so the microcode can access them easily.
+
+	If you give 3make-array* a fixnum or a locative
+as the value of the 3:displaced-to* option,
+it creates a displaced array referring to that location of virtual memory
+and its successors.
+References to elements of the displaced array will access that part
+of storage, and return the contents; the regular 3aref* and
+3aset* functions are used.  If the array is one whose elements
+are Lisp objects, caution should be used: if the region of address
+space does not contain typed Lisp objects, the integrity of the storage
+system and the garbage collector could be damaged.  If the array is one
+whose elements are bytes (such as an 3art-4b* type), then there
+is no problem.  It is important to know, in this case, that the elements
+of such arrays are allocated from the right to the left within the 32-bit
+words.
+
+.cindex indirect array
+.setq indirect-array page
+	It is also possible to have an array whose contents, instead
+of being located at a fixed place in virtual memory, are defined
+to be those of another array.  Such an array is called an 2indirect array*,
+and is created by giving 3make-array* an array as
+the value of the 3:displaced-to* option.
+The effects of this are simple if both arrays have the same type; the two
+arrays share all elements.  An object stored in a certain element
+of one can be retrieved from the corresponding element of the other.
+This, by itself, is not very useful.  However, if the arrays have
+different rank, the manner of accessing the elements differs.
+Thus, creating a one-dimensional array of nine elements,
+indirected to a second, two-dimensional array of three elements by three,
+allows access to the elements in either a one-dimensional or
+a two-dimensional manner.  Weird effects can be produced if
+the new array is of a different type than the old array; this is not
+generally recommended.  Indirecting an 3art-2m*b* array to
+an 3art-2n*b* array does the obvious thing.  For instance,
+if 2m* is 4 and 2n* is 1, each element of the first array
+contains four bits from the second array, in right-to-left order.
+
+.cindex index offset
+.setq index-offset page
+	It is also possible to create an indirect array in such a way
+that when an attempt is made to reference it or store into it, a
+constant number is added to the subscript given.  This number is called
+the 2index-offset*.  It is specified at the time the indirect array
+is created, by giving a fixnum to 3make-array*
+as the value of the 3:displaced-index-offset* option.
+The length of the indirect array need not be the full length of
+the array it indirects to; it can be smaller.  Thus the indirect array can
+cover just a subrange of the original array.
+The 3nsubstring* function (see (nsubstring-fun)) creates such
+arrays.  When using index offsets with multi-dimensional arrays, there
+is only one index offset; it is added in to the linearized subscript
+which is the result of multiplying each subscript by an appropriate
+coefficient and adding them together.
+
+.section Constructing Arrays
+
+.defun vector &rest elements
+Constructs and returns a vector (one-dimensional array)
+whose elements are the arguments given.
+.end_defun
+
+.defun make-array dimensions &rest options.
+This is the primitive function for making arrays.  2dimensions*
+should be a list of fixnums which are the dimensions of the array; the
+length of the list is the rank of the array.  For
+convenience you can specify a single fixnum rather than a list
+of one fixnum, when making a one-dimensional array.
+
+2options* are alternating keywords and values.  The keywords may be
+any of the following:
+.table 3
+.kitem :area
+The value specifies in which area (see (area)) the array should be created.
+It should be either an area number (a fixnum), or 3nil* to mean the
+default area.
+
+.kitem :type
+The value should be a symbolic name of an array type; the most
+common of these is 3art-q*, which is the default.  The elements of the array are
+initialized according to the type:  if the array is of a type whose
+elements may only be fixnums or floats, then every element of the array is
+initially 0 or 0.0; otherwise, every element is initially
+3nil*.  See the description of array types on (array-type).
+The value of the option may also be the value of a symbol which is an array type name
+(that is, an internal numeric array type code).
+.cindex array initialization
+
+.kitem :element-type
+2element-type* is the Common Lisp way to control the type of array made.
+Its value is a Common Lisp type specifier (see (type-specifiers)).
+The array type used is the most specialized which can allow as an element
+anything which fits the type specifier.  For example,
+if 2element-type* is 3(mod 4)*, you get an 3art-2b* array.
+If 2element-type* is 3(mod 3)*, you still get an 3art-2b* array,
+that being the most restrictive which can store the numbers 0, 1 and 2.
+If 3element-type* is 3string-char*, you get a string.
+
+.kitem :initial-value
+.xitem1 :initial-element make-array
+Specifies the value to be stored in each element of the new
+array.  If it is not specified, it is 3nil* for arrays that can
+hold arbitrary objects, or 0 or 0.0 for numeric arrays.
+3:initial-value* is obsolete.
+
+.kitem :initial-contents
+Specifies the entire contents for the new array, as a sequence of
+sequences of sequences...  Array element 1 3 4 of a three-dimensional
+array would be 3(elt (elt (elt 2initial-contents* 1) 3) 4)*.  Recall
+that a sequence is either a list or a vector, and vectors include
+strings.
+
+.kitem :displaced-to
+If this is not 3nil*, a 2displaced* array is constructed.
+If the value is a fixnum or a locative, 3make-array* creates a
+regular displaced array which refers to the specified section of virtual
+address space.
+If the value is an array, 3make-array* creates
+an indirect array (see (indirect-array)).
+.cindex displaced array
+.cindex indirect array
+
+.kitem :leader-length
+The value should be a fixnum.  The array is made with a leader
+containing that many elements.  The elements of the leader are
+initialized to 3nil* unless the 3:leader-list* option is given (see
+below).
+
+.kitem :leader-list
+The value should be a list.  Call the number of elements in the list 2n*.
+The first 2n* elements of the leader are initialized from successive
+elements of this list.  If the 3:leader-length* option is not specified,
+then the length of the leader is 2n*.  If the 3:leader-length*
+option is given, and its value is greater than 2n*, then the 2n*th
+and following leader elements are initialized to 3nil*.  If its value
+is less than 2n*, an error is signaled.  The leader elements are
+filled in forward order; that is, the car of the list is stored
+in leader element 0, the cadr in element 1, and so on.
+
+.kitem :fill-pointer
+The value should be a fixnum.  The array is made with a leader
+containing at least one element, and this fixnum is used to initialize
+that first element.
+
+Using the 3:fill-pointer* option is equivalent to using
+3:leader-list* with a list one element long.  It avoids consing the list,
+and is also compatible with Common Lisp.
+
+.kitem :displaced-index-offset
+If this is present, the value of the 3:displaced-to* option should be an
+array, and the value should be a non-negative fixnum; it is made to be the
+index-offset of the created indirect array. (See (index-offset).)
+.cindex index offset
+
+.kitem :named-structure-symbol
+If this is not 3nil*, it is a symbol to
+be stored in the named-structure cell of the array.  The array
+made is tagged as a named structure (see (named-structure).)  If
+the array has a leader, then this symbol is stored in leader element
+1 regardless of the value of the 3:leader-list* option.  If the array
+does not have a leader, then this symbol is stored in array element zero.
+Array leader slot 1, or array element 0, cannot be used for anything
+else in a named structure.
+
+.setq adjustable-array page
+.kitem :adjustable-p
+In strict Common Lisp, a non-3nil* value for this keyword makes the
+array 2adjustable*, which means that it is permissible to change the
+array's size with 3adjust-array* ((adjust-array-fun)).  This is
+because other Lisp systems have multiple representations for arrays, one
+which is simple and fast to access, and another which can be adjusted.
+The Lisp Machine does not require two representations: any array's size
+may be changed, and this keyword is ignored.
+.end_table
+
+.lisp
+.exdent 96 Examples:
+1;; Create a one-dimensional array of five elements.*
+(make-array 5)
+1;; Create a two-dimensional array,*
+1;; three by four, with four-bit elements.*
+(make-array '(3 4) :type 'art-4b)
+1;; Create an array with a three-element leader.*
+(make-array 5 :leader-length 3)
+1;; Create an array containing 5 3t*'s,*
+1;; and a fill pointer saying the array is full.*
+(make-array 5 :initial-value t :fill-pointer 5)
+1;; Create a named-structure with five leader*
+1;; elements, initializing some of them.*
+(setq b (make-array 20 :leader-length 5 
+		       :leader-list '(0 nil foo)
+		       :named-structure-symbol 'bar))
+(array-leader b 0) => 0
+(array-leader b 1) => bar
+(array-leader b 2) => foo
+(array-leader b 3) => nil
+(array-leader b 4) => nil
+.cindex array leader
+.end_lisp
+
+	3make-array* returns the newly-created array, and also
+returns, as a second value, the number of words allocated in the process
+of creating the array, i.e. the 3%structure-total-size* of the array.
+
+When 3make-array* was originally implemented, it took its arguments
+in the following fixed pattern:
+.lisp
+   (make-array 2area* 2type* 2dimensions*
+               &optional 2displaced-to* 2leader*
+			 2displaced-index-offset*
+			 2named-structure-symbol*)
+.end_lisp
+2leader* was a combination of the 3:leader-length* and 3:leader-list*
+options, and the list was in reverse order.
+This obsolete form is still supported so that old programs will continue
+to work, but the new keyword-argument form is preferred.
+.end_defun
+
+.section Accessing Array Elements
+
+.defun aref array &rest subscripts
+Returns the element of 2array* selected by the 2subscripts*.
+The 2subscripts* must be fixnums and their number must match the
+rank of 2array*.
+.end_defun
+
+.defun cli:aref array &rest subscripts
+The Common Lisp version of 3aref* differs from the traditional one in
+that it returns a character object rather than an integer when 2array*
+is a string.  See chapter (string-chapter) for a discussion of the data
+type of string elements.
+.end_defun
+
+.defun aset x array &rest subscripts
+Stores 2x* into the element of 2array* selected by the 2subscripts*.
+The 2subscripts* must be fixnums and their number must match the
+rank of 2array*.  The returned value is 2x*.
+
+3aset* is equivalent to
+.lisp
+(setf (aref 2array* 2subscripts*...) 2x*)
+.end_lisp
+.end_defun
+
+.defun aloc array &rest subscripts
+Returns a locative pointer to the element-cell of 2array* selected by
+the 2subscripts*.  The 2subscripts* must be fixnums and their
+number must match the rank of 2array*.  The array must not be
+a numeric array, since locatives to the middle of a numeric array
+are not allowed.
+See the explanation of locatives in (locative).
+
+It is equivalent, and preferable, to write
+.lisp
+(locf (aref 2array* 2subscripts*...))
+.end_lisp
+.end_defun
+
+.defun ar-1-force array i
+.defun1 as-1-force value array i
+.defun1 ap-1-force array i
+These functions access an array with a single subscript regardless of
+how many dimensions the array has.  They may be useful for manipulating
+arrays of varying rank, as an alternative to maintaining and updating
+lists of subscripts or to creating one-dimensional indirect arrays.
+3ar-1-force* refers to an element,
+3as-1-force* sets an element, and 3ap-1-force* returns a locative
+to the element's cell.
+
+In using these functions, you must pay attention to the order in which
+the array elements are actually stored.  See
+(array-element-order-section).
+.end_defun
+
+.defun array-row-major-index array &rest indices
+Calculates the cumulative index in 2array* of the element at indices 2indices*.
+.lisp
+(ar-1-force 2array*
+   (array-row-major-index 2array* 2indices*...))
+.end_lisp
+is equivalent to 3(aref 2array* 2indices*...)*.
+.end_defun
+
+.defun array-leader array i
+2array* should be an array with a leader, and 2i* should be a
+fixnum.  This returns the 2i*th element of 2array*'s leader.
+This is analogous to 3aref*.
+.end_defun
+
+.defun store-array-leader x array i
+2array* should be an array with a leader, and 2i* should be a
+fixnum.  2x* may be any object.  2x* is stored in the 2i*th element
+of 2array*'s leader.  3store-array-leader* returns 2x*.
+This is analogous to 3aset*.
+
+It is equivalent, and preferable, to write
+.lisp
+(setf (array-leader 2array* 2i*) 2x*)
+.end_lisp
+.end_defun
+
+.defun ap-leader array i
+Is equivalent to
+.lisp
+(locf (array-leader 2array* 2i*))
+.end_lisp
+.end_defun
+
+.need 1500
+.nopara
+The following array accessing functions generally need not be used
+by users.
+
+.defun ar-1 array i
+.defun1 ar-2 array i j
+.defun1 ar-3 array i j k
+.defun1 as-1 x array i
+.defun1 as-2 x array i j
+.defun1 as-3 x array i j k
+.defun1 ap-1 array i
+.defun1 ap-2 array i j
+.defun1 ap-3 array i j k
+These are obsolete versions of 3aref*, 3aset* and 3aloc* that
+only work for one-, two-, or three-dimensional arrays, respectively.
+.end_defun
+
+The compiler turns 3aref* into 3ar-1*, 3ar-2*, etc. according to
+the number of subscripts specified, turns 3aset* into 3as-1*,
+3as-2*, etc., and turns 3aloc* into 3ap-1*, 3ap-2*, etc.  For
+arrays with more than three dimensions the compiler uses the slightly
+less efficient form since the special routines only exist for one, two
+and three dimensions.  There is no reason for any program to call
+3ar-1*, 3as-1*, 3ar-2*, etc.  explicitly; they are documented
+because there used to be such a reason, and many old programs use these
+functions.  New programs should use 3aref*, 3aset*, and 3aloc*.
+
+A related function, provided only for Maclisp compatibility, is
+3arraycall* ((arraycall-fun)).
+
+.defun svref vector index
+A special accessing function defined by Common Lisp to work only on
+simple general vectors: vectors with no fill pointer, not displaced, and
+not adjustable (see (adjustable-array)).  Some other Lisp systems open
+code 3svref* so that it is faster than 3aref*, but on the Lisp
+Machine 3svref* is a synonym for 3cli:aref*.
+.end_defun
+
+.defun bit bit-vector index
+.defun1 sbit bit-vector index
+.defun1 char bit-vector index
+.defun1 schar bit-vector index
+Special accessing functions defined to work only on bit vectors, only on
+simple bit vectors, only on strings, and only on simple strings, respectively.
+On the Lisp Machine they are all synonyms for 3cli:aref*.
+.end_defun
+
+.need 1500
+.nopara
+Here are the conditions signaled for various errors in accessing arrays.
+
+.defcondition sys:array-has-no-leader (3sys:bad-array-mixin* 3error*)
+This is signaled on a reference to the leader of an array that doesn't
+have one.  The condition instance supports the 3:array* operation,
+which returns the array that was used.
+
+The 3:new-array* proceed-type is provided.
+.end_defcondition
+
+.defflavor-condition sys:bad-array-mixin
+This mixin is used in the conditions signaled by several kinds of
+problems pertaining to arrays.  It defines prompting for the
+3:new-array* proceed type.
+.end_defflavor-condition
+
+.defcondition sys:array-wrong-number-of-dimensions (3sys:bad-array-mixin* 3error*)
+This is signaled when an array is referenced (either reading or writing)
+with the wrong number of subscripts; for example, 3(aref "foo" 1 2)*.
+
+The 3:array* operation on the condition instance returns the array
+that was used.  The 3:subscripts-used* operation returns the
+list of subscripts used.
+
+The 3:new-array* proceed type is provided.  It expects one argument,
+an array to use instead of the original one.
+.end_defcondition
+
+.defcondition sys:subscript-out-of-bounds (3error*)
+This is signaled when there are the right number of subscripts but their
+values specify an element that falls outside the bounds of the array.
+The same condition is used by 3sys:%instance-ref*, etc., when the
+index is out of bounds in the instance.
+
+The condition instance supports the operations 3:object* and
+3:subscripts-used*, which return the array or instance and the list of
+subscripts.
+
+The 3:new-subscript* proceed type is provided.  It takes an
+appropriate number of subscripts as arguments.  You should provide as
+many subscripts as there originally were.
+.end_defcondition
+
+.defcondition sys:number-array-not-allowed (3sys:bad-array-mixin* 3error*)
+This is signaled by an attempt to use 3aloc* on a numeric array
+such as an 3art-1b* array or a string.
+The 3:array* operation and the 3:new-array* proceed type are available.
+.end_defcondition
+
+.section Getting Information About an Array
+
+.defun array-type array
+Returns the symbolic type of 2array*.
+.lisp
+.exdent 96 Example:
+(setq a (make-array '(3 5)))
+(array-type a) => art-q
+.end_lisp
+.end_defun
+
+.defun array-element-type array
+Returns a type specifier which describes what elements could be stored in
+2array* (see (type-specifiers) for more about type specifiers).  Thus, if
+2array* is a string, the value is 3string-char*.  If 2array* is an
+3art-1b* array, the value is 3bit*.  If 2array* is an 3art-2b*
+array, the value is 3(mod 4)*.  If array is an 3art-q* array,
+the value is 3t* (the type which all objects belong to).
+.end_defun
+
+.defun array-length array
+.defun1 array-total-size array
+2array* may be any array.  This returns the total number
+of elements in 2array*.  For a one-dimensional array,
+this is one greater than the maximum allowable subscript.
+(But if fill pointers are being used, you may want to use
+3array-active-length*.)
+.lisp
+.exdent 96 Example:
+(array-length (make-array 3)) => 3
+(array-length (make-array '(3 5))) => 15
+.end_lisp
+3array-total-size* is the Common Lisp name of this function.
+.end_defun
+
+.defun array-active-length array
+If 2array* does not have a fill pointer, then this returns whatever
+3(array-length 2array*)* would have.  If 2array* does have a
+fill pointer, 3array-active-length* returns it.  See the general
+explanation of the use of fill pointers on (fill-pointer).
+.end_defun
+
+.defun array-rank array
+Returns the number of dimensions of 2array*.
+.lisp
+.exdent 96 Example:
+(array-rank (make-array '(3 5))) => 2
+.end_lisp
+.end_defun
+
+.defun array-dimension array n
+Returns the length of dimension 2n* of 2array*.  Examples:
+.lisp
+(setq a (make-array '(2 3)))
+(array-dimension a 0) => 2
+(array-dimension a 1) => 3
+.end_lisp
+.end_defun
+
+.defun array-dimension-n n array
+2array* may be any kind of array, and 2n* should be a fixnum.
+If 2n* is between 1 and the rank of 2array*,
+this returns the 2n*th dimension of 2array*.  If 2n* is 0,
+this returns the length of the leader of 2array*; if 2array* has no
+leader it returns 3nil*.  If 2n* is any other value, this
+returns 3nil*.
+
+This function is obsolete; use 3array-dimension-n*,
+whose calling sequence is cleaner.
+.lisp
+.exdent 96 Examples:
+(setq a (make-array '(3 5) :leader-length 7))
+(array-dimension-n 1 a) => 3
+(array-dimension-n 2 a) => 5
+(array-dimension-n 3 a) => nil
+(array-dimension-n 0 a) => 7
+.end_lisp
+.end_defun
+
+.defun array-dimensions array
+Returns a list whose elements are the dimensions
+of 2array*.
+.lisp
+.exdent 96 Example:
+(setq a (make-array '(3 5)))
+(array-dimensions a) => (3 5)
+.end_lisp
+Note: the list returned by 3(array-dimensions 2x*)* is
+equal to the cdr of the list returned by 3(arraydims 2x*)*.
+.end_defun
+
+.defun arraydims array
+Returns a list whose first element is the symbolic name of
+the type of 2array*, and whose remaining elements are its dimensions.
+2array* may be any array; it also may be a symbol whose
+function cell contains an array, for Maclisp compatibility (see (maclisp-array)).
+.lisp
+.exdent 96 Example:
+(setq a (make-array '(3 5)))
+(arraydims a) => (art-q 3 5)
+.end_lisp
+
+3arraydims* is for Maclisp compatibility only.
+.end_defun
+
+.defun array-in-bounds-p array &rest subscripts
+3t* if 2subscripts* is a legal
+set of subscripts for 2array*, otherwise 3nil*.
+.end_defun
+
+.defun array-displaced-p array
+3t* if 2array* is any kind of displaced array
+(including an indirect array), otherwise 3nil*.
+2array* may be any kind of array.
+.end_defun
+
+.defun array-indirect-p array
+3t* if 2array* is an indirect array, otherwise 3nil*.
+2array* may be any kind of array.
+.end_defun
+
+.defun array-indexed-p array
+3t* if 2array* is an indirect array with an index-offset,
+otherwise 3nil*.
+2array* may be any kind of array.
+.end_defun
+
+.defun array-index-offset array
+Returns the index offset of 2array* if it is an indirect
+array which has an index offset.  Otherwise it returns 3nil*.
+2array* may be any kind of array.
+.end_defun
+
+.defun array-has-fill-pointer-p array
+3t* if array has a fill pointer.  It must have a leader and leader
+element 0 must be an integer.  While array leaders are not standard
+Common Lisp, fill pointers are, and so is this function.
+.end_defun
+
+.defun array-has-leader-p array
+3t* if 2array* has a leader, otherwise 3nil*.
+.end_defun
+
+.defun array-leader-length array
+Returns the length of 2array*'s leader if it has one, or 3nil* if it
+does not.
+.end_defun
+
+.defun adjustable-array-p array
+According to Common Lisp, returns 3t* if 2array*'s size may be
+adjusted with 3adjust-array* (see below).  On the Lisp Machine,
+this function always returns 3t*.
+.end_defun
+
+.section Changing the Size of an Array
+
+.defun adjust-array array new-dimensions &key element-type initial-element initial-contents fill-pointer displaced-to displaced-index-offset
+Modifies various aspects of an array.  2array* is modified in place if that is possible;
+otherwise, a new array is created and 2array* is forwarded to it.  In either case,
+2array* is returned.  The arguments have the same names as arguments
+to 3make-array*, and signify approximately the same thing.  However:
+
+2element-type* is just an error check.  3adjust-array* cannot change
+the array type.  If the array type of 2array* is not what
+2element-type* would imply, you get an error.
+
+If 2displaced-to* is specified, the new array is displaced as specified by
+2displaced-to* and 2displaced-index-offset*.  If 2array* itself was
+already displaced, it is modified in place provided that either 2array*
+used to have an index offset and is supposed to continue to have one,
+or 2array* had no index offset and is not supposed to have one.
+
+Otherwise, if 2initial-contents* was specified, it is used to set all
+the contents of the array.  The old contents of 2array* are irrelevant.
+
+Otherwise, each element of 2array* is copied forward into the new array
+to the slot with the same indices, if there is one.  Any new slots whose
+indices were out of range in 2array* are initialized to
+2initial-element*, or to 3nil* or 0 if 2initial-element* was not
+specified.
+
+2fill-pointer*, if specified, is used to set the fill pointer of the
+array.  Aside from this, the result has a leader with the same contents
+as the original 2array*.
+
+3adjust-array* is the only function in this section which is standard
+Common Lisp.  According to Common Lisp, an array's dimensions can be
+adjusted only if the 3:adjustable* option was specified to
+3make-array* with a non-3nil* value when the array was created
+(see (adjustable-array)).  The Lisp Machine does not distinguish
+adjustable and nonadjustable arrays; any array may be adjusted.
+.end_defun
+
+.defun adjust-array-size array new-size
+If 2array* is a one-dimensional array, its size is
+changed to be 2new-size*.  If 2array* has more than one
+dimension, its size (3array-length*) is changed to 2new-size*
+by changing only the last dimension.
+
+If 2array* is made smaller, the extra elements are lost; if 2array*
+is made bigger, the new elements are initialized in the same fashion as
+3make-array* (see (make-array-fun)) would initialize them: either to 3nil* or 0,
+depending on the type of array.
+.lisp
+.exdent 96 Example:
+(setq a (make-array 5))
+(aset 'foo a 4)
+(aref a 4) => foo
+(adjust-array-size a 2)
+(aref a 4) => 1an error occurs*
+.end_lisp
+	If the size of the array is being increased,
+3adjust-array-size* may have to allocate a new array somewhere.  In
+that case, it alters 2array* so that references to it will be made to
+the new array instead, by means of invisible pointers (see
+3structure-forward*, (structure-forward-fun)).
+3adjust-array-size* returns the new array if it creates one, and
+otherwise it returns 2array*.  Be careful to be consistent about
+using the returned result of 3adjust-array-size*, because you may end
+up holding two arrays which are not the same (i.e. not 3eq*), but
+which share the same contents.
+.end_defun
+
+.defun array-grow array &rest dimensions
+Equivalent to 3(adjust-array 2array* 2dimensions*)*.
+This name is obsolete.
+.end_defun
+
+.defun si:change-indirect-array array type dimlist displaced-p index-offset
+Changes an indirect array 2array*'s type, size, or target pointed at.
+2type* specifies the new array type, 2dimlist* its new dimensions,
+2displaced-p* the target it should point to (an array, locative or fixnum),
+and 2index-offset* the new offset in the new target.
+
+2array* is returned.
+.end_defun
+
+.section Arrays Overlaid With Lists
+
+These functions manipulate 3art-q-list* arrays, which were
+introduced on (art-q-list-var).
+
+.defun g-l-p array
+.c This will probably be renamed, if anyone can think of a better name
+2array* should be an 3art-q-list* array.  This returns
+a list which shares the storage of 2array*.
+.lisp
+.exdent 96 Example:
+(setq a (make-array 4 :type 'art-q-list))
+(aref a 0) => nil
+(setq b (g-l-p a)) => (nil nil nil nil)
+(rplaca b t)
+b => (t nil nil nil)
+(aref a 0) => t
+(aset 30 a 2)
+b => (t nil 30 nil)
+.end_lisp
+
+3g-l-p* stands for `get list pointer'.
+.end_defun
+
+.nopara
+The following two functions work strangely, in the same way that 3store*
+does, and should not be used in new programs.
+
+.defun get-list-pointer-into-array array-ref
+.c This will probably be renamed, if anyone can think of a better name
+The argument 2array-ref* is ignored, but should be a reference
+to an 3art-q-list* array by applying the array to subscripts (rather
+than by 3aref*).  This returns a list object which
+is a portion of the ``list'' of the array, beginning with the last
+element of the last array which has been called as a function.
+.end_defun
+
+.defun get-locative-pointer-into-array array-ref
+.c This will probably be flushed?
+3get-locative-pointer-into-array* is
+similar to 3get-list-pointer-into-array*, except that it returns a
+locative, and doesn't require the array to be 3art-q-list*.
+Use 3locf* of 3aref* in new programs.
+.end_defun
+
+.section Adding to the End of an Array
+
+.defun vector-push x array
+.defun1 array-push array x
+2array* must be a one-dimensional array which has a fill pointer and 2x* may
+be any object.  3vector-push* attempts to store 2x* in the element
+of the array designated by the fill pointer, and increase the fill pointer
+by one.  If the fill pointer does not designate an element of the array (specifically,
+when it gets too big), it is unaffected and 3vector-push* returns 3nil*;
+otherwise, the two actions (storing and incrementing) happen uninterruptibly,
+and 3vector-push* returns the 2former* value of the fill pointer,
+i.e. the array index in which it stored 2x*.  If the array is of type
+3art-q-list*, an operation similar to 3nconc* has taken place,
+in that the element has been added to the list by changing the cdr of
+the formerly last element.  The cdr-coding is updated to ensure this.
+
+3array-push* is an old name for this function.  3vector-push* is
+preferable because it takes arguments in an order like 3push*.
+.end_defun
+
+.defun vector-push-extend x array &optional extension
+.defun1 array-push-extend array x &optional extension
+3vector-push-extend* is just like 3vector-push* except
+that if the fill pointer gets too large, the array grows
+to fit the new element; it never ``fails'' the way 3vector-push* does,
+and so never returns 3nil*.  2extension* is the number of
+elements to be added to the array if it needs to grow.  It defaults
+to something reasonable, based on the size of the array.
+
+3array-push-extend* differs only in the order of arguments,
+.end_defun
+
+.defun vector-pop array
+.defun1 array-pop array
+2array* must be a one-dimensional array which has a fill pointer.
+The fill pointer is decreased by one and the array element
+designated by the new value of the fill pointer is returned.
+If the new value does not designate any element of the array
+(specifically, if it had already reached zero), an error is caused.
+The two operations (decrementing and array referencing) happen
+uninterruptibly.  If the array is of type 3art-q-list*, an operation
+similar to 3nbutlast* has taken place.  The cdr-coding is
+updated to ensure this.
+
+The two names are synonymous.
+.end_defun
+
+.defcondition sys:fill-pointer-not-fixnum (3sys:bad-array-mixin* 3error*)
+This is signaled when one of the functions in this section is used with
+an array whose leader element zero is not a fixnum.  Most other array
+accessing operations simply assume that the array has no fill
+pointer in such a case, but these cannot be performed without a fill
+pointer.
+
+The 3:array* operation on the condition instance returns the array
+that was used.  The 3:new-array* proceed type is supported, with one
+argument, an array.
+.end_defcondition
+
+.section Copying an Array
+
+The new functions 3replace* ((replace-fun))
+and 3fill* ((fill-fun)) are useful ways to
+copy parts of arrays.
+
+.defun array-initialize array value &optional start end
+Stores 2value* into all or part of 2array*.
+2start* and 2end* are optional indices which delimit the
+part of 2array* to be initialized.  They default to the beginning
+and end of the array.
+
+This function is by far the fastest way to do the job.
+.end_defun
+
+.defun fillarray array x
+	2array* may be any type of array, or, for Maclisp
+compatibility, a symbol whose function cell contains an array.  It can
+also be 3nil*, in which case an array of type 3art-q* is created.
+There are two forms of this function, depending on the type of 2x*.
+	If 2x* is a list, then 3fillarray* fills up 2array* with
+the elements of 2list*.  If 2x* is too short to fill up all of
+2array*, then the last element of 2x* is used to fill the
+remaining elements of 2array*.  If 2x* is too long, the extra
+elements are ignored.  If 2x* is 3nil* (the empty list), 2array*
+is filled with the default initial value for its array type (3nil* or 0).
+	If 2x* is an array (or, for Maclisp compatibility, a symbol
+whose function cell contains an array), then the elements of 2array* are
+filled up from the elements of 2x*.  If 2x* is too small, then
+the extra elements of 2array* are not affected.
+	If 2array* is multi-dimensional, the elements are accessed
+in row-major order: the last subscript varies the most quickly.
+The same is true of 2x* if it is an array.
+	3fillarray* returns 2array*; or, if 2array* was
+3nil*, the newly created array.
+.end_defun
+
+.defun listarray array &optional limit
+	2array* may be any type of array, or, for Maclisp
+compatibility, a symbol whose function cell contains an array.  
+3listarray* creates and returns a list whose elements are those of
+2array*.  If 2limit* is present, it should be a fixnum, and only
+the first 2limit* (if there are more than that many) elements of
+2array* are used, and so the maximum length of the returned list is
+2limit*. 
+	If 2array* is multi-dimensional, the elements are accessed
+in row-major order: the last subscript varies the most quickly.
+.end_defun
+
+.defun list-array-leader array &optional limit
+2array* may be any type of array, or, for Maclisp
+compatibility, a symbol whose function cell contains an array.  
+3list-array-leader* creates and returns a list whose elements are those of
+2array*'s leader.  If 2limit* is present, it should be a fixnum, and only
+the first 2limit* (if there are more than that many) elements of
+2array*'s leader are used, and so the maximum length of the returned list is
+2limit*. If 2array* has no leader, 3nil* is returned.
+.end_defun
+
+.defun copy-array-contents from to
+2from* and 2to* must be arrays.  The contents of 2from*
+is copied into the contents of 2to*, element by element.
+If 2to* is shorter than 2from*,
+the rest of 2from* is ignored.  If 2from* is shorter than
+2to*, the rest of 2to* is filled with 3nil*, 0 or 0.0
+according to the type of array.
+This function always returns 3t*.
+
+The entire length of 2from* or 2to* is used, ignoring the fill
+pointers if any.  The leader itself is not copied.
+
+3copy-array-contents* works on multi-dimensional arrays.  2from* and
+2to* are linearized subscripts, and elements are taken in row-major
+order.
+.end_defun
+
+.defun copy-array-contents-and-leader from to
+Like 3copy-array-contents*, but also copies the leader of 2from*
+(if any) into 2to*.
+.end_defun
+
+.defun copy-array-portion from-array from-start from-end to-array to-start to-end
+The portion of the array 2from-array* with indices greater than or
+equal to 2from-start* and less than 2from-end* is copied into
+the portion of the array 2to-array* with indices greater than or
+equal to 2to-start* and less than 2to-end*, element by element.
+If there are more elements in the selected portion of 2to-array*
+than in the selected portion of 2from-array*, the extra elements
+are filled with the default value as by 3copy-array-contents*.
+If there are more elements in the selected portion of 2from-array*,
+the extra ones are ignored.  Multi-dimensional arrays are treated
+the same way as 3copy-array-contents* treats them.
+This function always returns 3t*.
+.end_defun
+
+.nopara
+3%blt* and 3%blt-typed* ((%blt-fun)) are often useful for copying
+parts of arrays.  They can be used to shift a part of an array either up
+or down.
+
+.section Bit Array Functions
+
+These functions perform bitwise boolean operations on the elements
+of arrays.
+
+.defun bit-and bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-ior bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-xor bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-eqv bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-nand bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-nor bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-andc1 bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-andc2 bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-orc1 bit-array-1 bit-array-2 &optional result-bit-array
+.defun1 bit-orc2 bit-array-1 bit-array-2 &optional result-bit-array
+Perform boolean operations element by element on bit arrays.  The
+arguments must match in their size and shape, and all of their elements
+must be integers.  Corresponding elements of 2bit-array-1* and
+2bit-array-2* are taken and passed to one of 3logand*, 3logior*,
+etc. to get an element of the result array.
+
+If the third argument is non-3nil*, the result bits are stored into it,
+modifying it destructively.  If it is 3t*, the results are stored in
+2bit-array-1*.  Otherwise a new array of the same type as
+2bit-array-1* is created and used for the result.  In any case, the
+value returned is the array where the results are stored.
+
+These functions were introduced for the sake of Common Lisp, which
+defines them only when all arguments are specialized arrays that hold
+only zero or one.  In the Lisp machine, they accept not only such arrays
+(3art-1b* arrays) but any arrays whose elements are integers.
+.end_defun
+
+.defun bit-not bit-array &optional result-bit-array
+Performs 3lognot* on each element of 2bit-array* to get an element of
+the result.  If 2result-bit-array* is non-3nil*, the result elements
+are stored in that; it must match 2bit-array* in size and shape.
+Otherwise, a new array of the same type as 2bit-array* is created and
+used to hold the result.  The value of 3bit-not* is the array where the
+results are stored.
+.end_defun
+
+.defun bitblt alu width height from-array from-x from-y to-array to-x to-y
+2from-array* and 2to-array* must be two-dimensional arrays
+of bits or bytes (3art-1b*, 3art-2b*, 3art-4b*, 3art-8b*,
+3art-16b*, or 3art-32b*).  3bitblt* copies a rectangular portion of 2from-array*
+into a rectangular portion of 2to-array*.  The value stored
+can be a Boolean function of the new value and the value already there,
+under the control of 2alu* (see below).  This function is most commonly used
+in connection with raster images for TV displays.
+
+The top-left corner of the source rectangle is 3(ar-2-reverse
+2from-array* 2from-x* 2from-y*)*.  The top-left corner of the
+destination rectangle is 3(ar-2-reverse 2to-array* 2to-x*
+2to-y*)*.  2width* and 2height* are the dimensions of both
+rectangles.  If 2width* or 2height* is zero, 3bitblt* does
+nothing.  The 2x* coordinates and 2width* are used as the second
+dimension of the array, since the horizontal index is the one which
+varies fastest in the screen buffer memory and the array's last index
+varies fastest in row-major order.
+
+2from-array* and 2to-array* are allowed to be the same array.
+3bitblt* normally traverses the arrays in increasing order of 2x*
+and 2y* subscripts.  If 2width* is negative, then 3(abs 2width*)*
+is used as the width, but the processing of the 2x* direction is done
+backwards, starting with the highest value of 2x* and working down.
+If 2height* is negative it is treated analogously.  When
+3bitblt*'ing an array to itself, when the two rectangles overlap, it
+may be necessary to work backwards to achieve effects such
+as shifting the entire array downwards by a certain number of rows.  Note
+that negativity of 2width* or 2height* does not affect the
+(2x*, 2y*) coordinates specified by the arguments, which are still the
+top-left corner even if 3bitblt* starts at some other corner.
+
+If the two arrays are of different types, 3bitblt* works bit-wise
+and not element-wise.  That is, if you 3bitblt* from an 3art-2b*
+array into an 3art-4b* array, then two elements of the 2from-array*
+correspond to one element of the 2to-array*.
+
+If 3bitblt* goes outside the bounds of the source array, it wraps
+around.  This allows such operations as the replication of a small
+stipple pattern through a large array.  If 3bitblt* goes outside
+the bounds of the destination array, it signals an error.
+
+If 2src* is an element of the source rectangle, and 2dst*
+is the corresponding element of the destination rectangle, then
+3bitblt* changes the value of 2dst* to
+3(boole 2alu* 2src* 2dst*)*.  See the 3boole*
+function ((boole-fun)).  There are symbolic names for some of the
+most useful 2alu* functions; they are 3tv:alu-seta* (plain
+copy), 3tv:alu-ior* (inclusive or), 3tv:alu-xor* (exclusive
+or), and 3tv:alu-andca* (and with complement of source).
+
+3bitblt* is written in highly-optimized microcode and goes very much
+faster than the same thing written with ordinary 3aref* and 3aset*
+operations would.  Unfortunately this causes 3bitblt* to have a couple
+of strange restrictions.  Wrap-around does not work correctly if
+2from-array* is an indirect array with an index-offset.  3bitblt*
+signals an error if the second dimensions of 2from-array*
+and 2to-array* are not both integral multiples of the machine word
+length.  For 3art-1b* arrays, the second dimension must be a multiple
+of 32., for 3art-2b* arrays it must be a multiple of 16., etc.
+.end_defun
+
+.section Order of Array Elements
+.setq array-element-order-section section-page
+Currently, multi-dimensional arrays are stored in row-major order, as
+in Maclisp., and as specified by Common Lisp.  This means that
+successive memory locations differ in the last subscript.  In older
+versions of the system, arrays were stored in column-major order.
+
+Most user code has no need to know about which order array elements are
+stored in.  There are three known reasons to care: use of
+multidimensional indirect arrays; paging efficiency
+(if you want to reference every element in a
+multi-dimensional array and move linearly through memory to improve
+locality of reference, you must vary the last subscript fastest
+in row-major order);
+and access to the TV screen or to arrays of pixels copied to or from the
+screen with 3bitblt*.  The latter is the most important one.
+
+The bits on the screen are actually stored in rows, which means that the
+dimension that varies fastest has to be the horizontal position.  As a
+result, if arrays are stored in row-major order, the horizontal position
+must be the second subscript, but if arrays are stored in column-major
+order, the horizontal position must be the first subscript.  To ease the
+conversion of code that uses arrays of pixels, several bridging
+functions are provided:
+
+.defun make-pixel-array width height &rest options
+This is like 3make-array* except that the dimensions of the array are
+2width* and 2height*, in whichever order is correct.  2width* is
+used as the dimension in the subscript that varies fastest in memory,
+and 2height* as the other dimension.  2options* are passed along to
+3make-array* to specify everything but the size of the array.
+.end_defun
+
+.defun pixel-array-width array
+Returns the extent of 2array*, a two-dimensional array, in the
+dimension that varies faster through memory.  For a screen array, this
+is always the width.
+.end_defun
+
+.defun pixel-array-height array
+Returns the extent of 2array*, a two-dimensional array, in the
+dimension that varies slower through memory.  For a screen array, this
+is always the height.
+.end_defun
+
+.defun ar-2-reverse array horizontal-index vertical-index
+Returns the element of 2array* at 2horizontal-index* and
+2vertical-index*.  2horizontal-index* is used as the subscript in
+whichever dimension varies faster through memory.
+.end_defun
+
+.defun as-2-reverse newvalue array horizontal-index vertical-index
+Stores 2newvalue* into the element of 2array* at
+2horizontal-index* and 2vertical-index*.  2horizontal-index* is
+used as the subscript in whichever dimension varies faster through
+memory.
+.end_defun
+
+Code that was written before the change in order of array indices can be
+converted by replacing calls to 3make-array*, 3array-dimension*,
+3aref* and 3aset* with these functions.  It can then work either in
+old systems or in new ones.  In more complicated circumstances, you can
+facilitate conversion by writing code which tests this variable.
+
+.defconst sys:array-index-order
+This is 3t* in more recent system versions which store arrays in
+row-major order (last subscript varies fastest).  It is 3nil* in older
+system versions which store arrays in column-major order.
+.end_defconst
+
+.section Matrices and Systems of Linear Equations
+
+The functions in this section perform some useful matrix operations.
+The matrices are represented as two-dimensional Lisp arrays.  These
+functions are part of the mathematics package rather than the kernel
+array system, hence the `3math:*' in the names.
+
+.defun math:multiply-matrices matrix-1 matrix-2 &optional matrix-3
+Multiplies 2matrix-1* by 2matrix-2*.  If 2matrix-3* is supplied,
+3multiply-matrices* stores the results into 2matrix-3* and returns
+2matrix-3*, which should be of exactly the right dimensions for
+containing the result of the multiplication; otherwise it creates an
+array to contain the answer and returns that.  All matrices must be
+either one- or two-dimensional arrays, and the first dimension of
+2matrix-2* must equal the second dimension of 2matrix-1*.
+.end_defun
+
+.defun math:invert-matrix matrix &optional into-matrix
+Computes the inverse of 2matrix*.  If 2into-matrix* is supplied,
+stores the result into it and returns it; otherwise it creates an array
+to hold the result and returns that.  2matrix* must be two-dimensional
+and square.  The Gauss-Jordan algorithm with partial pivoting is used.
+Note: if you want to solve a set of simultaneous equations, you should
+not use this function; use 3math:decompose* and 3math:solve* (see
+below).
+.end_defun
+
+.defun math:transpose-matrix matrix &optional into-matrix
+Transposes 2matrix*.  If 2into-matrix* is supplied, stores the
+result into it and returns it; otherwise it creates an array to hold the
+result and returns that.  2matrix* must be a two-dimensional array.
+2into-matrix*, if provided, must be two-dimensional and have
+exactly the right dimensions to hold the transpose of 2matrix*.
+.end_defun
+
+.defun math:determinant matrix
+Returns the determinant of 2matrix*.  2matrix* must be a two-dimensional
+square matrix.
+.end_defun
+
+The next two functions are used to solve sets of simultaneous linear
+equations.  3math:decompose* takes a matrix holding the coefficients of the
+equations and produces the LU decomposition; this decomposition can then
+be passed to 3math:solve* along with a vector of right-hand sides
+to get the values of the variables.  If you want to solve the same
+equations for many different sets of right-hand side values, you only need to call
+3math:decompose* once.  In terms of the argument names used below, these
+two functions exist to solve the vector equation 2A* 2x* = 2b*
+for 2x*.  2A* is a matrix.  2b* and 2x* are vectors.
+
+.defun math:decompose a &optional lu ps
+Computes the LU decomposition of matrix 2a*.  If 2lu* is non-3nil*,
+stores the result into it and returns it; otherwise it creates an array
+to hold the result, and returns that.  The lower triangle of 2lu*, with
+ones added along the diagonal, is L, and the upper triangle of 2lu* is
+U, such that the product of L and U is 2a*.  Gaussian elimination with
+partial pivoting is used.  The 2lu* array is permuted by rows according
+to the permutation array 2ps*, which is also produced by this function;
+if the argument 2ps* is supplied, the permutation array is stored into it;
+otherwise, an array is created to hold it.  This function returns two values,
+the LU decomposition and the permutation array.
+.end_defun
+
+.defun math:solve lu ps b &optional x
+This function takes the LU decomposition and associated permutation
+array produced by 3math:decompose* and solves the set of simultaneous
+equations defined by the original matrix 2a* given to 3math:decompose*
+and the right-hand sides in the vector 2b*.  If 2x* is supplied, the solutions
+are stored into it and it is returned; otherwise an array is
+created to hold the solutions and that is returned.  2b* must
+be a one-dimensional array.
+.end_defun
+
+.defun math:list-2d-array array
+Returns a list of lists containing the values in 2array*, which must
+be a two-dimensional array.  There is one element for each row; each
+element is a list of the values in that row.
+.end_defun
+
+.defun math:fill-2d-array array list
+This is the opposite of 3math:list-2d-array*.  2list* should be a
+list of lists, with each element being a list corresponding to a row.
+2array*'s elements are stored from the list.  Unlike 3fillarray*
+(see (fillarray-fun)), if 2list* is not long enough,
+3math:fill-2d-array* ``wraps around'', starting over at the beginning.
+The lists which are elements of 2list* also work this way.
+.end_defun
+
+.defcondition math:singular-matrix (3sys:arithmetic-error* 3error*)
+This is signaled when any of the matrix manipulation functions in this
+section has trouble because of a singular matrix.  (In some functions,
+such as 3math:determinant*, a singular matrix is not a problem.)
+
+The 3:matrix* operation on the condition instance returns the matrix
+which is singular.
+.end_defcondition
+
+.section Planes
+.cindex plane
+
+A 2plane* is effectively an array whose bounds, in each dimension, are
+plus-infinity and minus-infinity; all integers are legal as indices.
+Planes may be of any rank.  When you create a plane, you do not need to
+specify any size, just the rank.  You also specify a default value.  At
+that moment, every component of the plane has that value.  As you can't
+ever change more than a finite number of components, only a finite
+region of the plane need actually be stored.  When you refer to an
+element for which space has not actually been allocated, you just get
+the default value.
+
+The regular array accessing functions don't work on planes.
+You can use 3make-plane* to create a plane,
+3plane-aref* or 3plane-ref* to get the value of a component, and
+3plane-aset* or 3plane-store* to store into a component.
+3array-rank* works on planes.
+
+A plane is actually stored as an array with a leader.
+The array corresponds to a rectangular, aligned region of the plane,
+containing all the components in which a 3plane-store* has been done
+(and, usually, others which have never been altered).
+The lowest-coordinate corner of that rectangular region is
+given by the 3plane-origin* in the array leader.
+The highest-coordinate corner can be found by adding the 3plane-origin*
+to the 3array-dimensions* of the array.
+The 3plane-default* is the contents of all the
+elements of the plane that are not actually stored in the array.
+The 3plane-extension* is the amount to extend a plane by in any direction
+when the plane needs to be extended.  The default is 32.
+
+If you never use any negative indices, then the 3plane-origin* remains
+all zeroes and you can use regular array functions, such as 3aref* and 3aset*,
+to access the portion of the plane that is actually stored.  This can be
+useful to speed up certain algorithms.  In this case you can even use the
+3bitblt* function on a two-dimensional plane of bits or bytes,
+provided you don't change the 3plane-extension* to a number that is not
+a multiple of 32.
+
+.defun make-plane rank &key type default-value extension initial-dimensions initial-origins
+Creates and returns a plane.  2rank* is the number of dimensions.  The keyword arguments are
+.table 2
+.item type
+The array type symbol (e.g. 3art-1b*) specifying the type of the array
+out of which the plane is made.
+.item default-value
+The default component value as explained above.
+.item extension
+The amount by which to extend the plane, as explained above.
+.item initial-dimensions
+3nil* or a list of integers whose length is 2rank*.  If not 3nil*,
+each element corresponds to one dimension, specifying the width to
+allocate the array initially in that dimension.
+.item initial-origins
+3nil* or a list of integers whose length is 2rank*.  If not 3nil*,
+each element corresponds to one dimension, specifying the smallest index
+in that dimension for which storage should initially be allocated.
+.end_table
+Example:
+.lisp
+(make-plane 2 :type 'art-4b :default-value 3)
+.end_lisp
+creates a two-dimensional plane of type 3art-4b*, with default value 33*.
+.end_defun
+
+.defun plane-origin plane
+A list of numbers, giving the lowest coordinate values actually stored.
+.end_defun
+
+.defun plane-default plane
+This is the contents of the infinite number of plane elements that are
+not actually stored.
+.end_defun
+
+.defun plane-extension plane
+The amount to extend the plane by, in any direction, when 3plane-store* is done
+outside of the currently-stored portion.
+.end_defun
+
+.defun plane-aref plane &rest subscripts
+.defun1 plane-ref plane subscripts
+These two functions return the contents of a specified element of a plane.
+They differ only in the way they take their arguments; 3plane-aref* wants
+the subscripts as arguments, while 3plane-ref* wants a list of subscripts.
+.end_defun
+
+.defun plane-aset datum plane &rest subscripts
+.defun1 plane-store datum plane subscripts
+These two functions store 2datum* into the specified element of a plane,
+extending it if necessary, and return 2datum*.
+They differ only in the way they take their arguments; 3plane-aset* wants
+the subscripts as arguments, while 3plane-store* wants a list of subscripts.
+.end_defun
+
+
+.section Maclisp Array Compatibility
+.setq maclisp-array section-page
+
+The functions in this section are provided only for Maclisp compatibility
+and should not be used in new programs.
+
+	Fixnum arrays do not exist (however, see Zetalisp's
+small-positive-integer arrays).  Float arrays exist but you do not use
+them in the same way; no declarations are required or allowed.
+Un-garbage-collected arrays do not exist.
+'c yet??? --weak links
+Readtables and obarrays are represented as arrays, but Zetalisp does not
+use special array types for them.  See the descriptions of 3read*
+((read-fun)) and 3intern* ((intern-fun)) for information about
+readtables and obarrays (packages).  There are no `dead'' arrays, nor are
+Multics ``external'' arrays provided.
+
+The 3arraycall* function exists for compatibility
+but should not be used (see 3aref*, (aref-fun).)
+
+Subscripts are always checked for validity, regardless of the value
+of 3*rset* and whether the code is compiled or not. 
+However, in a multi-dimensional array, an error is caused only
+if the subscripts would have resulted in a reference to storage
+outside of the array. For example, if you have a 2 by 7 array and refer
+to an element with subscripts 3 and 1, no error occurs
+despite the fact that the reference is invalid;
+but if you refer to element 1 by 100, an error occurs.
+In other words, subscript errors are caught if and only if
+they refer to storage outside the array; some errors are undetected,
+but they can only clobber (alter randomly) some other element of the same array,
+not something completely unpredictable.
+
+3loadarrays* and 3dumparrays* are not provided.  However,
+arrays can be put into QFASL files; see (fasdump).
+
+	The 3*rearray* function is not provided, since not all
+of its functionality is available in Zetalisp.
+Its most common uses are implemented by 3adjust-array-size*.
+
+	In Maclisp, arrays are usually kept on the 3array* property
+of symbols, and the symbols are used instead of the arrays.  In order
+to provide some degree of compatibility for this manner of using
+arrays, the 3array*, 3*array*, and 3store* functions are
+provided, and when arrays are applied to arguments, the arguments are
+treated as subscripts and 3apply* returns the corresponding element
+of the array.
+
+.defun array &quote symbol type &eval &rest dims
+Creates an 3art-q* type array in 3default-array-area*
+with the given dimensions.  (That is, 2dims* is given
+to 3make-array* as its first argument.)  2type* is ignored.
+If 2symbol* is 3nil*, the array is returned; otherwise,
+the array is put in the function cell of 2symbol*, and 2symbol*
+is returned.
+.end_defun
+
+.defun *array symbol type &rest dims
+Is like 3array*, except that all of the arguments
+are evaluated.
+.end_defun
+
+.defspec store array-ref x
+Stores 2x* into the
+specified array element.  2array-ref* should be a form which
+references an array by calling it as a function (3aref* forms are not
+acceptable).  First 2x* is evaluated, then 2array-ref* is
+evaluated, and then the value of 2x* is stored into the array cell
+last referenced by a function call, presumably the one in 2array-ref*.
+.end_defspec
+
+.defun xstore x array-ref
+	This is just like 3store*, but it is not
+a special form; this is because the arguments are in the other
+order.  This function only exists for the compiler to compile the
+3store* special form into, and should never be used by programs.
+.end_defun
+
+.defun arraycall ignored array &rest subscripts
+3(arraycall t 2array* 2sub1* 2sub2*...)* is the same
+as 3(aref 2array* 2sub1* 2sub2*...)*.  It exists for
+Maclisp compatibility.
+.end_defun

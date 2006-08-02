@@ -1,0 +1,1562 @@
+.c -*-Mode:Bolio-*-
+
+.chapter The Chaosnet
+.setq chaos-chapter chapter-number
+.setq chaosnet section-page
+
+The purpose of the basic software protocol of Chaosnet is to allow
+high-speed communication among processes on different machines, with no
+undetected transmission errors.
+
+.section Chaosnet Overview
+
+The principal service provided by Chaosnet is a 2connection* between
+two user processes.  This is a full-duplex reliable packet-transmission
+channel.  The network undertakes never to garble, lose, duplicate, or
+resequence the packets; in the event of a serious error it may break the
+connection off entirely, informing both user processes.  User programs
+may deal explicitly in terms of packets.  They may also ignore packet
+boundaries and treat the connection as two uni-directional streams of
+8-bit or 16-bit bytes, but this really works by means of packets.
+
+If you just want to ask a question of another process or host and
+receive a reply, you can use a 2simple transaction*: You send only
+one packet to the other host, and it sends one packet back.  This is
+more efficient than establishing a connection and using it only briefly.
+In a simple transaction, the server cannot tell whether the user
+received the answer; and if the user does not receive the answer, it
+cannot tell whether the server received the question.  In fact, the
+server might receive the question more than once.  If this is
+unacceptable, a connection must be used.
+
+Each node (or host) on the network is identified by an 2address*,
+which is a 16-bit number.  These addresses are used in the routing of
+packets.  There is a table (the system host table, 3SYS: CHAOS; HOSTS
+TXT*) that relates symbolic host names to numeric host addresses.  The
+host table can record addresses on any number of different networks, and
+in certain contexts a host address is meaningful only together with the
+name of the network it is for.
+
+The data transmitted over connections are in units called 2packets*.
+Each packet contains an 8-bit number, the 2opcode*, which indicates
+what its function is.  Opcode numbers are always given in octal.
+Opcodes less than 200 (octal) are special purpose.  Each such opcode
+that is used has an assigned name and a specific function.  Users need
+not know about all of them.  Opcodes 200 through 277 (octal) are used
+for 8-bit user data.  Opcodes 300 through 377 (octal) are used for
+16-bit user data.
+
+Each packet also contains some number of data bytes, whose meaning
+depends on the opcode.  If the opcode is for user data, then it is up to
+the application user software to decide on the interpretation.
+
+.need 1500
+.nopara
+Establishing a connection:
+
+A connection is created because one process sends a request to a host.
+The request is a packet containing the special-purpose opcode RFC.  The
+data contains a 2contact name* which is used to find the process to
+connect to.  There may be a process on the target host 2listening* on
+this contact name.  If so, it decides whether to agree to the
+connection.  Alternatively, the contact name can be the name of a standard service
+such as 7TELNET*.  In this case, the receiving host creates a
+process to respond, loaded with the program for that service.
+
+Once a connection has been established, there is no more need for the
+contact name and it is discarded.  The Lisp Machine remembers what
+contact name was used to open a connection, but this is only for the
+user's information.
+
+In the case where two existing processes that already know about each
+other want to establish a connection, they must agree on a contact name,
+and then one of them must send the request while the other listens.
+They must agree between themselves which is to do which.
+
+Contact names are restricted to strings of upper-case letters, numbers,
+and ASCII punctuation.  The maximum length of a contact name is limited
+only by the packet size, although on ITS hosts the names of
+automatically-started servers are limited by the file-system to six characters.
+The contact name is terminated by a space.  If the RFC packet contains
+data beyond the contact name, it is just for interpretation by the
+listening process, which can also use it in deciding whether to accept
+the connection.
+
+A simple transaction is also begun with an RFC packet.  There is
+nothing in the RFC packet which indicates whether it is intended to
+start a connection or a simple transaction.  The server has the option
+of doing either one.  But normally any given server always does one or
+the other, and the requestor knows which one to expect.
+
+The server accepts the request for a connection by sending an OPN packet
+(a packet with opcode OPN) to the requestor.  It can also refuse the
+connection by sending a CLS packet.  The data in the CLS packet is a
+string explaining the reason for the refusal.  Another alternative is to
+tell the requestor to try a different host or a different contact name.
+This is called 2forwarding* the request, and is done with a FWD
+packet.
+
+The server can also respond with an answer, an ANS packet, which is the
+second half of a simple transaction.  (Refusing and forwarding are also
+meaningful when a simple transaction is intended, just as when a
+connection is intended).
+
+.need 1500
+.nopara
+Once the connection is open:
+
+Data transmitted through Chaosnet generally follow Lisp Machine
+standards.  Bits and bytes are numbered from right to
+left, or least-significant to most-significant.  The first 8-bit byte
+in a 16-bit word is the one in the arithmetically least-significant
+position.  The first 16-bit word in a 32-bit double-word is the one
+in the arithmetically least-significant position.  This is the
+``little-endian'' convention.
+
+Big-endian machines such as the PDP-10 need to reorder the characters
+in a word in order to access them conveniently.  For their sake, some
+packet opcodes imply 8-bit data and some imply 16-bit data.  Packets
+known to contain 8-bit bytes, including opcodes 200 through 277, are
+stored in the big-endian machine's memory a character at a time,
+whereas packets containing 16-bit data are stored 16 bits at a time.
+
+The character set used is dictated by the higher-level protocol in use.
+Telnet and Supdup, for example, each specifies its own ASCII-based character set.
+The default character set--used for new protocols and for text that
+appears in the basic Chaosnet protocol, such as contact names--is
+the Lisp Machine character set.
+
+If one process tries to send data faster than the other can process it,
+the buffered packets could devour lots of memory.  Preventing this is
+the purpose of 2flow control*.  Each process specifies a 2window
+size*, which is the number of packets that are allowed to be waiting
+for that process to read.  Attempting to send on a connection whose
+other side's window is full waits until the other side reads some
+packets.  The default window size is 13, but for some applications you
+might wish to specify a larger value (see 3chaos:connect*,
+(chaos:connect-fun)).  There is little reason ever to
+specify a smaller value.
+
+.need 1500
+.nopara
+Breaking a connection:
+
+Either end of a connection can break the connection abruptly by sending
+a CLS packet.  The data in this packet is a string describing why the
+connection was broken.
+
+To break a connection gently, it is necessary to verify that all the
+data transmitted was received properly before sending a CLS.  This
+matters in some applications and is unnecessary in others.  When it is
+needed, it is done by sending a special packet, an EOF packet, which is
+mostly like a data packet except for its significance with regard to
+closing the connection.  The EOF packet is like the words ``the end'' at
+the end of a book: it tells the recipient that it has received all the
+data it is supposed to receive, that there are no missing pages that
+should have followed.  When the sender of the EOF sees the
+acknowledgement for the EOF packet, indicating that the EOF was received
+and understood, it can break the connection with a CLS.
+
+If a process that expects to receive an EOF gets a CLS with no EOF, it
+takes this to mean that the connection was broken before the
+transmission was finished.  If the process does receive an EOF, it does
+not break the connection itself immediately.  It waits to see the sender
+of the EOF break it.  If this does not happen in a few seconds, the EOF
+recipient can break the connection.
+
+It is illegal to put data in an EOF packet; in other words, the byte
+count should always be zero.  Most Chaosnet implementations simply
+ignore any data that is present in an EOF.
+
+.setq safe-eof-protocol page
+
+If both sides are sending data and both need to know for certain where
+``the end'' is, they must do something a little more complicated.
+Arbitrarily call one party the user and the other the server.  The
+protocol is that after sending all its data, each party sends an EOF and
+waits for it to be acknowledged.  The server, having seen its EOF
+acknowledged, sends a second EOF.  The user, having seen its EOF
+acknowledged, looks for a second EOF and 2then* sends a CLS and goes
+away.  The server goes away when it sees the user's CLS, or after a
+brief timeout has elapsed.  This asymmetrical protocol guarantees that
+each side gets a chance to know that both sides agree that all the data
+have been transferred.  The first CLS is sent only after both sides
+have waited for their (first) EOF to be acknowledged.
+
+.need 1500
+.nopara
+Clearing up inconsistencies:
+
+If a host crashes, it is supposed to forget all the connections that it
+had.  When a packet arrives on one of the former connections, the host
+will report ``no such connection'' to the sender with a LOS packet, whose
+data is a string explaining what happened.  The same thing happens if a
+CLS packet is lost; the intended recipient may keep trying to use the
+connection that the other side (which sent the CLS) no longer believes
+should exist.  LOS packets are used
+whenever a host receives a packet that it should not be getting; the
+recipient of the LOS packet knows that the connection it thought it was
+using does not exist any more.
+
+.section Conns
+
+On the Lisp Machine, your handle on a connection is a named
+structure of type 3chaos:conn*.  The 3conn* may have an actual
+connection attached to it, or it may have a connection still being made,
+or record that a connection was refused, closed or broken.
+
+.table 3
+.xitem chaos:inactive-state "connection state"
+This 3conn* is not really in use at all.
+
+.xitem chaos:rfc-sent-state "connection state"
+This 3conn* was used to request a connection to another process,
+but no reply has been received.  When the reply is received, it may
+change the 3conn*'s state to 3chaos:answered-state*,
+3chaos:cls-received-state*, or 3chaos:open-state*.
+
+.xitem chaos:listening-state "connection state"
+This 3conn* is being used to listen with.
+If a RFC packet is received for the contact name you are listening
+on, the state changes to 3chaos:rfc-received-state*.
+
+.xitem chaos:rfc-received-state "connection state"
+This means that your listen has ``heard'' an RFC packet that matches
+it.  You can accept, reject, forward or answer the request.  Accepting
+goes to state 3chaos:open-state*; refusing or forwarding goes to to state
+3chaos:inactive-state*.
+
+.xitem chaos:open-state "connection state"
+This 3conn* is one end of an open connection.
+You can receive any data packets that are waiting and you can transmit
+data.
+
+.xitem chaos:answered-state "connection state"
+This 3conn* was used to send an RFC packet and an ANS packet
+was received in response (a simple transaction answer arrived).	 You can
+read the ANS packet, that is all.
+
+.xitem chaos:cls-received-state "connection state"
+This 3conn* has received a CLS packet (the connection was closed
+or refused).  You can read any data packets that came in before the
+CLS; after them you can read the CLS.
+
+.xitem chaos:los-received-state "connection state"
+This 3conn*'s connection was broken and the other end sent a LOS
+packet to say so.  The LOS packet is the only packet available to be
+read.
+
+.xitem chaos:host-down-state "connection state"
+The host at the other end of this 3conn*'s connection has not
+responded to anything for a significant time.
+
+.xitem chaos:foreign-state "connection state"
+The connection is being used with a foreign protocol encapsulated in UNC
+packets
+(see the MIT AI Lab memo entitled ``Chaosnet'' for more information on this).
+.end_table
+
+.nopara
+These are
+the fields of a 3conn* that you might be interested in:
+
+.defun chaos:conn-state conn
+This slot holds the state of 2conn*.  It is one of the symbols listed above.
+.end_defun
+
+.defun chaos:conn-foreign-address conn
+Returns the address of the host at the other end of this connection.
+Use 3si:get-host-from-address* to find out which host this is
+(see (si:get-host-from-address-fun)).
+.end_defun
+
+.defun chaos:conn-read-pkts conn
+Internally threaded chain of incoming packets available to be read from
+2conn*.
+
+Its main use for the applications programmer is to test whether there
+are any incoming packets.
+.end_defun
+
+.defun chaos:conn-window-available conn
+Returns the number of packets you may transmit before the network
+software forces you to wait for the receiver to read some.
+This is just a minimum.  By the time you actually send this many
+packets, the receiver may already have said he has room for some more.
+.end_defun
+
+.defun chaos:conn-plist conn
+This slot is used to store arbitrary properties on 2conn*.
+You can store properties yourself; use property names that are not in
+the 3chaos* package to avoid conflict.
+.end_defun
+
+.defun chaos:contact-name conn
+Returns the contact name with which 2conn* was created.  The contact
+name is not significant to the functioning of the connection once an RFC
+and LSN have matched, but it is remembered for the sake of debugging.
+The user can use this function or the 3:contact-name* message to a
+stream to determine any contact name ``arguments.''
+.end_defun
+
+.defun chaos:wait conn state timeout &optional whostate
+Waits until the state of 2conn* is not the symbol 2state*, or until
+2timeout* 60ths of a second have elapsed.  If the timeout occurs, 3nil* is
+returned; otherwise 3t* is returned.  2whostate* is the process state to
+put in the who-line; it defaults to 3"Chaosnet wait"*.
+.end_defun
+
+.section Opening and Closing Connections
+
+.subsection User-Side
+
+.defun chaos:connect host contact-name &optional window-size timeout
+Opens a stream connection; returns a 3conn* if it succeeds or else a
+string giving the reason for failure.  2host* may be a number or the name
+of a known host.  2contact-name* is a string containing the contact name
+and any additional arguments to go in the RFC packet.  If 2window-size*
+is not specified it defaults to 13.  If 2timeout* is not specified it
+defaults to 600 (ten seconds).
+.end_defun
+
+.defun chaos:simple host contact-name &optional timeout
+Taking arguments similar to those of 3chaos:connect*, this performs the user
+side of a simple-transaction.  The returned value is either an ANS packet
+or a string containing a failure message.  The ANS packet should be disposed
+of (using 3chaos:return-pkt*, see below) when you are done with it.
+.end_defun
+
+.setq remove-conn page
+.defun chaos:remove-conn conn
+Makes 2conn* null and void.  It becomes inactive, all its buffered packets
+are freed, and the corresponding Chaosnet connection (if any) goes away.
+This is called 2removing* the connection.  2conn* itself is marked
+for reuse for another Chaosnet connection, so you should not do anything
+else with it after it is removed.
+.end_defun
+
+.defun chaos:close-conn conn &optional reason
+Closes and removes the connection.  If it is open, a CLS packet is sent
+containing the string 2reason*.  Don't use this to reject RFC's; use
+3chaos:reject* for that.
+.end_defun
+
+.defun chaos:open-foreign-connection host index &optional pkt-allocation distinguished-port
+Creates a 3conn* that may be used to transmit and receive foreign
+protocols encapsulated in UNC packets.  2host* and 2index* are the
+destination address for packets sent with 3chaos:send-unc-pkt*.
+2pkt-allocation* is the `window size', i.e. the maximum number of input
+packets that may be buffered.  It defaults to 10.
+If 2distinguished-port* is supplied, the local index is set to it.
+This is necessary for protocols that define the meanings of particular index
+numbers.
+
+See the MIT AI Lab memo entitled ``Chaosnet'' for more information on
+using foreign protocols.
+.end_defun
+
+.subsection Server-Side
+
+.defun chaos:listen contact-name &optional window-size wait-for-rfc
+Waits for an RFC for the specified contact name to arrive, then returns a
+3conn* that is in 3chaos:rfc-received-state*.  If 2window-size* is
+not specified it defaults to 13.  If 2wait-for-rfc* is specified as 3nil*
+(it defaults to 3t*) then the 3conn* is returned immediately without
+waiting for an RFC to arrive.
+.end_defun
+
+.defvar chaos:server-alist
+Contains an entry for each server that always exists.  When an RFC
+arrives for one of these servers, the specified form is evaluated in the
+background process; typically it creates a process that will then do a
+3chaos:listen*.  Use the 3add-initialization* function to add entries
+to this list.  Here is how the EVAL server is installed:
+.lisp
+(ADD-INITIALIZATION "EVAL"
+     '(PROCESS-RUN-FUNCTION "EVAL Server" 'EVAL-SERVER-FUNCTION)
+     NIL
+     'CHAOS:SERVER-ALIST)
+.end_lisp
+.end_defvar
+
+.defun chaos:accept conn
+2conn* must be in 3chaos:rfc-received-state*.  An OPN packet is
+transmitted and 2conn* enters the 3chaos:open-state*.  If the RFC packet
+has not already been read with 3chaos:get-next-pkt*, it is discarded.  You
+should read it before accepting, if it contains arguments in addition to the
+contact name.
+.end_defun
+
+.defun chaos:reject conn reason
+2conn* must be in 3chaos:rfc-received-state*.  A CLS packet containing
+the string 2reason* is sent and 2conn* is removed from the connection table.
+.end_defun
+
+.defun chaos:forward-all contact-name host
+Causes all future requests for connection to this host on 2contact-name* 
+to be forwarded to the same contact name at host 2host*.
+.end_defun
+
+.defun chaos:answer-string conn string
+2conn* must be in 3chaos:rfc-received-state*.  An ANS packet containing
+the string 2string* is sent and 2conn* is removed from the connection table.
+.end_defun
+
+.defun chaos:answer conn pkt
+2conn* must be in 3chaos:rfc-received-state*.  2pkt* is transmitted as
+an ANS packet and 2conn* is removed.  Use this function when the answer 
+is some binary data rather than a text string.
+.end_defun
+
+.defun chaos:fast-answer-string contact-name string
+If a pending RFC exists to 2contact-name*, an ANS containing 2string*
+is sent in response to it and 3t* is returned.  Otherwise 3nil* is returned.
+This function involves the minimum possible overhead.  No 3conn* is created.
+.end_defun
+
+.c .defun chaos:forward conn pkt host
+.c Not documented because it is useless and takes the wrong arguments.
+
+.section Stream Input and Output
+
+.defun chaos:open-stream host contact-name &key window-size timeout error direction characters ascii-translation
+Opens a Chaosnet connection and returns a stream that does I/O to it.
+2host* is the host to connect to; 2contact-name* is the contact name at that host.
+These two arguments are passed along to 3chaos:connect*.
+
+If 2host* is 3nil*, a connection to 2contact-name* is listened
+for, and a stream is returned as soon as a request comes in for that
+contact name.  At this time, you must accept or reject the connection by
+invoking the stream operation 3:accept* or 3:reject*.  Before you
+decide which to do, you can use the 3:foreign-host* operation to find
+out where the connection came from.
+
+The remaining arguments are:
+.table 2
+.item window-size
+.item1 timeout
+These two arguments specify two arguments for 3chaos:connect*.
+.item error
+If the value is non-3nil*, a failure to connect causes a Lisp error.
+Otherwise, it causes a string describing the error to be returned.
+.item direction
+.item1 characters
+.item1 ascii-translation
+These three arguments are passed along to 3chaos:make-stream*.
+.end_table
+.end_defun
+
+.defun chaos:make-stream conn &key direction characters ascii-translation
+Creates and returns a stream that does I/O on the connection 2conn*,
+which should be open as a stream connection.  2direction* may be
+3:input*, 3:output* or 3:bidirectional*.
+
+If 2characters* is non-nil (which is the default), the stream reads
+and writes 8-bit bytes.  If 2characters* is 3nil*, the stream reads
+and writes 16-bit bytes.
+
+If 2ascii-translation* is non-3nil*, characters written to the
+stream are translated to standard ASCII before they are sent, and
+characters read are translated from ASCII to the Lisp Machine character
+set.
+.end_defun
+
+.defmethod chaos:basic-stream :connection
+Returns the connection with which this stream is connected.
+.end_defmethod
+
+.defmethod chaos:basic-stream :contact-name
+Return the contact name with with this stream was opened.
+.end_defmethod
+
+.defmethod chaos:basic-stream :foreign-host
+Returns the host object for the host at the other end of this stream's connection.
+.end_defmethod
+
+.defmethod chaos:basic-stream :accept
+Accepts the request for a connection which this stream received.
+Used only for streams made by 3chaos:open-stream* with 3nil* as
+the 2host* argument.
+.end_defmethod
+
+.defmethod chaos:basic-stream :reject reason-string
+Rejects the request for a connection which this stream received, sending
+2reason-string* in the CLS packet as the reason.  Used only for
+streams made by 3chaos:open-stream* with 3nil* as the 2host*
+argument.
+.end_defmethod
+
+.defmethod chaos:basic-stream :close &optional abort-p
+Sends a CLS packet and removes the connection.  For output connections and bidirectional
+connections, the 3:eof* operation is performed first, if
+2abort-p* is 3nil*.
+.end_defmethod
+
+.defmethod chaos:basic-output-stream :force-output
+Any buffered output is transmitted.  Normally output is accumulated until a
+full packet's worth of bytes are available, so that maximum-size packets are
+transmitted.
+.end_defmethod
+
+.defmethod chaos:basic-output-stream :finish
+Waits until either all packets have been sent and acknowledged, or the connection ceases
+to be open.  If successful, returns 3t*; if the connection goes into a bad state,
+returns 3nil*.
+.end_defmethod
+
+.defmethod chaos:basic-output-stream :eof
+Forces out any buffered output, sends an EOF packet, and does a 3:finish*.
+.end_defmethod
+
+.defmethod chaos:basic-input-stream :clear-eof
+Allows you to read past an EOF packet on input.  Normally, each 3:tyi*
+done at eof returns 3nil* or signals the specified eof error.  If you
+do 3:clear-eof* on the stream, you can then read more data (assuming
+there are data packets following the EOF packet).
+.end_defmethod
+
+.section Packet Input and Output
+
+Input and output on a Chaosnet connection can be done at the whole-packet
+level, using the functions in this section.  A packet is represented by
+a 3chaos:pkt* data structure.  Allocation of 3pkts* is controlled by the system;
+each 3pkt* that it gives you must be given back.  There are functions to
+convert between 3pkts* and strings.  A 3pkt* is an 3art-16b* array
+containing the packet header and data; the leader of a 3pkt*
+contains a number of fields used by the system.
+
+.defconst chaos:first-data-word-in-pkt
+This is the index in any 3pkt* of the element that is the first
+16-bit word of user data.  (Preceding elements are used to store a
+header used by the hardware.)
+.end_defconst
+
+.defconst chaos:max-data-words-per-pkt
+The maximum number of 16-bit data words allowed in a packet.
+.end_defconst
+
+.defun chaos:pkt-opcode pkt
+Accessor for the opcode of the packet 2pkt*.  To set the opcode, do
+.lisp
+(setf (chaos:pkt-opcode my-pkt) my-opcode)
+.end_lisp
+The system provides names for all the opcodes standardly used.  The names useful to the applications programmer appear at the end of this section.
+.end_defun
+
+.defun chaos:pkt-nbytes pkt
+Accessor for the number-of-data-bytes field of 2pkt*'s.
+This field says how much of 2pkt*'s contects are valid data,
+measured in 8-bit bytes.
+This field can be set with 3setf* also.
+.end_defun
+
+.defun chaos:pkt-string pkt
+An indirect array that is the data field of 2pkt* as a string of 8-bit bytes.
+The length of this string is equal to 3(chaos:pkt-nbytes 2pkt*)*.
+If you wish to record the contects of 2pkt* permanently, you must copy this string.
+.end_defun
+
+.defun chaos:set-pkt-string pkt &rest strings
+Copies the 2strings* into the data field of 2pkt*, concatenating them,
+and sets 3(chaos:pkt-nbytes 2pkt*)* accordingly.
+.end_defun
+
+.defun chaos:get-pkt
+Allocates a 3pkt* for use by the user.
+.end_defun
+
+.defun chaos:return-pkt pkt
+Returns 2pkt* to the system for reuse.  The packets given to you by 3chaos:get-pkt*,
+3chaos:get-next-pkt* and 3chaos:simple* should be returned to the system in this way
+when you are finished with them.
+.end_defun
+
+.defun chaos:send-pkt conn pkt &optional (opcode 3chaos:dat-op*)
+Transmits 2pkt* on 2conn*.  2pkt* should have been allocated with 3chaos:get-pkt*
+and then had its data field and n-bytes filled in.  2opcode* must be a data opcode
+(#o200 or more) or EOF.  An error is signaled, with condition 3chaos:not-open-state*,
+if 2conn* is not open.
+
+Giving a 3pkt* to 3chaos:send-pkt* constitutes giving it back to the system.
+You do not need to call 3chaos:return-pkt*.
+.end_defun
+
+.defun chaos:send-string conn &rest strings
+Sends a data packet containing the concatenation of 2strings* as its data.
+.end_defun
+
+.defun chaos:send-unc-pkt conn pkt &optional pkt-number ack-number
+Transmits 2pkt*, an UNC packet, on 2conn*.  The opcode, packet
+number, and acknowledge number fields in the packet header are filled in
+(the latter two only if the optional arguments are supplied).
+
+See the MIT AI Lab memo entitled ``Chaosnet'' for more information on
+using foreign protocols.
+.end_defun
+
+.defun chaos:may-transmit conn
+A predicate that returns 3t* if there is any space in the window for
+transmitting on 2conn*.  If the value is 3nil*, you may have to wait
+if you try to transmit.  If the value is 3t*, you certainly do not have to wait.
+.end_defun
+
+.defun chaos:finish-conn conn &optional (whostate 3"Net Finish"*)
+Waits until either all packets have been sent and acknowledged, or the connection ceases
+to be open.  If successful, returns 3t*; if the connection goes into a bad state,
+returns 3nil*.  2whostate* is the process state to display in the who-line
+while waiting.
+.end_defun
+
+.defun chaos:conn-finished-p conn
+3t* unless 2conn* is open and has sent packets which have not been acknowledged.
+.end_defun
+
+.defun chaos:get-next-pkt conn &optional (no-hang-p 3nil*) whostate check-conn-state
+Returns the next input packet from 2conn*.  When you are done with the packet you
+must give it back to the system with 3chaos:return-pkt*.  This can return
+an RFC, CLS, or ANS packet, in addition to data, UNC, or EOF.
+
+If no packets are available, 3nil* is returned
+if 2no-hang-p* is 3t*.  Otherwise, 3chaos:get-next-pkt*
+waits for a packet to come in or for the state to change.  2whostate* is displayed
+in the who line; it defaults to 3"Chaosnet Input"*.
+
+If 2check-conn-state* is non-3nil*, the connection state is checked
+for validity before anything else is done, and an error is signaled if
+the connection is in a bad state, with condition name
+3chaos:host-down*, 3chaos:los-received-state*, or
+3chaos:read-on-closed-connection*.  If 2check-conn-state* is 3nil*
+and 2no-hang-p* is 3t*, 3nil* is returned.  2check-conn-state*
+defaults to 3(not 2no-hang-p*)*.
+.end_defun
+
+.defun chaos:data-available conn
+A predicate that returns 3t* if there any input packets available from 2conn*.
+.end_defun
+
+.need 1500
+.nopara
+Here are symbolic names for the opcodes that an applications programmer
+needs to know about:
+
+.defconst chaos:rfc-op
+This special-purpose opcode is used for requesting a connection.  The
+data consists of the contact name terminated by a space character,
+followed optionally by additional data whose meaning is up to the server
+for that contact name.
+.end_defconst
+
+.defconst chaos:brd-op
+This special purpose opcode is for requesting responses from many hosts.
+Currently, there is no user end for initiating these requests in the
+Lisp Machine system, but the Lisp Machine can respond to such requests.
+An incoming packet of this type is treated like an RFC packet.
+.end_defconst
+
+.defconst chaos:lsn-op
+This special-purpose opcode is used when you ask to listen on a contact
+name.  The data is just the contact name.  This packet is never actually
+sent over the network, just kept in the Chaosnet software and compared
+with the contact names in RFC packets that arrive.
+.end_defconst
+
+.defconst chaos:opn-op
+This special-purpose opcode is used by the server process to accept the
+request for a connection conveyed by an RFC packet.
+Its data serves only internal functions.
+.end_defconst
+
+.defconst chaos:ans-op
+This special-purpose opcode is used to send a simple reply.  The simple
+reply is sent back in place of opening a connection.
+.end_defconst
+
+.defconst chaos:los-op
+This special-purpose packet is what you receive if you try to use a
+connection that has been broken.  Its data is a message explaining the
+situation, which you can print for the user.
+.end_defconst
+
+.defconst chaos:cls-op
+This special-purpose packet is used to close a connection.  Its data is
+a message explaining the reason, and it can be printed for the user.
+Note that you cannot count on receiving a CLS packet because it is
+not retransmitted if it is lost.  If that happens you get a
+LOS when you try to use the connection (thinking it is still open).
+
+CLS packets are also used for refusing to open a connection in the
+first place.
+.end_defconst
+
+.defconst chaos:eof-op
+This special-purpose opcode is used to indicate the end of the data that
+you really want to transmit.  When this packet is acknowledged by the
+other process, you know that all the real data was received properly.
+You can wait for this with 3chaos:finish*.
+The EOF packet carries no data itself.
+.end_defconst
+
+.defconst chaos:dat-op
+This is opcode 200 (octal), which is the normal opcode used for 8-bit
+user data.  Some protocols use multiple data opcodes in the range 200
+through 277, but simple protocols that do not need to distinguish
+types of packets just use opcode 200.
+.end_defconst
+
+.section Connection Interrupts
+
+.defun chaos:interrupt-function conn
+This attribute of a 3conn* is a function to be called when certain
+events occur on this connection.  Normally this is 3nil*, which means
+not to call any function, but you can use 3setf* to store a function
+here.  Since the function is called in the Chaosnet background process,
+it should not do any operations that might have to wait for the network,
+since that could permanently hang the background process.
+
+The function's first argument is one of the following symbols, giving the
+reason for the interrupt.  The function's second argument is 2conn*.
+Additional arguments may be present depending on the reason.  The possible
+reasons are:
+.table 3
+.item :input
+A packet has arrived for the connection when it had no input packets queued.
+It is now possible to do 3chaos:get-next-pkt* without having to wait.
+There are no additional arguments.
+
+.item :output
+An acknowledgement has arrived for the connection and made space in the window
+when formerly it was full.  Additional output packets may now be transmitted
+with 3chaos:send-pkt* without having to wait.
+There are no additional arguments.
+
+.item :change-of-state
+The state of the connection has changed.  The third argument to the function
+is the symbol for the new state.
+.end_table
+.end_defun
+
+.defun chaos:read-pkts conn
+Some interrupt functions want to look at the queued input packets of a connection
+when they get a 3:input* interrupt.  3chaos:read-pkts* returns the first packet
+available for reading.  Successive packets can be found by following 3chaos:pkt-link*.
+.end_defun
+
+.defun chaos:pkt-link pkt
+Lists of packets in the NCP are threaded together by storing each packet
+in the 3chaos:pkt-link* of its predecessor.  The list is terminated with 3nil*.
+.end_defun
+
+.section Chaosnet Errors
+
+.defflavor-condition sys:network-error (3error*)
+All errors from the Chaosnet code use flavors built on this one.
+.end_defflavor-condition
+
+.subsection Local Problems
+
+.defflavor-condition sys:local-network-error (3sys:network-error* 3error*)
+This flavor is used for problems in connection with the Chaosnet
+that have entirely to do with what is going on in this Lisp Machine.
+.end_defflavor-condition
+
+.defcondition sys:network-resources-exhausted (3sys:local-network-error* 3sys:network-error* 3error*)
+Signaled when some local resource in the NCP was exhausted.  Most
+likely, there are too many Chaosnet connections and the connection table
+is full.
+.end_defcondition
+
+.defcondition sys:unknown-address (3sys:local-network-error* 3sys:network-error* 3error*)
+The 2address* argument to 3chaos:connect* or some similar function was not recognizable.
+The 3:address* operation on the condition instance returns the address that was supplied.
+.end_defcondition
+
+.subsection Problems Involving Other Machines' Actions
+
+.defflavor-condition sys:remote-network-error (3sys:network-error* 3error*)
+This flavor is used for network problems that involve the
+actions (or lack of them) of other machines.
+It is often useful to test for as a condition name.
+
+The operations 3:connection* and 3:foreign-host* return the
+3chaos:conn* object and the host object for the foreign host.
+.end_defflavor-condition
+
+All the condition names listed below imply the presence of
+3sys:remote-network-error*, 3sys:network-error* and
+3error*.  For brevity, these are not mentioned in the
+individual descriptions.
+
+Every instance of 3sys:remote-network-error* is either a
+3sys:connection-error* or a 3sys:bad-connection-state*.
+
+.defcondition sys:connection-error
+This condition name categorizes failure to complete a connection.
+.end_defcondition
+
+.defcondition sys:bad-connection-state
+This condition name categorizes errors where an existing, valid connection
+becomes invalid.  The error is not signaled until you try to use the connection.
+.end_defcondition
+
+.defcondition sys:host-not-responding
+This condition name categorizes errors where no packets whatever are
+received from the foreign host, making it seem likely that that host or
+the network is down.
+.end_defcondition
+
+.defcondition sys:host-not-responding-during-connection (3sys:connection-error* 3sys:host-not-responding*)
+This condition is signaled when a host does not respond while it is
+being asked to make a connection.
+.end_defcondition
+
+.defcondition sys:no-server-up (3sys:connection-error*)
+This condition is signaled by certain functions which request service from
+any available machine which can provide it, if no such machine is
+responding or no host is listed as a server for a particular service.
+.end_defcondition
+
+.defcondition sys:host-stopped-responding (3sys:bad-connection-state* 3sys:host-not-responding*)
+This condition is signaled when a host does not respond even though a
+connection to it already exists.
+.end_defcondition
+
+.defcondition sys:connection-refused (3sys:connection-error*)
+This is signaled when a connection is refused.
+
+The 3:reason* operation on the condition instance returns the reason
+specified in the CLS packet (a string) or 3nil* if no reason was
+given.
+
+Note that many Chaosnet implementations do not send CLS packets when
+there is no process or server listening for a contact name.  Also, it is
+possible for the CLS packet to get lost in the network, so that the
+error actually signalled is not unlikely to be 
+3sys:host-not-responding-during-connection*.
+.end_defcondition
+
+.defcondition sys:connection-closed (3sys:bad-connection-state*)
+This is signaled when you try to send on a connection which has been closed
+by the other host.
+
+The 3:reason* operation on the condition instance returns the reason
+specified in the CLS packet (a string) or 3nil* if no reason was
+given.
+.end_defcondition
+
+.defcondition sys:connection-lost (3sys:bad-connection-state*)
+This is signaled when you try to use a connection on which a LOS packet was received.
+
+The 3:reason* operation on the condition instance returns the reason
+specified in the CLS packet (a string) or 3nil* if no reason was
+given.
+.end_defcondition
+
+.defcondition sys:connection-no-more-data (3sys:bad-connection-state*)
+This is signaled when you try to read from a connection which has been
+closed by the other host, when there are no packets left to be read.
+(It is no error to read from a connection which has been closed, if you
+have not yet read all the packets which arrived, including the CLS
+packet).
+
+The 3:reason* operation on the condition instance returns the reason
+specified in the CLS packet (a string) or 3nil* if no reason was
+given.
+.end_defcondition
+
+.section Information and Control
+
+.defun chaos:host-up-p host &optional (timeout 3180.*)
+3t* if 2host* responds over the Chaosnet within 2timeout* sixtieths of
+a second, otherwise 3nil*.  The value is always 3nil* if 2host*
+is not on the Chaosnet.
+.end_defun
+
+.defun chaos:up-hosts host-list &optional number-of-hosts (timeout 3250.*)
+Returns a list of all the hosts in 2host-list* which are currently responding
+over the Chaosnet.  2host-list* is a list of host names and/or host objects.
+The value is always a list of host objects, possibly 3nil* for none of them.
+
+If 2number-of-hosts* is non-3nil*, it should be a positive integer; when that
+many hosts have responded, 3chaos:up-hosts* returns right away without
+bothering to listen for replies from the rest.
+
+2timeout* is an integer; if a host fails to respond for that many
+sixtieths of a second, it is assumed to be down.
+.end_defun
+
+.defun chaos:host-data &optional host
+2host* may be a number or a known host name, and defaults to the local host.  Two
+values are returned.  The first value is the host name and the second is
+the host number.  If the host is a number not in the table, it is asked its name
+using the 3STATUS* protocol; if no response is received the name
+3"Unknown"* is returned.
+.end_defun
+
+.defun chaos:print-conn conn &optional (short 3t*)
+Prints everything the system knows about the connection.  If 2short* is 3nil* it
+also prints everything the system knows about each queued input and output packet
+on the connection.
+.end_defun
+
+.defun chaos:print-pkt pkt &optional (short 3nil*)
+Prints everything the system knows about the packet, except its data field.
+If 2short* is 3t*, only the first line of the information is printed.
+.end_defun
+
+.defun chaos:print-all-pkts pkt &optional (short 3t*)
+Calls 3chaos:print-pkt* on 2pkt* and all packets on the threaded list emanating
+from it.
+.end_defun
+
+.defun chaos:status
+Prints the hardware status.  (Currently works for the CADR only.)
+.end_defun
+
+.defun chaos:reset
+Resets the hardware and software and turns off Chaosnet communication.
+.end_defun
+
+.defun chaos:assure-enabled
+Turns on Chaosnet communication if it is not already on.  It is normally
+always on unless you call one of the functions in this section.
+.end_defun
+
+.defun chaos:enable
+Resets the hardware and turns on Chaosnet communication.
+.end_defun
+
+.defun chaos:disable
+Resets the hardware and turns off Chaosnet communication.
+.end_defun
+
+.defun chaos:show-routing-table host &optional (stream 3*standard-output*)
+Print out 2host*'s routing table onto 2stream*.
+.end_defun
+
+.defun chaos:show-routing-path &key (from 3si:local-host*) to (stream 3*standard-output*)
+Show how a packet would get from 2from* to 2to*.  For this to
+work when the hosts are on different subnets, the bridge must respond to
+the 3DUMP-ROUTING-TABLE* request.
+.end_defun
+
+.defconst chaos:my-address
+The sixteen bit Chaosnet address of this Lisp Machine.  On the CADR, this
+is set by reading
+a location off the Chaosnet (I/O) board.  On a Lambda, this is set by
+looking at the name of the disk pack, and using that as a host name to
+get the Chaosnet address.  (This is because a Lambda talks Chaosnet
+through an Ethernet interface, which has a pre-assigned address of its
+own.)
+.end_defconst
+
+.defconst chaos:my-subnet
+The high eight bits of 3chaos:my-address*.
+.end_defconst
+
+.defconst chaos:routing-table
+This is an 3art-16b* array which contains for each subnet the address
+of a bridge which is the best way of getting to that subnet.  Since
+(currently) Lisp Machines can only have one interface to the network,
+the addresses in the table all contain the same subnet, namely, the name
+of 3chaos:my-address*.
+.end_defconst
+
+.defconst chaos:maximum-routing-cost
+The maximum cost that a route can be in the routing table.  Subnets with
+a cost greater than this do not appear in the Peek Chaosnet display
+.end_deconst
+
+.defconst chaos:routing-table-cost
+This is an 3art-16b* array which contains for each subnet the cost for
+getting to that subnet.
+.end_defconst
+
+.defvar chaos:*receive-broadcast-packets-p*
+If not 3nil* (the default), broadcast packets are responded to.
+.end_defvar
+
+.defvar chaos:*brd-history*
+A list of elements of the form 3(*2contact-name address*3)*
+recording what hosts have been contacting this machine with broadcast
+requests.
+.end_defvar
+
+.defvar chaos:*brd-pkts-in*
+The number of broadcast packets (opcode 3BRD-OP*) that have been
+received.  This should never be less than 3(length chaos:*brd-history*)*.
+.end_defvar
+
+The PEEK program has a mode that displays the status of all of the Lisp
+Machine's Chaosnet connections, and various other information, in a
+continuously updating fashion.
+
+.section Higher-Level Protocols
+
+This section briefly documents some of the higher-level protocols of
+the most general interest.  There are quite a few other protocols which
+are too specialized to mention here.  All protocols other than the
+3STATUS* protocol are optional and are only implemented by those
+hosts that need them.  All hosts are required to implement the
+3STATUS* protocol since it is used for network maintenance.
+
+The site files tell the Lisp Machine which hosts at your site implement
+certain higher-level protocols.  See (site-files).
+
+.subsection Status
+
+All network nodes, even bridges, are required to answer RFC's with contact
+name 7STATUS*, returning an ANS packet in a simple transaction.  This
+protocol is primarily used for network maintenance.  The answer to a
+7STATUS* request should be generated by the Network Control Program,
+rather than by starting up a server process, in order to provide rapid
+response.
+
+The 7STATUS* protocol is used to determine whether a host is up,
+to determine whether an operable path through the network exists between
+two hosts, to monitor network error statistics, and to debug new Network
+Control Programs and new Chaosnet hardware.  The 3hostat* function
+on the Lisp Machine uses this protocol.
+
+The first 32 bytes of the ANS contain the name of the node, padded on
+the right with zero bytes.  The rest of the packet contains blocks of
+information expressed in 16-bit and 32-bit words, low byte first
+(little-endian convention).  The low-order half of a 32-bit word comes
+first.  Since ANS packets contain 8-bit data (not 16-bit), big-endian
+machines such as PDP-10s have to shuffle the bytes explicitly when
+using this protocol.  The first 16-bit word in a block is its
+identification.  The second 16-bit word is the number of 16-bit words
+to follow.  The remaining words in the block depend on the
+identification.
+
+This is the only block type currently defined.  All items are optional,
+according to the count field, and extra items not defined here may be
+present and should be ignored.  Note that items after the first two
+are 32-bit words.
+.table 1
+.item word 0
+A number between 400 and 777 octal.  This is 400 plus a subnet number.
+This block contains information on this host's direct connection to
+that subnet.
+
+.item word 1
+The number of 16-bit words to follow, usually 16.
+
+.item words 2-3
+The number of packets received from this subnet.
+
+.item words 4-5
+The number of packets transmitted to this subnet.
+
+.item words 6-7
+The number of transmissions to this subnet aborted by collisions or
+because the receiver was busy.
+
+.item words 8-9
+The number of incoming packets from this subnet lost because the
+host had not yet read a previous packet out of the interface and consequently
+the interface could not capture the packet.
+
+.item words 10-11
+The number of incoming packets from this subnet with CRC errors.
+These were either transmitted wrong or damaged in transmission.
+
+.item words 12-13
+The number of incoming packets from this subnet that had no CRC
+error when received, but did have an error after being read out of
+the packet buffer.  This error indicates either a hardware problem with the
+packet buffer or an incorrect packet length.
+
+.item words 14-15
+The number of incoming packets from this subnet that were rejected
+due to incorrect length (typically not a multiple of 16 bits).
+
+.item words 16-17
+The number of incoming packets from this subnet rejected for
+other reasons (e.g. too short to contain a header, garbage byte-count,
+forwarded too many times.)
+.end_table
+
+If word 0, the identification, is a number between 0 and 377 octal, this is an obsolete
+format of block.  The identification is a subnet number and the counts are as
+above except that they are only 16 bits instead of 32, and consequently may overflow.
+This format should no longer be sent by any hosts.
+
+Identification numbers of 1000 octal and up are reserved for future use.
+
+.subsection Routing Information
+
+For network and NCP debugging, this RFC/ANS protocol should be
+implemented.  The contact name is 7DUMP-ROUTING-TABLE*, and the
+response is an ANS packet whose words alternately contain a
+method to getting to a subnet, and the cost.
+If the method is zero, then the machine knows of no way to get to
+that subnet.  If the method is positive and less than 400 (octal),
+it is an interface of some kind to that subnet.
+If the method is 400 (octal) or greater, this is actually a bridge
+(host) off which the machine is bouncing packets destined for the
+subnet.
+
+.subsection Telnet and Supdup
+
+The Telnet and Supdup protocols of the Arpanet exist in
+identical form in Chaosnet.  These protocols allow access to a
+computer system as an interactive terminal from another network node.
+
+The contact names are 7TELNET* and 7SUPDUP*.  The direct borrowing of
+the Telnet and Supdup protocols was eased by their use of 8-bit byte
+streams and of only a single connection.  Note that these protocols define
+their own character sets, which differ from each other and from the
+Chaosnet standard character set.
+
+For the Telnet protocol, refer to the RFC 854 (An RFC is a network
+document put out by the NIC or Network Information Center.)  For the Supdup
+protocol, see MIT AI Lab memo 644.
+
+Chaosnet contains no counterpart of the INR/INS attention-getting feature
+of the Arpanet.  The Telnet protocol sends a packet with opcode 201 octal in
+place of the INS signal.  This is a controlled packet and hence does not
+provide the ``out of band'' feature of the Arpanet INS, however it is
+satisfactory for the Telnet `interrupt process' and `discard output'
+operations on the kinds of hosts attached to Chaosnet.
+
+.subsection File Access
+
+The FILE protocol is primarily used by Lisp Machines to access files on
+network file servers.  ITS, TOPS-20, Tenex, Unix, VMS, and Lisp Machines are
+equipped to act as file servers.  A user end for the file protocol also
+exists for all the operating systems mentioned (except VMS) and
+is used for general-purpose file transfer.  For complete documentation
+on the file protocol, see 3SYS: DOC; FILE TEXT*.  The Arpanet file
+transfer protocols have not been implemented on the Chaosnet (except
+through the Arpanet gateway described below).
+
+.subsection Mail
+
+The MAIL protocol is used to transmit inter-user messages through the Chaosnet.
+The Arpanet mail protocol in FTP was not used because of its complexity
+and poor
+state of documentation.  This simple protocol is by no means the last word
+in mail protocols; however, it is adequate for the mail systems we presently
+possess.
+
+The sender of mail connects to contact name 7MAIL* and establishes a stream connection.
+It then sends the names of all the recipients to which the mail is to be sent
+at (or via) the server host.  The names are sent one to a line and terminated
+by a blank line (two carriage returns in a row).  The Lisp Machine character
+set is used.  A reply (see below) is immediately returned for each recipient.
+A recipient is typically just the name of a user, but it can be a user-atsign-host
+sequence or anything else acceptable to the mail system on the server machine.
+After sending the recipients, the sender sends the text of the message, terminated
+by an EOF.  After the mail has been successfully swallowed, a reply is sent.
+After the sender of mail has read the reply, both sides close the connection.
+
+In the MAIL protocol, a reply is a signal from the server to the user
+(or sender) indicating success or failure.  The first character of a reply
+is a plus sign for success, a minus sign for permanent failure (e.g. no such
+user exists), or a percent sign for temporary failure (e.g. unable to receive message
+because disk is full).  The rest of a reply is a human-readable character string
+explaining the situation, followed by a carriage return.
+
+The message text transmitted through the mail protocol normally contains a header
+formatted in the Arpanet standard fashion.  Refer to the Arpanet Protocols Handbook.
+
+The SMTP protocol can also be used over Chaosnet; the contact name is
+7SMTP*.  See RFC 821 for details.
+
+.subsection Send
+
+The SEND protocol is used to transmit an interactive message (requiring
+immediate attention) between users.  The sender connects to contact name
+7SEND* at the machine to which the recipient is logged in.  The remainder of
+the RFC packet contains the name of the person being sent to.  A stream
+connection is opened and the message is transmitted, followed by an EOF.
+Both sides close after following the end-of-data protocol described in (safe-eof-protocol).
+The fact that the RFC was responded to affirmatively indicates that the
+recipient is in fact present and accepting messages.  The message text should begin
+with a suitable header, naming the user that sent the message.  The standard
+for such headers, not currently adhered to by all hosts, is one line formatted
+as in the following example:
+.lisp
+Moon@MIT-MC 6/15/81 02:20:17
+.end_lisp
+Automatic reply to the sender can be implemented by searching for the first
+`@' and using the SEND protocol to the host following the `@' with the
+argument preceding it.
+
+.subsection Name
+
+The Name/Finger protocol of the Arpanet exists in identical form
+on the Chaosnet.  Both Lisp Machines and timesharing machines support this
+protocol and provide a display of the user(s) currently logged in to them.
+
+The contact name is 7NAME*, which can be followed by a space and a string of
+arguments like the ``command line'' of the Arpanet Name protocol.  A stream
+connection is established and the ``finger'' display is output in Lisp
+Machine character set, followed by an EOF.
+
+Lisp Machines also support the FINGER protocol, a simple-transaction version
+of the NAME protocol.  An RFC with contact name 7FINGER* is transmitted and
+the response is an ANS containing the following items of information separated
+by carriage returns: the logged-in user ID, the location of the terminal, the
+idle time in minutes or hours-colon-minutes, the user's full name, and
+the user's group affiliation.
+
+.subsection Time
+
+The Time protocol allows a host such as a Lisp Machine that has no
+long-term timebase to ask the time of day.  An RFC to contact name
+7TIME* evokes an ANS containing the universal time as a 32-bit
+number in four 8-bit bytes, least-significant byte first.
+
+.defun chaos:host-time &optional hosts
+Returns either a universal time, or a string explaining why the time
+couldn't be found out, from one of 2hosts*.  2Hosts* defaults to
+the list of Chaosnet time server hosts.
+.end_defun
+
+.defun chaos:print-host-times &optional hosts (stream 3*standard-output**)
+Print out on 2stream* the times given by 2hosts*.  Any host that
+returns a time that is more than three minutes off this hosts time will
+have its repsonse marked with ``!''  2Hosts* defaults to the list of
+Chaosnet time server hosts.
+.end_defun
+
+.subsection Time Server Control
+
+For a time server that does not have any other way to correct its own
+time (usually because it is a bridge), that host should support this
+simple way of accepting a request to reset its own timebase.  The contact
+name is 7RESET-TIME-SERVER*, and the response (on successful
+completion) is an ANS.  Following such a request, if the network is the
+only source of a timebase, it may be wise to
+immediately disable the 7TIME* server, wait about 20 seconds, and then
+attempt to get the time from the network.  This may prevent the host
+from getting bad times from other machines that were ``infected'' with
+it.
+
+.defun chaos:reset-time-server host
+Reset the network time server of 2host*.  It will try to tell you the
+time it gets afterward, if possible.
+.end_defun
+
+.subsection Uptime
+
+This is similar to the TIME protocol, except that the contact
+name is 7UPTIME*, and the time returned is actually an interval (in
+seconds) describing how long the host has been up.
+
+.defun host-uptime host &optional (stream 3*standard-output**)
+Return the number of seconds that 2host* has been up, and print that
+out in human-readable form if 2stream* is not 3nil*.
+.end_defun
+
+.defun uptime &optional (stream 3*standard-output**) hosts
+Print out the uptimes for 2hosts* (which if not supplied defaults to
+all Chaosnet hosts) onto 2stream*.
+.end_defun
+
+.subsection Internet Gateway
+.setq arpanet-gateway section-page
+
+This protocol allows a Chaosnet host to access almost any service on
+the Internet.  The gateway server runs on each ITS host that is connected
+to both networks.  It creates an Internet connection and a Chaosnet connection
+and forwards data bytes from one to the other.  It also provides for a one-way
+auxiliary connection, used for the data connection of the Arpanet File Transfer Protocol.
+
+The RFC packet contains a contact name of 7TCP*, a space, the name
+of the Internet host to be connected to, optionally followed by a space
+and the contact-socket number in octal, which defaults to 1 if omitted.
+The name of host can also be an Internet-format address.
+The bi-directional 8-bit connection is made by connecting to the host
+with TCP.
+
+If a data packet with opcode 201 (octal) is received, an Arpanet INS
+signal is transmitted.
+Any data bytes in this packet are transmitted
+normally.  (This does nothing in the current server, since TCP
+does not define an interrupt signal.)
+
+If a data packet with opcode 210 (octal) is received, an auxiliary
+connection on each network is opened.  The first eight data bytes are
+the Chaosnet contact name for the auxiliary connection; the user should
+send an RFC with this name to the server.  The next four data bytes are the
+TCP socket number to be connected to, in the wrong order, most-significant
+byte first.  The byte-size of the auxiliary connection is 8 bits.
+
+The normal closing of an TCP connection corresponds to an EOF packet.
+Closing due to an error, such as Host Dead, corresponds to a CLS packet.
+
+.subsection Host Table
+
+The 7HOSTAB* protocol may be used to access tables of host addresses
+on other networks, such as the Arpanet or Internet.  Servers for this protocol
+currently exist for Tenex, TOPS-20, ITS, and Lisp Machines.
+
+The user connects to contact name 7HOSTAB*, undertakes a number of
+transactions, then closes the connection.  Each transaction is initiated
+by the user transmitting a host name followed by a carriage return.  The
+server responds with information about that host, terminated with an EOF,
+and is then ready for another transaction.  The server's response
+consists of a number of attributes of the host.  Each attribute consists
+of an identifying name, a space character, the value of the attribute,
+and a carriage return.  Values may be strings (free of carriage returns
+and 2not* surrounded by double-quotes) or octal numbers.
+Attribute names and most values are in upper case.  There can be more than
+one attribute with the same name; for example, a host may have more than
+one name or more than one network address.
+
+The standard attribute names defined now are as follows.  Note that more
+are likely to be added in the future.
+
+.table 7
+.item ERROR
+The value is an error message.  The only error one might expect
+to get is ``no such host''.
+
+.item NAME
+The value is a name of the host.  There may be more than one 7NAME*
+attribute; the first one is always the official name, and any additional
+names are nicknames.
+
+.item MACHINE-TYPE
+The value is the type of machine, such as 7LISPM*, 7PDP10*, etc.
+
+.item SYSTEM-TYPE
+The value is the type of software running on the machine,
+such as 7LISPM*, 7ITS*, etc.
+
+.item ARPA
+The value is an address of the host on the Arpanet, in the form
+2host*/2imp*.  The two numbers are decimal.
+
+.item CHAOS
+The value is an address of the host on Chaosnet, as an octal number.
+
+.item DIAL
+The value is an address of the host on Dialnet, as a telephone number.
+
+.item LCS
+The value is an address of the host on the LCSnet, as two octal numbers
+separated by a slash.
+
+.item SU
+The value is an address of the host on the SUnet, in the form
+2net*#2host*.  The two numbers are octal.
+
+.end_table
+
+.subsection Dover
+
+A press file may be sent to the Dover printer at MIT by connecting to contact
+name 3DOVER* at host 3AI-CHAOS-11*.  This host provides a protocol
+translation service that translates from Chaosnet stream protocol to
+the 3EFTP* protocol spoken by the Dover printer.  Only one file at
+a time can be sent to the Dover, so an attempt to use this service may
+be refused by a CLS packet containing the string 3"BUSY"*.
+Once the connection has been established, the press file is transmitted
+as a sequence of 8-bit bytes in data packets (opcode 200).  It is necessary
+to provide packets rapidly enough to keep the Dover's program (Spruce)
+from timing out; a packet every five seconds suffices.  Of course, packets
+are normally transmitted much more rapidly.
+
+Once the file has been transmitted, an EOF packet must be sent.
+The transmitter must wait for that EOF to be acknowledged, then send a
+second one, and then close the connection.  The two EOF's are
+necessary to provide the proper connection-closing sequence for the
+3EFTP* protocol.  Once the press file has been transmitted to the
+Dover in this way and stored on the Dover's local disk, it will be
+processed, prepared for printing, and printed.
+
+If an error message is returned by the Dover while the press file is
+being transmitted, it is reported back through the Chaosnet as a
+LOS containing the text of the error message.  Such errors are
+fairly common; the sender of the press file should be prepared to retry
+the operation a few times.
+
+Most programs that send press files to the Dover first wait for the
+Dover to be idle, using the Foreign Protocol mechanism of Chaosnet to
+check the status of the Dover.  This is optional, but is courteous to
+other users since it prevents printing from being held up while
+additional files are sent to the Dover and queued on its local disk.
+
+It would be possible to send to a press file to the Dover using its
+3EFTP* protocol through the Foreign Protocol mechanism, rather than
+using the 3AI-CHAOS-11* gateway service.  This is not usually done
+because 3EFTP*, which requires a handshake for every packet, tends to
+be very slow on a timesharing system.
+
+.subsection Remote Disk
+
+The Remote Disk server exists on Lisp Machines to allow other machines
+to refer to or modify the contents of the Lisp Machine's disk.
+Primarily this is used for printing and editing the disk label.
+
+After first establishing a connection to contact name 7REMOTE-DISK*,
+the user process sends commands as packets which contain a line of text,
+ending with a 3Return* character.  The text consists of a command name, a
+space, and arguments interpreted according to the command.  The server
+processing the command may send disk data to the user, or it may read
+successive packets and write them to the disk.  It is up to the user to
+know how many packets of disk data to read or send after each command.
+The commands are:
+.table 3
+.item READ 2unit* 2block* 2n-blocks*
+Reads 2n-blocks* of data from disk 2unit* starting at 2block* and
+transmits their contents to the user process.
+
+.item WRITE 2unit* 2block* 2n-blocks*
+Reads data from the net connection and stores it into 2n-blocks* disk
+blocks on disk 2unit* starting at 2block*.
+
+.item SAY 2text*
+Prints 2text*, which is simply all the rest of the line following 3SAY*,
+on the screen of the server host as a notification.
+.end_table
+
+Each disk block is transmitted as three packets, the first two
+containing the data for 121 (decimal) Lisp Machine words, and the third
+containing the data for the remaining 14 (decimal) words of the disk
+block.  Each packet's data ends with a checksum made by adding together
+all the 8-bit bytes of the actual disk data stored in the packet.
+
+.subsection The Eval Server
+
+The Eval server is available on Lisp Machines with contact name
+7EVAL*.  It provides a read-eval-print loop which reads and prints
+using the Chaosnet connection.  The data consists of text in the ASCII
+character set.
+
+Each time a complete s-expression arrives, the Eval
+server reads it, evaluates it and prints the list of values back onto
+the network connection, followed by a CRLF.  There is no way for the
+user process to tell the end of the output for a particular
+s-expression; the usual application is simply to copy all the output to
+a user's terminal asynchronously.
+
+The Eval server is disabled when the Lisp Machine is logged in, unless
+the user requests to enable it.
+
+.defun chaos:eval-server-on mode
+Turn the Eval server on this Lisp Machine on or off.
+2mode* can be 3t* (on), 3nil* (off), or 3:notify* (on, but
+notify the user when a connection is made).
+.end_defun
+
+.section Using Higher Level Protocols
+
+.defun qsend user &optional text
+Sends a message to another user.  3qsend* is different from 3mail* because it
+sends the message immediately; it will appear within seconds on the other user's
+screen, rather than being saved in her mail file.
+
+2user* should be a string of the form 3"2username7@*hostname*"*;
+2host* is the name of the Lisp Machine or timesharing system the user
+is currently logged-in to.  Multiple recipients separated by commas are
+also allowed.  2text* is a string which is the message.  If 2text*
+is not specified, you are prompted to type in a message.
+
+Unlike 3mail* and 3bug*, 3qsend* does not put up a window to allow
+you to compose the message; it just reads it from the input stream.  Use
+Converse if you wish to compose sends in the editor.  Converse can be
+invoked by typing 3System* 3C*.  If you have started typing in a message to
+3qsend*, you can switch to Converse by typing 3Control-Meta-E*
+(``Edit'').  The text you have typed so far is transferred into
+Converse.
+
+3qsend* does give you the ability to insert the text of the last
+message you received.  Type 3Control-Meta-Y* to do this.
+.end_defun
+
+.defun reply &optional text
+.defun1 qreply &optional text
+Sends 2text* as a message to the last user who sent a message to you,
+like 3qsend* with an appropriate first argument provided.
+The two names are synonymous.
+.end_defun
+
+.defun chaos:shout &optional message
+Sends 2message* to every Lisp Machine at your site.
+If you do not specify 2message*, it is read from 3*standard-input**.
+.end_defun
+
+.defun print-sends
+Reprints any messages that have been received.  This is useful if you want to see
+a message again.
+.end_defun
+
+.defun supdup &optional host
+2host* may be a string or symbol, which is taken as a host name,
+or a number, which is taken as a host number.  If no 2host* is
+given, the machine you are logged-in to is assumed.
+This function opens a connection to the host
+over the Chaosnet using the Supdup protocol, and allows the Lisp
+Machine to be used as a terminal for any ITS, UNIX or TOPS-20 system.
+
+To give commands to 3supdup*, type the 3Network* key followed by one character.
+Type 3Network* followed by 3Help* for documentation.
+.end_defun
+
+.defun telnet &optional host simulate-imlac
+3telnet* is similar to 3supdup* but uses the Arpanet-standard Telnet
+protocol, simulating a printing terminal rather than a display terminal.
+.end_defun
+
+.defun hostat &rest hosts
+Asks each of the 2hosts* for its status using the 7STATUS* protocol,
+and prints the results.  If no hosts are specified, all hosts on the
+Chaosnet are asked.  Hosts can be specified either by name or by number.
+
+For each host, a line is output that either says that the host is not
+responding or gives metering information for the host's network
+attachments.  If a host is not responding, that usually means that it is down
+or there is no such host at that address.  A Lisp Machine can fail to respond
+if it is looping inside 3without-interrupts* or paging extremely heavily,
+such that it is simply unable to respond within a reasonable amount of time.
+.end_defun
+
+.defun finger &optional spec (stream 3*standard-output**)
+.defun1 whois &optional spec (stream 3*standard-output**)
+Prints brief (3finger*) or verbose (3whois*) information about a user
+or users specified by 2spec*, on 2stream*.  2spec* can be a user
+name, 3@* followed by a host name, or a user name, 3@*, and a host
+name.  If there is no host name, the default login host is used.  If
+there is no user name, all users on the host are described.
+.lisp
+.exdent 96 Examples:
+(finger "@OZ")
+(whois "RMS@OZ")
+.end_lisp
+.end_defun
+
+.defun chaos:finger-all-lms &optional stream print-free return-free hosts
+Prints a line of information about the user of each Lisp Machine in
+2hosts* (the default is all Lisp Machines at this site) on 2stream*
+(default is 3*standard-output**).
+
+If 2print-free* is non-3nil*, information on free Lisp Machines and
+nonresponding Lisp Machines is also printed.
+
+If 2return-free* is non-3nil*, then this function returns two
+values, the first a list of host objects of free Lisp Machines, the
+second a list of host objects of nonresponding Lisp Machines.
+.end_defun
+
+.defun chaos:user-logged-into-host-p username host
+Returns 3t* if there is a user named 2username* logged in on
+2host* (a host name or host object).
+.end_defun
+
+.defun chaos:find-hosts-or-lispms-logged-in-as-user user hosts
+Return a list of host objects for hosts on which 2user* is logged in.
+All Lisp Machines at this site are checked, and so are 2hosts* (which
+are presumably non-Lisp machines).
+.end_defun
+
+.defun tv:close-all-servers reason
+Close the connections of all network servers on this Lisp Machine,
+giving 2reason* (a string) as the reason in the CLS packet.
+
+Note that PEEK has a mode that displays information on the active
+network servers.
+.end_defun

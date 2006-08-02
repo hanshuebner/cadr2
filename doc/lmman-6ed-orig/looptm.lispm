@@ -1,0 +1,49 @@
+;	Friday  Jan 9,1981  3:26  NM+3D.14H.48M.20S.  -*- Lisp -*-
+
+; To insert LOOP doc as a chapter in something, load in this file,
+; and .INSERT "ml:lsbdoc;looptm >".
+
+
+; The following requests are used so that the sectionation of the document
+; can be hacked depending on whether it stands alone or not.
+(mapc '(lambda (x) (putprop (car x) (get (cadr x) 'request) 'request))
+      '((loop_chapter section)
+	(loop_section subsection)
+	(loop_subsection subsubsection)
+	(loop_keyword_index comment)
+	(loop_insert_for_NIL comment)
+	(if_lmman_chapter_else_noop chapter)
+	(loop_path_preposition_index comment)
+	))
+; One may or may not want to have LOOP_KEYWORD_INDEX be a no-op.
+; One possibility is to do:
+;(defun loop_keyword_index-request ()
+;    (do ((wd (get-word-string) (get-word-string)))
+;	 ((null wd))
+;      (add-to-index (string-append wd '|  2Loop Keyword*|)
+;		     'concept-index ; or keyword-index or whatever
+;		     )))
+;(defprop loop_keyword_index loop_keyword_index-request request)
+
+
+(defun (loop_path_index request) ()
+  (add-to-index
+     ;(string-append (get-line-string) '|   loop iteration path|)
+     (list (get-line-string) '|loop iteration path|)
+     'concept-index))
+
+;(defun (loop_path_preposition_index request) ()
+;    (add-to-index (string-append (get-line-string)
+;				 '|   loop iteration path preposition|)
+;		  'concept-index))
+
+(cond ((not (get 'unbreak 'request))
+       (defun unbreak-request ()
+	      (setq begin-new-paragraph nil))
+       (defprop unbreak unbreak-request request)))
+
+(defun (loop_topic request) ()
+  (add-to-index
+    ;(string-append (get-line-string) '|, in loop|)
+    (list (get-line-string) '|in loop|)
+    'concept-index))

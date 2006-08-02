@@ -1,0 +1,786 @@
+.c The system system -*-bolio-*-
+
+.chapter Maintaining Large Systems
+.setq system-system section-page
+.cindex system
+.setq system-chapter chapter-number
+
+When a program gets large, it is often desirable to split it up into
+several files.  One reason for this is to help keep the parts of the
+program organized, to make things easier to find.  It's also useful to
+have the program broken into small pieces that are more convenient to
+edit and compile.  It is particularly important to avoid the need to
+recompile all of a large program every time any piece of it changes; if
+the program is broken up into many files, only the files that have
+changes in them need to be recompiled.
+
+The apparent drawback to splitting up a program is that more commands
+are needed to manipulate it.  To load the program, you now have to load
+several files separately, instead of just loading one file.  To compile
+it, you have to figure out which files need compilation, by seeing
+which have been edited since they were last compiled, and then you have
+to compile those files.
+
+What's even more complicated is that files can have interdependencies.
+You might have a file called 3DEFS* that contains some macro
+definitions (or flavor or structure definitions), and functions in
+other files might use those macros.  This means that in order to
+compile any of those other files, you must first load the file 3DEFS*
+into the Lisp environment so that the macros will be defined and can
+be expanded at compile time.  You have to remember this whenever you
+compile any of those files.  Furthermore, if 3DEFS* has changed, other
+files of the program may need to be recompiled because the macros
+may have changed and need to be re-expanded.
+
+This chapter describes the 2system* facility, which takes care of all
+these things for you.  The way it works is that you define a set of
+files to be a 2system*, using the 3defsystem* special form,
+described below.  This system definition says which files make up the
+system, which ones depend on the presence of others, and so on.  You
+put this system definition into its own little file, and then all you
+have to do is load that file and the Lisp environment will know about
+your system and what files are in it.  You can then use the
+3make-system* function (see (make-system-fun)) to load in all the
+files of the system, recompile all the files that need compiling,
+and so on.
+
+The system facility is very general and extensible.  This chapter
+explains how to use it and how to extend it.  This chapter also
+explains the 2patch* facility, which lets you conveniently update a
+large program with incremental changes.
+
+.section Defining a System
+
+.defmac defsystem name (keyword args...)...
+Defines a system named 2name*.  The options
+selected by the keywords are explained in detail later.  In general,
+they fall into two categories: properties of the system and
+2transformations*.  A transformation is an operation such as compiling
+or loading that takes one or more files and does something to them.
+The simplest system is a set of files and a transformation to be
+performed on them.
+.end_defmac
+
+.nopara
+Here are a few examples.
+.lisp
+(defsystem mysys
+  (:compile-load ("OZ:<GEORGE>PROG1.LISP" "OZ:<GEORGE2>PROG2.LISP")))
+
+(defsystem zmail
+  (:name "ZMail")
+  (:pathname-default "SYS: ZMAIL;")
+  (:package zwei)
+  (:module defs "DEFS")
+  (:module mult "MULT" :package tv)
+  (:module main ("TOP" "COMNDS" "MAIL" "USER" "WINDOW"
+		 "FILTER" mult "COMETH"))
+  (:compile-load defs)
+  (:compile-load main (:fasload defs)))
+
+(defsystem bar
+  (:module reader-macros "BAR:BAR;RDMAC")
+  (:module other-macros "BAR:BAR;MACROS")
+  (:module main-program "BAR:BAR;MAIN")
+  (:compile-load reader-macros)
+  (:compile-load other-macros (:fasload reader-macros))
+  (:compile-load main-program (:fasload reader-macros
+					other-macros)))
+.end_lisp
+
+The first example defines a new 2system* called 3mysys*, which
+consists of two files, stored on a Tops-20 host names OZ, both of which
+are to be compiled and loaded.  The second example is somewhat more
+complicated.  What all the options mean is described below, but the
+primary difference is that there is a file 3DEFS* which must be loaded
+before the rest of the files (3main*) can be compiled.  Also, the files
+are stored on logical host SYS and directory ZMAIL.
+
+The last example has two levels of dependency.  3reader-macros* must be
+compiled and loaded before 3other-macros* can be compiled.  Both
+3reader-macros* and 3other-macros* must then be loaded before
+3main-program* can be compiled.  All the source files are stored on
+host BAR, presumably a logical host defined specifically for this system.
+It is desirable to use a logical host for the files of a system
+if there is a chance that people at more than one site will be using it;
+the logical host allows the identical 3defsystem* to be valid at all sites.
+See (logical-pathnames) for more on logical hosts and logical pathnames.
+
+Note that 
+The 3defsystem* options other than transformations are:
+.table 3 0 500
+.kitem :name
+Specifies a ``pretty'' version of the name for the system, for use in printing.
+
+.kitem :short-name
+Specified an abbreviated name used in constructing disk label comments
+and in patch file names for some file systems.
+
+.kitem :component-systems
+Specifies the names of other systems used to make up this system.
+Performing an operation on a system with component systems is equivalent
+to performing the same operation on all the individual systems.  The format
+is 3(:component-systems 2names*...)*.
+
+.kitem :package
+Specifies the package in which transformations are performed.  A package
+specified here overrides one in the 7-*-* line of the file in question.
+
+.kitem :pathname-default
+Gives a local default within the definition of the system for strings to be
+parsed into pathnames.  Typically this specifies the directory, when all the
+files of a system are on the same directory.
+
+.kitem :warnings-pathname-default
+Gives a default for the file to use to store compiler warnings in,
+when 3make-system* is used with the 3:batch* option.
+
+.kitem :patchable
+Makes the system be a patchable system (see (patch-facility)).  An optional
+argument specifies the directory to put patch files in.  The default is
+the 3:pathname-default* of the system.
+
+.kitem :initial-status
+Specifies what the status of the system should be when 3make-system* is used
+to create a new major version.  The default is 3:experimental*.  See
+(patch-system-status) for further details.
+
+.kitem :not-in-disk-label
+Make a patchable system not appear in the disk label comment.  This
+should probably never be specified for a user system.  It is used by
+patchable systems internal to the main Lisp system, to avoid cluttering up
+the label.
+
+.kitem :default-binary-file-type
+Specifies the file type to use for compiled Lisp files.  The value you
+specify should be a string.  If you do not specify this, the standard file
+type 3:qfasl* is used.
+
+.kitem :module
+'cindex module
+Allows assigning a name to a set of files within the system.  This name
+can then be used instead of repeating the filenames.  The format is
+3(:module 2name* 2files* 2options*...)*.  2files* is usually
+a list of filenames (strings).  In general, it is a
+2module-specification*, which can be any of the following:
+.table 1 0 500
+.item a string    
+This is a file name.
+
+.item a symbol
+This is a module name.  It stands for all of the files which are in that module
+of this system.
+
+.item an 2external module component*
+This is a list of the form 3(2system-name* 2module-names*...)*,
+to specify modules in another system.  It stands for all of the files which
+are in all of those modules.
+
+.item a list of 2module components*
+A module component is any of the above, or the following:
+
+.item a list of file names
+This is used in the case where the names of the input and output files
+of a transformation are not related according to the standard naming
+conventions, for example when a QFASL file has a different name or
+resides on a different directory than the source file.  The file names
+in the list are used from left to right, thus the first name is the
+source file.  Each file name after the first in the list is defaulted
+from the previous one in the list.
+
+To avoid syntactic ambiguity, this is allowed as a module component but not
+as a module specification.
+.end_table
+
+The currently defined options for the 3:module* clause are
+.table 3
+.item :package
+Overrides any package specified for the whole system for transformations performed
+on just this module.
+.end_table
+
+In the second 3defsystem* example above, there are three modules.  Each of the
+first two has only one file, and the third one (3main*) is made
+up both of files and another module.  To take examples of the other
+possibilities,
+.lisp
+(:module prog (("SYS: GEORGE; PROG" "SYS: GEORG2; PROG")))
+(:module foo (defs (zmail defs)))
+.end_lisp
+The 3prog* module consists of one file, but it lives in two
+directories, 3GEORGE* and 3GEORG2*.  If this were a Lisp program,
+that would mean that the file 3SYS: GEORGE; PROG LISP* would be compiled
+into 3SYS: GEORG2; PROG QFASL*.  The 3foo* module consists of two
+other modules the 3defs* module in the same system, and the 3defs*
+module in the 3zmail* system.  It is not generally useful to
+compile files that belong to other systems; thus this 3foo* module
+would not normally be the subject of a transformation.
+However, 2dependencies* (defined below) use modules and
+need to be able to refer to (depend on) modules of other systems.
+.end_table
+
+.defun si:set-system-source-file system-name filename
+This function specifies which file contains the 3defsystem* for the
+system 2system-name*.  2filename* can be a pathname object or a
+string.
+
+Sometimes it is useful to say where the definition of a system can be
+found without taking time to load that file.  If 3make-system*, or
+3require* ((require-fun)), is ever used on that system, the file
+whose name has been specified will be loaded automatically.
+.end_defun
+
+.section Transformations
+
+.cindex transformation
+Transformations are of two types, simple and complex.  A simple
+transformation is a single operation on a file, such as compiling it or
+loading it.  A complex transformation takes the output from one
+transformation and performs another transformation on it, such as
+loading the results of compilation.
+
+The general format of a simple transformation is
+3(2name* 2input* 2dependencies* 2condition*)*.
+2input* is usually a module specification or another transformation whose output is used.
+The transformation 2name* is to be performed on all the files in the module, or
+all the output files of the other transformation.
+
+2dependencies* and 2condition* are optional.
+
+.cindex dependency
+2dependencies* is a 2transformation specification*, either a list
+3(2transformation-name* 2module-names*...)* or a list of such lists.
+A 2module-name* is either a symbol that is the name of a module in the current system,
+or a list 3(2system-name* 2module-names*...)*.  A dependency declares that
+all of the indicated transformations must be performed on the indicated modules
+before the current transformation itself can take place.  Thus in
+the zmail example above,  the 3defs* module must have the 3:fasload*
+transformation performed on it before the 3:compile* transformation
+can be performed on 3main*.
+
+The dependency has to be a tranformation that is explicitly specified
+as a transformation in the system definition, not just an action
+that might be performed by anything.  That is, if you have
+a dependency 3(:fasload foo)*, it means that 3(fasload foo)* is
+a tranformation of your system and you depend on that tranformation;
+it does not simply mean that you depend on 3foo*'s being loaded.
+Furthermore, it doesn't work if 3(:fasload foo)* is an implicit
+piece of another tranformation.  For example, the following works:
+.lisp
+(defsystem foo
+  (:module foo "FOO")
+  (:module bar "BAR")
+  (:compile-load (foo bar)))
+.end_lisp
+but this doesn't work:
+.lisp
+(defsystem foo
+  (:module foo "FOO")
+  (:module bar "BAR")
+  (:module blort "BLORT")
+  (:compile-load (foo bar))
+  (:compile-load blort (:fasload foo)))
+.end_lisp
+.nopara
+because 3foo*'s 3:fasload* is not mentioned explicitly (i.e. at
+top level) but is only implicit in the 3(:compile-load (foo bar))*.  One
+must instead write: 
+.lisp
+(defsystem foo
+  (:module foo "FOO")
+  (:module bar "BAR")
+  (:module blort "BLORT")
+  (:compile-load foo)
+  (:compile-load bar)
+  (:compile-load blort (:fasload foo)))
+.end_lisp
+
+2condition* is a predicate which specifies when the transformation
+should take place.  Generally it defaults according to the type of the
+transformation.  Conditions are discussed further on
+(transformation-condition-discussion).
+
+The defined simple transformations are:
+.table 3
+.item :fasload
+Calls the 3fasload* function to load the indicated files, which must
+be QFASL files whose pathnames have canonical type 3:qfasl* (see
+(canonical-types)).  The 2condition* defaults to
+3si:file-newer-than-installed-p*, which is 3t* if a newer version of
+the file exists on the file computer than was read into the current
+environment.
+
+.item :readfile
+Calls the 3readfile* function to read in the indicated files, whose
+names must have canonical type 3:lisp*.  Use this for files that are
+not to be compiled.  2condition* defaults to
+3si:file-newer-than-installed-p*.
+
+.item :compile
+Calls the 3compile-file* function to compile the indicated files, whose names
+must have canonical type 3:lisp*.  2condition* defaults to
+3si:file-newer-than-file-p*, which returns 3t* if the source file
+has been written more recently than the binary file.
+.end_table
+
+A special simple transformation is
+.table 3
+.item :do-components
+3(:do-components 2dependencies*)* inside a system with component
+systems causes the 2dependencies* to be done before anything in
+the component systems.  This is useful when you have a module of macro
+files used by all of the component systems.
+.end_table
+
+The defined complex transformations are
+.table 3
+.item :compile-load
+3(:compile-load 2input* 2compile-dependencies* 2load-dependencies*
+2compile-condition* 2load-condition*)* is the same as 3(:fasload (:compile
+2input* 2compile-dependencies* 2compile-condition*) 2load-dependencies*
+2load-condition*)*.  This is the most commonly-used transformation.
+Everything after 2input* is optional.
+
+.item :compile-load-init
+See (compile-load-init-transformation).
+.end_table
+
+As was explained above, each filename in an input specification can
+in fact be a list of strings when the source file of a program
+differs from the binary file in more than just the file type.  In fact, every
+filename is treated as if it were an infinite list of filenames with
+the last filename, or in the case of a single string the only filename,
+repeated forever at the end.  Each simple transformation takes some
+number of input filename arguments and some number of output filename
+arguments.  As transformations are performed, these arguments are taken
+from the front of the filename list.  The input arguments are actually
+removed and the output arguments left as input arguments to the next
+higher transformation.  To make this clearer, consider the 3prog*
+module above having the 3:compile-load* transformation performed on
+it.  This means that 3prog* is given as the input to the 3:compile*
+transformation and the output from this transformation is given as the
+input to the 3:fasload* transformation.  The 3:compile*
+transformation takes one input filename argument, the name of a Lisp
+source file, and one output filename argument, the name of the QFASL
+file.  The 3:fasload* transformation takes one input filename
+argument, the name of a QFASL file, and no output filename arguments.
+So, for the first and only file in the 3prog* module, the filename
+argument list looks like 3("SYS: GEORGE; PROG" "SYS: GEORG2; PROG" "SYS:
+GEORG2; PROG" ...)*.  The 3:compile* transformation is given
+arguments of 3"SYS: GEORGE; PROG"* and 3"SYS: GEORG2; PROG"* and the
+filename argument list which it outputs as the input to the 3:fasload*
+transformation is 3("SYS: GEORG2; PROG" "SYS: GEORG2; PROG" ...)*.  The 3:fasload*
+transformation then is given its one argument of 3"SYS: GEORG2; PROG"*.
+
+Note that dependencies are not transitive or inherited.  For example, if
+module 3a* depends on macros defined in module 3b*, and therefore needs
+3b* to be loaded in order to compile, and 3b* has a similar dependency
+on 3c*, 3c* need not be loaded for compilation of 3a*.  Transformations
+with these dependencies would be written
+.lisp
+(:compile-load a (:fasload b))
+(:compile-load b (:fasload c))
+.end_lisp
+To say that compilation of 3a* depends on both 3b* and 3c*, you
+would instead write
+.lisp
+(:compile-load a (:fasload b c))
+(:compile-load b (:fasload c))
+.end_lisp
+If in addition 3a* depended on 3c* (but not 3b*) during loading
+(perhaps 3a* contains 3defvar*s whose initial values depend on functions
+or special variables defined in 3c*) you would write the transformations
+.lisp
+(:compile-load a (:fasload b c) (:fasload c))
+(:compile-load b (:fasload c))
+.end_lisp
+
+.section Making a System
+
+.defun make-system name &rest keywords
+The 3make-system* function does the actual work of compiling and
+loading.  In the example above, if 3PROG1* and 3PROG2* have both
+been compiled recently, then
+.lisp
+(make-system 'mysys)
+.end_lisp
+loads them as necessary.  If either one might also need to be compiled, then
+.lisp
+(make-system 'mysys :compile)
+.end_lisp
+does that first as necessary.
+
+The very first thing 3make-system* does is check whether the file
+which contains the 3defsystem* for the specified system has changed
+since it was loaded.  If so, it offers to load the latest version, so
+that the remainder of the 3make-system* can be done using the latest
+system definition.  (This only happens if the filetype of that file is
+3LISP*.)  After loading this file or not, 3make-system* goes on to
+process the files that compose the system.
+
+If the system name is not recognized, 3make-system* attempts to load the file
+3SYS: SITE; 2system-name* SYSTEM*, in the hope that that contains a system definition
+or a call to 3si:set-system-source-file*.
+
+3make-system* lists what transformations it is going to perform on
+what files, then asks the user for confirmation.  If the user types S when
+confirmation is requested, then 3make-system* asks about each file
+individually so that the user can decide selectively which
+transformations should be performed; then collective reconfirmation is
+requested.  This is like what happens if the 3:selective* keyword
+is specified.  If the user types Y, the transformations are performed.
+Before each transformation a message is printed listing the
+transformation being performed, the file it is being done to, and the
+package.  This behavior can be altered by 2keywords*.
+
+If the system being made is patchable, and if loading has not been inhibited,
+then the system's patches are loaded afterward.  Loading of patches
+is silent if the 3make-system* is, and requires confirmation if the
+3make-system* does.
+.end_defun
+
+These are the keywords recognized by the 3make-system* function and
+what they do.
+.table 3
+.xitem :noconfirm make-system
+Assumes a yes answer for all questions that would otherwise be asked of the user.
+
+.xitem :selective make-system
+Asks the user whether or not to perform each transformation that appears to
+be needed for each file.
+
+.xitem :silent make-system
+Avoids printing out each transformation as it is performed.
+
+.xitem :reload make-system
+Bypasses the specified conditions for performing a transformation.  Thus files are
+compiled even if they haven't changed and loaded even if they aren't newer than the
+installed version.
+
+.xitem :noload make-system
+Does not load any files except those required by dependencies.  For use in
+conjunction with the 3:compile* option.
+
+.xitem :compile make-system
+Compiles files also if need be.  The default is to load but not compile.
+
+.xitem :recompile make-system
+This is equivalent to a combination of 3:compile* and 3:reload*:
+it specifies compilation of all files, even those whose sources have
+not changed since last compiled.
+
+.xitem :no-increment-patch make-system
+When given along with the 3:compile* option, disables the automatic
+incrementing of the major system version that would otherwise take
+place.  See (patch-facility).
+
+.xitem :increment-patch make-system
+Increments a patchable system's major version without doing any
+compilations.  See (patch-facility).
+
+.xitem :no-reload-system-declaration make-system
+Turns off the check for whether the file containing the 3defsystem*
+has been changed.  Then the file is loaded only if it has never been
+loaded before.
+
+.xitem :batch make-system
+Allows a large compilation to be done unattended.  It acts
+like 3:noconfirm* with regard to questions, turns off more-processing and
+fdefine-warnings (see 3inhibit-fdefine-warnings*,
+(inhibit-fdefine-warnings-var)), and saves the compiler warnings in
+an editor buffer and a file
+(it asks you for the name).
+
+.xitem :defaulted-batch make-system
+This is like 3:batch* except that it uses the default for the pathname
+to store warnings in and does not ask the user to type a pathname.
+
+.xitem :print-only make-system
+Just prints out what transformations would be performed; does not actually do any
+compiling or loading.
+
+.xitem :noop make-system
+Is ignored.  This is useful mainly for programs that call 3make-system*,
+so that such programs can include forms like
+.lisp
+(make-system 'mysys (if compile-p :compile :noop))
+.end_lisp
+.end_table
+
+.section Adding New Keywords to make-system
+
+3make-system* keywords are defined as functions on the
+3si:make-system-keyword* property of the keyword.  The functions are
+called with no arguments.  Some of the relevant variables they can use
+are
+
+.defvar si:*system-being-made*
+The internal data structure that represents the system being made.
+.end_defvar
+
+.defvar si:*make-system-forms-to-be-evaled-before*
+A list of forms that are evaluated before the transformations are performed.
+.end_defvar
+
+.defvar si:*make-system-forms-to-be-evaled-after*
+A list of forms that are evaluated after the transformations have been performed.
+Transformations can push entries here too.
+.end_defvar
+
+.defvar si:*make-system-forms-to-be-evaled-finally*
+A list of forms that are evaluated by an 3unwind-protect* when the
+body of 3make-system* is exited, whether it is completed or not.
+Closing the batch warnings file is done here.  Unlike the
+3si:*make-system-forms-to-be-evaled-after** forms, these forms are
+evaluated outside of the ``compiler warnings context''.
+.end_defvar
+
+.defvar si:*query-type*
+Controls how questions are asked.  Its normal value is 3:normal*.
+3:noconfirm* means ask no questions and 3:selective* means
+asks a question for each individual file transformation.
+.end_defvar
+
+.defvar si:*silent-p*
+If 3t*, no messages are printed out.
+.end_defvar
+
+.defvar si:*batch-mode-p*
+If 3t*, 3:batch* was specified.
+.end_defvar
+
+.defvar si:*redo-all*
+If 3t*, all transformations are performed, regardless of the condition functions.
+.end_defvar
+
+.defvar si:*top-level-transformations*
+A list of the types of transformations that should be performed, such as
+3(:fasload :readfile)*.  The contents of this list are controlled by
+the keywords given to 3make-system*.  This list then controls which
+transformations are actually performed.
+.end_defvar
+
+.defvar si:*file-transformation-function*
+The actual function that gets called with the list of transformations that need to be
+performed.  The default is 3si:do-file-transformations*.
+.end_defvar
+
+.defmac si:define-make-system-special-variable variable value [defvar-p]
+Causes 2variable* to be bound to 2value* during the body of the call to 3make-system*.
+This allows you to define new variables similar to those listed above.
+2value* is evaluated on entry to 3make-system*.
+If 2defvar-p* is specified as (or defaulted to) 3t*, 2variable*
+is defined with 3defvar*.  It is not given an initial value.
+If 2defvar-p* is specified as 2nil*,
+2variable* belongs to some other program and is not 3defvar*'ed here.
+.end_defmac
+
+The following simple example adds a new keyword to 3make-system*
+called 3:just-warn*, which means that 3fdefine* warnings (see
+(fdefine-fun)) regarding  functions being overwritten should be printed
+out, but the user should not be queried.
+.lisp
+(si:define-make-system-special-variable
+   inhibit-fdefine-warnings inhibit-fdefine-warnings nil)
+
+(defun (:just-warn si:make-system-keyword) ()
+  (setq inhibit-fdefine-warnings :just-warn))
+.end_lisp
+(See the description of the 3inhibit-fdefine-warnings* variable, on
+(inhibit-fdefine-warnings-var).)
+
+3make-system* keywords can do something directly when called, or they
+can have their effect by pushing a form to be evaluated onto
+3si:*make-system-forms-to-be-evaled-after** or one of the other two similar lists.
+In general, the only
+useful thing to do is to set some special variable defined by
+3si:define-make-system-special-variable*.  In addition to the ones
+mentioned above, user-defined transformations may have their behavior
+controlled by new special variables, which can be set by new keywords.
+If you want to get at the list of transformations to be performed, for
+example, the right way is to set
+3si:*file-transformation-function** to a new function, which then
+can call 3si:do-file-transformations* with a possibly modified
+list.  That is how the 3:print-only* keyword works.
+
+.section Adding New Options for defsystem
+
+Options to 3defsystem* are defined as macros on the
+3si:defsystem-macro* property of the option keyword.  Such a macro can
+expand into an existing option or transformation, or it can have side effects
+and return 3nil*.  There are several variables they can use; the only one
+of general interest is
+
+.defvar si:*system-being-defined*
+The internal data structure that represents the system that is currently being constructed.
+.end_defvar
+
+.defmac si:define-defsystem-special-variable variable value
+Causes 2value* to be evaluated and 2variable* to be bound to the
+result during the expansion of the 3defsystem* special form.  This
+allows you to define new variables similar to the one listed above.
+.end_defmac
+
+.defmac si:define-simple-transformation
+This is the most convenient way to define a new simple transformation.
+The form is
+.lisp
+(si:define-simple-transformation 2name* 2function*
+	2default-condition* 2input-file-types* 2output-file-types*
+        2pretty-names* 2compile-like* 2load-like*)
+.end_lisp
+For example,
+.lisp
+(si:define-simple-transformation :compile si:qc-file-1
+	si:file-newer-than-file-p (:lisp) (:qfasl))
+.end_lisp
+2input-file-types* and 2output-file-types* are how a transformation
+specifies how many input filenames and output filenames it should
+receive as arguments, in this case one of each.  They also, obviously, specify
+the default file type for these pathnames.
+The 3si:qc-file-1* function is mostly like 3compile-file*, except for its interface to
+packages.  It takes input-file and output-file arguments.
+
+2pretty-names*, 2compile-like*, and 2load-like* are optional.
+
+2pretty-names* specifies how messages printed for the user should print
+the name of the transformation.  It can be a list of the
+imperative (``Compile''), the present participle (``Compiling''), and
+the past participle (``compiled'').  Note that the past participle is not
+capitalized, because when used it does not come at the beginning of a sentence.
+2pretty-names* can be just a string, which is taken to be the imperative,
+and the system will conjugate the participles itself.  If 2pretty-names*
+is omitted or 3nil* it defaults to the name of the transformation.
+
+2compile-like* and 2load-like* say when the transformation should be performed.
+Compile-like transformations are performed when the 3:compile*
+keyword is given to 3make-system*.
+Load-like transformations are performed unless the 3:noload*
+keyword is given to 3make-system*.
+By default 2compile-like* is 3t* but 2load-like* is 3nil*.
+.end_defmac
+
+Complex transformations are defined as normal macro expansions, for example,
+.lisp
+(defmacro (:compile-load si:defsystem-macro)
+		(input &optional com-dep load-dep
+				 com-cond load-cond)
+  `(:fasload (:compile ,input ,com-dep ,com-cond)
+	     ,load-dep ,load-cond))
+.end_lisp
+
+.section More Esoteric Transformations
+
+It is sometimes useful to specify a transformation upon which something
+else can depend, but which is performed not by default, but rather only
+when requested because of that dependency.  The transformation
+nevertheless occupies a specific place in the hierarchy.  The 3:skip*
+3defsystem* macro allows specifying a transformation of this type.
+For example, suppose there is a special compiler for the read table
+which is not ordinarily loaded into the system.  The compiled version
+should still be kept up to date, and it needs to be loaded if ever the
+read table needs to be recompiled.
+.lisp
+(defsystem reader
+  (:pathname-default "SYS: IO;")
+  (:package system-internals)
+  (:module defs "RDDEFS")
+  (:module reader "READ")
+  (:module read-table-compiler "RTC")
+  (:module read-table "RDTBL")
+  (:compile-load defs)
+  (:compile-load reader (:fasload defs))
+  (:skip :fasload (:compile read-table-compiler))
+  (:rtc-compile-load read-table (:fasload read-table-compiler)))
+.end_lisp
+Assume that there is a complex transformation 3:rtc-compile-load*,
+which is like 3:compile-load* except that is is built on a
+transformation called something like 3:rtc-compile*, which uses the
+read table compiler rather than the Lisp compiler.  In the above
+system, then, if the 3:rtc-compile* transformation is to be performed,
+the 3:fasload* transformation must be done on 3read-table-compiler*
+first, that is the read table compiler must be loaded if the read table
+is to be recompiled.  If you say 3(make-system 'reader :compile)*,
+then the 3:compile* transformation is done on the
+3read-table-compiler* module despite the 3:skip*, compiling the read table compiler if
+need be.  If you say 3(make-system 'reader)*, the reader and the
+read table are loaded, but the 3:skip* keeps this from happening
+to the read table compiler.
+
+.setq transformation-condition-discussion page
+So far nothing has been said about what can be given as a 2condition*
+for a transformation except for the default functions, which check for
+conditions such as a source file being newer than the binary.  In
+general, any function that takes the same arguments as the
+transformation function (e.g. 3compile-file*) and returns 3t* if the
+transformation needs to be performed, can be in this place as a symbol,
+including for example a closure.  To take an example, suppose there is a
+file that contains 3compile-flavor-methods* for a system and that
+should therefore be recompiled if any of the flavor method definitions
+change.  In this case, the condition function for compiling that file
+should return 3t* if either the source of that file itself or any of
+the files that define the flavors have changed.  This is what the
+3:compile-load-init* complex transformation is for.  It is defined
+like this:
+.lisp
+.setq compile-load-init-transformation page
+(defmacro (:compile-load-init si:defsystem-macro)
+		(input add-dep &optional com-dep load-dep
+		 &aux function)
+  (setq function (let-closed ((*additional-dependent-modules*
+			       add-dep))
+		   'compile-load-init-condition))
+  `(:fasload (:compile ,input ,com-dep ,function) ,load-dep))
+
+(defun compile-load-init-condition (source-file qfasl-file)
+  (or (si:file-newer-than-file-p source-file qfasl-file)
+      (local-declare ((special *additional-dependent-modules*))
+	(si:other-files-newer-than-file-p
+			*additional-dependent-modules*
+			qfasl-file))))
+.end_lisp
+
+The condition function generated when this macro is used
+returns 3t* either if 3si:file-newer-than-file-p* would with those
+arguments, or if any of the other files in 3add-dep*, which presumably
+is a 2module specification*, are newer than the QFASL file.  Thus
+the file (or module) to which the 3:compile-load-init* transformation
+applies will be compiled if it or any of the source files it depends on has
+been changed, and will be loaded under the normal conditions.  In most
+(but not all cases), 3com-dep* is a 3:fasload* transformation
+of the same files as 3add-dep* specifies, so that all the files this
+one depends on will be loaded before compiling it.
+
+.section Common Lisp Modules
+.cindex module
+
+In Common Lisp, a 2module* is a name given to a group of files of code.
+Modules are not like systems because nothing records what the ``contents'' of any
+particular module may be.  Instead, one of the files which defines the module
+contains a 3provide* form which says, when that file is loaded, ``Module 3foo*
+is now present.''  Other files may say, using 3require*, ``I want to use module 3foo*.''
+
+Normally the 3require* form also specifies the files to load if
+3foo* has not been 3provide*'d already.  This is where the
+information of which files are in a module is stored.  If the
+3require* does not have file names in it, the module name 3foo* is
+used in an implementation-dependent manner to find files to load.
+The Lisp Machine does this by using it as a system name in 3make-system*.
+
+.defun provide module-name
+Adds 2module-name* to the list 3*modules** of modules already
+loaded.  2module-name* should be a string; case is significant.
+.end_defun
+
+.defun require module-name &rest files
+If module 2module-name* is not already loaded (on 3*modules**), 2files* are
+loaded in order to make the module available.
+2module-name* should be a string; case is significant.
+The elements of 2files* should be pathnames or namestrings.
+If 2files* is 3nil*, 3(make-system 2module-name* :noconfirm)* is done.
+Note, however, that case is not significant in the argument to 3make-system*.
+.end_defun
+
+.defvar *modules*
+A list of names (strings) of all modules 3provide*'d so far.
+.end_defvar

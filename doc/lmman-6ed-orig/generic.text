@@ -1,0 +1,892 @@
+.c -*-Mode:Bolio-*-
+
+.chapter Generic Sequence Functions
+.setq sequence-chapter chapter-number
+.setq generic-sequence-functions section-page
+.cindex generic sequence functions
+
+The type specifier 3sequence* is defined to include lists and vectors
+(arrays of rank one).
+Lists and vectors are similar in that both can
+be regarded as sequences of elements: there is a first element, a second
+element, and so on.  Element 2n* of a list is 3(nth 2n*
+2list*)*, and element 2n* of a vector is 3(aref 2vector*
+2n*)*.  Many useful operations which apply in principle to a sequence
+of objects can work equally well on lists and vectors.  These are the
+generic sequence functions.
+
+All the generic sequence functions accept 3nil* as a sequence of length zero.
+
+.section Primitive Sequence Operations
+
+.defun make-sequence type size &key initial-element
+Creates a sequence of type 2type*, 2size* elements long.
+2size* must be an integer and 2type* must be either 3list*
+or some kind of array type.  2type* could be just 3array* or 3vector* to make
+a general vector, it could be 3(vector (byte 8))* to make an 3art-8b*
+vector, and so on.
+
+If 2initial-element* is specified, each element of the new sequence
+contains 2initial-element*.  Otherwise, the new sequence is initialized
+to contain 3nil* if that is possible, zero otherwise (for numeric array types).
+.lisp
+(make-sequence 'list 3)
+  =>  (nil nil nil)
+
+(make-sequence 'array 5 :initial-element t)
+  =>  #(t t t t t)
+
+(make-sequence '(vector bit) 5)
+  =>  #*00000
+.end_lisp
+.end_defun
+
+.defun elt sequence index
+Returns the element at index 2index* in 2sequence*.
+If 2sequence* is a list, this is 3(nth 2index* 2sequence*)*.
+If 2sequence* is a vector, this is 3(aref 2index* 2sequence*)*.
+Being microcoded, 3elt* is as fast as either 3nth* or 3aref*.
+
+3(setf (elt 2sequence* 2index*) 2value*)* is the way to set
+an element of a sequence.
+.end_defun
+
+.defun length sequence
+Returns the length of 2sequence*, as an integer.  For a vector with a fill
+pointer, this is the fill pointer value.  For a list, it is the traditional
+Lisp function; note that lists ending with atoms other than 3nil* are
+accepted, so that the length of 3(a b . c)* is 2.
+.end_defun
+
+.section Simple Sequence Operations
+
+.defun copy-seq sequence
+Returns a new sequence of the same type, length and contents as 2sequence*.
+.end_defun
+
+.defun concatenate result-type &rest sequences
+Returns a new sequence, of type 2result-type*, whose contents
+are made from the contents of all the 2sequences*.
+2result-type* can be 3list* or any array type,
+just as in 3make-sequence* above.  Examples:
+.lisp
+(concatenate 'list '(1 2) '#(A 3))  =>  (1 2 A 3)
+(concatenate 'vector '(1 2) '#(A 3)  =>  #(1 2 A 3)
+.end_lisp
+.end_defun
+
+.defun subseq sequence start &optional end
+Returns a new sequence whose elements are a subsequence of 2sequence*.
+The new sequence is of the same type as 2sequence*.
+
+2start* is the index of the first element of 2sequence* to take.
+2end* is the index of where to stop--the first element 2not* to take.
+2end* can also be 3nil*, meaning take everything from 2start* up
+to the end of 2sequence*.
+
+Examples:
+.lisp
+(subseq "Foobar" 3 5)  =>  "ba"
+(subseq '(a b c) 1)  =>  (b c)
+.end_lisp
+
+It is also possible to 3setf* a call to 3subseq*.  This means
+to store into part of the sequence passed to 3subseq*.  Thus,
+.lisp
+(setf (subseq "Foobar" 3 5) "le")
+.end_lisp
+modifies the string 3"Foobar"* so that it contains 3"Fooler"* instead.
+.end_defun
+
+.defun replace into-sequence-1 from-sequence-2 &key (start1 30*) end1 (start2 30*) end2
+Copies part of 2from-sequence-2* into part of 2to-sequence-1*.
+2start2* and 2end2* are the indices of the part of 2from-sequence-2*
+to copy from, and 2start1* and 2end1* are the indices of the part of
+2to-sequence-1* to copy into.
+
+If the number of elements to copy out of 2from-sequence-2* is less
+than the number of elements of 2to-sequence-1* to be copied into,
+the extra elements of 2to-sequence-1* are not changed.  If the
+number of elements to copy out is more than there is room for, the
+last extra elements are ignored.
+
+If the two sequence arguments are the same sequence, then the elements to be copied
+are copied first into a temporary sequence (if necessary) to make sure that
+no element is overwritten before it is copied.  Example:
+.lisp
+(setq str "Elbow")
+(replace str str :start1 2 :end1 5 :start2 1 :end2 4)
+.end_lisp
+modifies 3str* to contain 3"Ellbo"*.
+
+2into-sequence-1* is returned as the value of 3replace*.
+.end_defun
+
+.defun fill sequence item &key (start 30*) end
+Modifies the contents of 2sequence* by setting all the
+elements to 2item*.  2start* and 2end* may be specified
+to limit the operation to some contiguous portion of 2sequence*;
+then the elements before 2start* or after 2end* are unchanged.
+If 2end* is 3nil*, the filling goes to the end of 2sequence*.
+
+The value returned by 3fill* is 2sequence*.  Example:
+.lisp
+(setq l '(a b c d e))
+(fill l 'lose :start 2)
+
+l => (a b lose lose lose)
+.end_lisp
+.end_defun
+
+.defun reverse sequence
+Returns a new sequence containing the same elements as 2sequence* but
+in reverse order.  The new sequence is of the same type and length as
+2sequence*.
+3reverse* does not modify its argument, unlike 3nreverse* which is faster
+but does modify its argument.  The list created by 3reverse* is not cdr-coded.
+.lisp
+(reverse "foo")  =>  "oof"
+(reverse '(a b (c d) e)) => (e (c d) b a)
+.end_lisp
+.end_defun
+
+.defun nreverse sequence
+Modifies 2sequence* destructively to have its elements in reverse
+order, and returns 2sequence* as modified.  For a vector, this is done
+by copying the elements to different positions.  For a list, this is
+done by modifying cdr pointers.  This has two important consequences: it
+is most efficient when the list is not cdr-coded, and the rearranged
+list starts with the cell that used to be at the end.  Although the
+altered list as a whole contains the same cells as the original, the
+actual value of the altered list is not 3eq* to the original list.
+For this reason, one must always store the value of 3nreverse* into
+the place where the list will be used.  Do not just use 3nreverse* for effect
+on a list.
+
+.lisp
+(setq a '#(1 2 3 4 5))
+(nreverse a)
+(concatenate 'list a) => (5 4 3 2 1)
+
+(setq b '(1 2 3 4 5)
+      c b
+      d (last b))
+(setq b (nreverse b))
+
+b => (5 4 3 2 1)
+c => (1)
+(eq b d)  =>  t
+.end_lisp
+
+3nreverse* is most frequently used after a loop which computes
+elements for a new list one by one.  These elements can be put on the
+new list with 3push*, but this produces a list which has the elements
+in reverse order (first one generated at the end of the list).
+.lisp
+(let (accumulate)
+  (dolist (x input)
+    (push (car x) accumulate)
+    (push (cdr x) accumulate))
+  (nreverse accumulate))
+.end_lisp
+
+Currently, 3nreverse* is inefficient with cdr-coded lists (see
+(cdr-code)), because it just uses 3rplacd* in the
+straightforward way.  This may be fixed someday.  In the meantime
+3reverse* might be preferable in some cases.
+.end_defun
+
+.section Mapping On Sequences
+
+.defun cli:map result-type function &rest sequences
+The Common Lisp 3map* function
+maps 2function* over successive elements of each 2sequence*,
+constructing and returning a sequence of the results that 2function* returns.
+The constructed sequence is of type 2result-type* (see 3make-sequence*,
+(make-sequence-fun)).
+
+2function* is called first on the first elements of all the sequences,
+then on the second elements of all, and so on until some argument
+sequence is exhausted.
+
+.lisp
+(map 'list 'list '(1 2 3) '#(A B C D))
+  =>  ((1 A) (2 B) (3 C))
+
+(setq vect (map '(vector (mod 16.)) '+
+		'(3 4 5 6 7) (circular-list 1)))
+(concatenate 'list vect)  =>  (2 3 4 5 6)
+(array-element-type vect)  =>  (mod 16.)
+.end_lisp
+
+2result-type* can also be 3nil*.  Then the values returned by 2function*
+are thrown away, no sequence is constructed, and 3map* returns 3nil*.
+
+This function is available under the name 3map* in Common Lisp programs.
+In traditional Zetalisp programs, 3map* is another function which
+does something related but different; see (map-fun).
+Traditional programs can call this function as 3cli:map*.
+.end_defun
+
+.defun cli:some predicate &rest sequences
+Applies 2predicate* to successive elements of each sequence.
+If 2predicate* ever returns a non-3nil* value, 3cli:some* immediately
+returns the same value.  If one of the argument sequences is exhausted,
+3cli:some* returns 3nil*.
+
+Each time 2predicate* is called, it receives one argument from each sequence.
+The first time, it gets the first element of each sequence, then the second element
+of each, and so on until a sequence is exhausted.  Examples:
+.lisp
+(cli:some 'plusp '(-4 0 5 6))  =>  5
+(cli:some '> '(-4 0 5 6) '(0 12 12 12))  =>  nil
+(cli:some '> '(-4 0 5 6) '(3 3 3 3))  =>  5
+(cli:some '> '(-4 0 5 6) '(3 3))  =>  nil
+.end_lisp
+
+This function is available under the name 3some* in Common Lisp programs.
+In traditional Zetalisp programs, 3some* is another function which
+does something related but different; see (some-fun).
+Traditional programs can call this function as 3cli:some*.
+.end_defun
+
+.defun cli:every predicate &rest sequences
+Applies 2predicate* to successive elements of each sequence.
+If 2predicate* ever returns 3nil*, 3cli:every* immediately
+returns 3nil*.  If one of the argument sequences is exhausted,
+3cli:every* returns 3t*.
+
+Each time 2predicate* is called, it receives one argument from each sequence.
+The first time, it gets the first element of each sequence, then the second element
+of each, and so on until a sequence is exhausted.  Examples:
+.lisp
+(cli:every 'plusp '(-4 0 5 6))  =>  nil
+(cli:every 'plusp '(5 6))  =>  t
+.end_lisp
+
+This function is available under the name 3every* in Common Lisp programs.
+In traditional Zetalisp programs, 3every* is another function which
+does something related but different; see (every-fun).
+Traditional programs can call this function as 3cli:every*.
+.end_defun
+
+.defun notany predicate &rest sequences
+.defun1 notevery predicate &rest sequences
+These are the opposites of 3cli:some* and 3cli:every*.
+
+3(notany ...)* is equivalent to 3(not (cli:some ...))*.
+.br
+3(notevery ...)* is equivalent to 3(not (cli:every ...))*.
+.end_defun
+
+.defun reduce function sequence &key from-end (start 30*) end initial-value
+Combines the elements of 2sequence* using 2function*, a function of two
+args.  2function* is applied to the first two elements; then to that
+result and the third element; then to that result and the fourth
+element; and so on.
+
+2start* and 2end* are indices that restrict the action to a part of 2sequence*,
+as if the rest of 2sequence* were not there.  They default to 0 and 3nil*
+(3nil* for 2end* means go all the way to the end of 2sequence*).
+
+If 2from-end* is non-3nil*, processing starts with the last of the
+elements.  2function* is first applied to the last two elements; then
+to the previous element and that result; then to the previous element
+and that result; and so on until element number 2start* has been used.
+
+If 2initial-value* is specified, it acts like an extra element of
+2sequence*, used in addition to the actual elements of the specified part
+of 2sequence*.  It comes, in effect, at the beginning if 2from-end* is
+3nil*, but at the end if 2from-end* is non-3nil*, so that in any
+case it is the first element to be processed.
+
+If there is only one element to be processed,
+that element is returned and 2function* is not called.
+
+If there are no elements (2sequence* is of length zero and no
+2initial-value*), 2function* is called with no arguments and its
+value is returned.
+
+.lisp
+.exdent 96 Examples:
+(reduce '+ '(1 2 3))  =>  6
+(reduce '- '(1 2 3))  =>  -4
+(reduce '- '(1 2 3) :from-end t)  =>  2  1;; 1 3-* (2 3-* 3)*
+(reduce 'cons '(1 2 3) :from-end t)  =>  (1 2 . 3)
+(reduce 'cons '(1 2 3))  =>  ((1 . 2) . 3)
+.end_lisp
+.end_defun
+
+.section Operating on Selected Elements
+.setq generic-sequence-arguments section-page
+
+The generic sequence functions for searching, substituting and removing
+elements from sequences take similar arguments whose meanings are
+standard.  This is because they all look at each element of the sequence
+to decide whether it should be processed.
+
+Functions which conceptually modify the sequence come in pairs.  One
+function in the pair copies the sequence if necessary and never modifies
+the argument.  The copy is a list if the original sequence is a list;
+otherwise, the copy is an 3art-q* array.  If the sequence is a list,
+it may be copied only partially, sharing any unchanged tail with the
+original argument.  If no elements match, the result sequence may be
+3eq* to the argument sequence.
+
+The other function in the pair may alter the original sequence and
+return it, or may make a copy and return that.
+
+There are two ways the function can decide which elements to operate on.
+The functions whose names end in 3-if* or 3-if-not* have an
+argument named 2predicate* which should be a function of one argument.
+This function is applied to each element and the value determines
+whether the element is processed.
+
+The other functions have an argument named 2item* or something similar
+which is an object to compare each element with.  The elements that
+match 2item* are processed.  By default, the comparison is done with
+3eql*.  You can specify any function of two arguments to be used
+instead, as the 2test* keyword argument.  2item* is always the first
+argument, and an element of the sequence is the second argument.  The
+element matches 2item* if 2test* returns non-3nil*.
+Alternatively, you can specify the 2test-not* keyword argument; then
+the element matches if 2test-not* returns 3nil*.
+
+The elements may be tested in any order, and may be tested more than once.
+For predictable results, your 2predicate*, 2test* and 2test-not* functions
+should be side-effect free.
+
+The five keyword arguments 2start*, 2end*, 2key*, 2count* and
+2from-end* have the same meanings for all of the functions, except
+that 2count* is not relevant for some kinds of operations.  Here is
+what they do:
+
+.table 2
+.item start, end
+2start* and 2end* are indices in the sequence; they restrict the
+processing to the portion between those indices.  Only elements in this
+portion are tested, replaced or removed.  For the search functions,
+only this portion is searched.  For element removal functions, elements
+outside the portion are unchanged.
+
+2start* is the index of the first element to be processed, and 2end*
+is the index of the element after the last element to be processed.
+2end* can also be 3nil*, meaning that processing should continue to
+the end of the sequence.
+
+2start* always defaults to 0, and 2end* always defaults to 3nil*.
+
+.item 2key*
+2key*, if not 3nil*, is a function of one argument which is applied
+to each element of the sequence to get a value which is passed to the
+2test*, 2test-not* or 2predicate* function in place of the
+element.  For example, if 2key* is 3car*, the car of each element is
+compared or tested.  The default for 2key* is 3nil*, which means to
+compare or test the element itself.
+
+.item 2from-end*
+If 2from-end* is non-3nil*, elements are (conceptually) processed in
+the reverse of the sequence order, from the later elements to the
+earlier ones.  In some functions this argument makes no difference,
+or matters only when 2count* is non-3nil*.
+
+Note: the actual testing of elements may happen in any order.
+
+.item 2count*
+2count*, if not 3nil*, should be an integer specifying the number of
+matching elements to be processed.  For example, if 2count* is 2,
+only the first two elements that match are removed, replaced, etc.
+If 2from-end* is non-3nil*, the last two matching elements
+are the ones removed or replaced.
+
+The default for 2count* is 3nil*, which means all elements are tested
+and all matching ones are processed.
+.end_table
+
+.subsection Removing Elements from Sequences
+
+These functions remove certain elements of a sequence.  The 3remove*
+series functions copy the argument; the 3delete* series functions
+can modify it destructively (currently they always copy anyway if the
+argument is a vector).
+
+.defun remove-if predicate sequence &key (start 30*) end count key from-end
+.defun1 delete-if predicate sequence &key (start 30*) end count key from-end
+Returns a sequence like 2sequence* but missing any elements that
+satisfy 2predicate*.  2predicate* is a function of one argument
+which is applied to one element at a time; if 2predicate* returns
+non-3nil*, that element is removed.  3remove-if* copies structure as
+necessary to avoid modifying 2sequence*, while 3delete-if* can
+either modify the original sequence and return it or make a copy and
+return that.  (Currently, a list is always modified, and a vector is
+always copied, but don't depend on this.)
+
+The 2start*, 2end*, 2key* 2count* and 2from-end* arguments are handled in the
+standard way.
+
+.lisp
+(remove-if 'plusp '(1 -1 2 -2 3 -3))  =>  (-1 -2 -3)
+(remove-if 'plusp '(1 -1 2 -2 3 -3) :count 2)
+  =>  (-1 -2 3 -3)
+(remove-if 'plusp '(1 -1 2 -2 3 -3) :count 2 :from-end t)
+  =>  (1 -1 -2 -3)
+(remove-if 'plusp '(1 -1 2 -2 3 -3) :start 4)
+  =>  (1 -1 2 -2 -3)
+(remove-if 'zerop '(1 -1 2 -2 3 -3) :key '1-)
+  =>  (-1 2 -2 3 -3)
+.end_lisp
+.end_defun
+
+.defun remove-if-not predicate sequence &key (start 30*) end count key from-end
+.defun1 delete-if-not predicate sequence &key (start 30*) end count key from-end
+Like 3remove-if* and 3delete-if* except that the elements removed
+are those for which 2predicate* returns 3nil*.
+.end_defun
+
+.defun cli:remove item sequence &key (test 3'eql*) test-not (start 30*) end count key from-end
+.defun1 cli:delete item sequence &key (test 3'eql*) test-not (start 30*) end count key from-end
+The Common Lisp functions for eliminating elements from a sequence
+test the elements of 2sequence* one by one by comparison with 2item*,
+using the 2test* or 2test-not* function, and eliminate the elements
+that match.  3cli:remove* copies structure as necessary to avoid modifying
+2sequence*, while 3cli:delete* can either modify the original sequence
+and return it or make a copy and return that.  (Currently, a list is always
+modified, and a vector is always copied.)
+
+The 2start*, 2end*, 2key* 2count* and 2from-end* arguments are handled in the
+standard way.
+
+.lisp
+(cli:remove 'x '(x (a) (x) (a x)))
+  =>  ((a) (x) (a x))
+
+(cli:remove 'x '((a) (x) (a x)) :test 'memq)
+  =>  ((a))
+
+(cli:remove 'x '((a) (x) (a x)) :test-not 'memq)
+  =>  ((x) (a x))
+
+(cli:remove 'x '((a) (x) (a x)) 
+	    :test 'memq :count 1)
+  =>  ((a) (a x))
+
+(cli:remove 'x '((a) (x) (a x)) :key 'car)
+  =>  ((a) (a x))
+.end_lisp
+
+These functions are available under the names 3remove* and 3delete*
+in Common Lisp programs.  Traditional Zetalisp provides functions
+3remove* and 3delete* which serve similar functions, on lists only,
+and with different calling sequences; see (remove-fun) and
+(delete-fun).  Traditional programs can call these functions as
+3cli:remove* and 3cli:delete*.
+.end_defun
+
+.defun remove-duplicates sequence &key (test 3'eql*) test-not (start 30*) end key from-end
+.defun1 delete-duplicates sequence &key (test 3'eql*) test-not (start 30*) end key from-end
+3remove-duplicates* returns a new sequence like 2sequence* except
+that all but one of any set of matching elements have been removed.
+3delete-duplicates* is the same except that it may destructively modify
+and then return 2sequence* itself.
+
+Elements are compared using 2test*, a function of two arguments.
+Two elements match if 2test* returns non-3nil*.  Each element 
+is compared with all the following elements and slated for removal if
+it matches any of them.
+
+If 2test-not* is specified, it is used instead of 2test*, but then
+elements match if 2test-not* returns 3nil*.  If neither 2test* nor 2test-not*
+is specified, 3eql* is used for 2test*.
+
+If 2key* is non-3nil*, it should be a function of one argument.  2key* is
+applied to each element, and the value 2key* returns is passed to 2test*
+or 2test-not*.
+
+If 2from-end* is non-3nil*, then elements are processed
+(conceptually) from the end of 2sequence* forward.  Each element is
+compared with all the preceding ones and slated for removal if it
+matches any of them.  For a well-behaved comparison function, the only
+difference 2from-end* makes is which elements of a matching set
+are removed.  Normally the last one is kept; with 2from-end*, it is
+the first one that is kept.
+
+If 2start* or 2end* is used to restrict processing to a portion
+of 2sequence*, both removal and comparison are restricted.  An element
+is removed only if it is itself within the specified portion, and matches
+another element within the specified portion.
+.end_defun
+
+.subsection Substitution Functions
+
+The functions in this section substitute a new value for certain of the
+elements in a sequence--those that match a specified object or satisfy a
+predicate.  For example, you could replace every 3t* in the sequence with
+3nil*, leaving all elements other than 3t* unchanged.  The 3substitute*
+series functions make a copy and return it, leaving the original
+sequence unmodified.  The 3nsubstitute* series functions always alter
+the original sequence destructively and return it.  They do not use up
+any storage.
+
+Note the difference between these functions and the function
+3cli:subst*.  3subst* operates only on lists, and it searches all
+levels of list structure in both car and cdr positions.
+3substitute*, when given a list, considers for replacement only the
+elements of the list.
+
+.defun substitute-if newitem predicate sequence &key start end count key from-end
+.defun1 nsubstitute-if newitem predicate sequence &key start end count key from-end
+3substitute-if* returns a new sequence like 2sequence* but with
+2newitem* substituted for each element of 2sequence* that satisfies
+2predicate*.  2sequence* itself is unchanged.  If it is a list, only
+enough of it is copied to avoid changing 2sequence*.
+
+3nsubstitute-if* replaces elements in 2sequence* itself, modifying it
+destructively, and returns 2sequence*.
+
+2start*, 2end*, 2key*, 2count* and 2from-end* are handled
+in the standard fashion as described above.
+.lisp
+(substitute-if 0 'plusp '(1 -1 2 -2 3) :from-end t :count 2)
+  =>  (1 -1 0 -2 0)
+.end_lisp
+.end_defun
+
+.defun substitute-if-not newitem predicate sequence &key start end count key from-end
+.defun1 nsubstitute-if-not newitem predicate sequence &key start end count key from-end
+Like 3substitute-if* and 3nsubstitute-if* except that the elements
+replaced are those for which 2predicate* returns 3nil*.
+.end_defun
+
+.defun substitute newitem olditem sequence &key (test 3'eql*) test-not start end count key from-end
+.defun1 nsubstitute newitem olditem sequence &key (test 3'eql*) test-not start end count key from-end
+Like 3substitute-if* and 3nsubstitute-if* except that elements are
+tested by comparison with 2olditem*, using 2test* or 2test-not* as
+a comparison function.
+
+2start*, 2end*, 2key*, 2count* and 2from-end* are handled
+in the standard fashion as described above.
+.lisp
+(substitute 'a 'b '(a b (a b)))
+  =>  (a a (a b))
+.end_lisp
+.end_defun
+
+.subsection Searching for Elements
+
+The functions in this section find an element or elements of a sequence
+which satisfy a predicate or match a specified object.  The 3position*
+series functions find one element and return the index of the element
+found in the specified sequence.  The 3find* series functions return
+the element itself.  The 3count* series functions find all the
+elements that match and returns the number of them that were found.
+
+All of the functions accept the keyword arguments 2start*, 2end*,
+2count* and 2from-end*, and handle them in the standard way described in
+(generic-sequence-arguments).
+
+.defun position-if predicate sequence &key (start 30*) end key from-end
+.defun1 find-if predicate sequence &key (start 30*) end key from-end
+Find the first element of 2sequence* (last element, if 2from-end* is
+non-3nil*) which satisfies 2predicate*.  3position-if* returns the
+index in sequence of the element found; 3find-if* returns the element
+itself.  If no element is found, the value is 3nil* for either
+function.
+
+See (generic-sequence-arguments) for a description of the
+standard arguments 2start*, 2end* and 2key*.  If 2start* or
+2end* is used to restrict operation to a portion of 2sequence*,
+elements outside the portion are not tested, but the index returned is
+still the index in the entire sequence.
+
+.lisp
+(position-if 'plusp '(-3 -2 -1 0 1 2 3))
+  =>  4
+(find-if 'plusp '(-3 -2 -1 0 1 2 3))
+  =>  1
+(position-if 'plusp '(-3 -2 -1 0 1 2 3) :start 5)
+  =>  5
+(position-if 'plusp '(-3 -2 -1 0 1 2 3) :from-end t)
+  =>  6
+(find-if 'plusp '(-3 -2 -1 0 1 2 3) :from-end t)
+  =>  3
+.end_lisp
+.end_defun
+
+.defun position-if-not predicate sequence &key (start 30*) end key from-end
+.defun1 find-if-not predicate sequence &key (start 30*) end key from-end
+Like 3position-if* and 3find-if* but search for an element for which 2predicate*
+returns 3nil*.
+.end_defun
+
+.defun position item sequence sequence &key test test-not (start 30*) end key from-end
+.defun1 find item sequence sequence &key test test-not (start 30*) end key from-end
+Like 3position-if* and 3find-if* but search for an element which matches 2item*,
+using 2test* or 2test-not* for comparison.
+.lisp
+(position #\A "BabA" :test 'char-equal)  =>  1
+(position #/A "BabA" :test 'equalp)  =>  1
+(position #\A "BabA" :test 'char=)  =>  3
+(position #/A "BabA" :test 'eq)  =>  3
+.end_lisp
+3find-position-in-list* is equivalent to 3position* with
+3eq* as the value of 2test*.
+.end_defun
+
+.defun count-if predicate sequence &key start end key
+Tests each element of 2sequence* with 2predicate* and counts how many
+times 2predicate* returns non-3nil*.  This number is returned.
+
+2start*, 2end* and 2key* are used in the standard way, as described in
+(generic-sequence-arguments).  The 2from-end* keyword argument is
+accepted without error, but it has no effect.
+.lisp
+(count-if 'symbolp #(a b "foo" 3))  =>  2
+.end_lisp
+.end_defun
+
+.defun count-if-not predicate sequence &key start end key
+Like 3count-if* but returns the number of elements for which
+2predicate* returns 3nil*.
+.end_defun
+
+.defun count item sequence &key test test-not start end key
+Like 3count* but returns the number of elements which match 2item*.
+2test* or 2test-not* is the function used for the comparison.
+.lisp
+(count 4 '(1 2 3 4 5) :test '>)  =>  3
+.end_lisp
+.end_defun
+
+.section Comparison Functions
+
+.defun mismatch sequence1 sequence2 &key (test 3'eql*) test-not (start1 30*) end1 (start2 30*) end2 key from-end
+Compares successive elements of 2sequence1* with successive elements
+of 2sequence2*, returning 3nil* if they all match, or else the index
+in 2sequence1* of the first mismatch.  If the sequences differ in length
+but match as far as they go, the value is the index in 2sequence1* of
+the place where one sequence ran out.  If 2sequence1* is the one which
+ran out, this value equals the length of 2sequence1*, so it isn't the
+index of an actual element, but it still describes the place where
+comparison stopped.
+
+Elements are compared using the function 2test*, which should accept two arguments.
+If it returns non-3nil*, the elements are considered to match.
+If you specify 2test-not* instead of 2test*, it is used similarly as a function, but the elements match if 2test-not* returns 3nil*.
+
+If 2key* is non-3nil*, it should be a function of one argument.  It is applied
+to each element to get an object to pass to 2test* or 2test-not* in place of
+the element.  Thus, if 3car* is supplied as 2key*, the cars of the elements
+are compared using 2test* or 2test-not*.
+
+2start1* and 2end1* can be used to specify a portion of
+2sequence1* to use in the comparison, and 2start2* and 2end2* can
+be used to specify a portion of 2sequence2*.  The comparison uses
+the first element of each sequence portion, then the second element of
+each sequence portion, and so on.  If the two specified portions differ
+in length, comparison stops where the first one runs out.  In any case,
+the index returned by 3mismatch* is still relative to the
+whole of 2sequence1*.
+
+If 2from-end* is non-3nil*, the comparison proceeds conceptually
+from the end of each sequence or portion.  The first comparison uses
+the last element of each sequence portion, the second comparison
+uses the next-to-the-last element of each sequence portion, and so on.
+When a mismatch is encountered, the value returned is 2one greater
+than* the index of the first mismatch encountered in order of
+processing (closest to the ends of the sequences). 
+.lisp
+(mismatch "Foo" "Fox")  =>  2
+(mismatch "Foo" "FOO" :test 'char-equal)  =>  nil
+(mismatch "Foo" "FOO" :key 'char-upcase)  =>  nil
+(mismatch '(a b) #(a b c))  =>  2
+(mismatch "Win" "The Winner" :start2 4 :end2 7)  =>  nil
+(mismatch "Foo" "Boo" :from-end t)  =>  1
+.end_lisp
+.end_defun
+
+.defun search for-sequence-1 in-sequence-2 &key from-end test test-not key (start1 30*) end1 (start2 30*) end2
+Searches 2in-sequence-2* (or portion of it) for a subsequence that
+matches 2for-sequence-1* (or portion of it) element by element, and
+returns the index in 2in-sequence-2* of the beginning of the matching subsequence.
+If no matching subsequence is found, the value is 3nil*,
+The comparison of each subsequence of 2in-sequence-2* is done with
+3mismatch*, and the 2test*, 2test-not* and 2key* arguments
+are used only to pass along to 3mismatch*.
+
+Normally, subsequences are considered starting with the beginning of
+the specified portion of 2in-sequence-2* and proceeding toward the end.
+The value is therefore the index of the earliest subsequence that matches.
+If 2from-end* is non-3nil*, the subsequences are tried in the reverse
+order, and the value identifies the latest subsequence that matches.
+In either case, the value identifies the beginning of the subsequence found.
+.lisp
+(search '(#\A #\B) "cabbage" :test 'char-equal)  =>  1
+.end_lisp
+.end_defun
+
+.section Sorting and Merging
+.cindex sorting
+
+Several functions are provided for sorting vectors and lists.  These
+functions use algorithms which always terminate no matter what sorting
+predicate is used, provided only that the predicate always terminates. 
+The main sorting functions are not 2stable*; that is, equal items may
+not stay in their original order.  If you want a stable sort, use the
+stable versions.  But if you don't care about stability, don't use them
+since stable algorithms are significantly slower.
+
+After sorting, the argument (be it list or vector) has been rearranged
+internally so as to be completely ordered.  In the case of a vector
+argument, this is accomplished by permuting the elements of the vector,
+while in the list case, the list is reordered by 3rplacd*'s in the
+same manner as 3nreverse*.  Thus if the argument should not be
+clobbered, the user must sort a copy of the argument, obtainable by
+3fillarray* or 3copylist*, as appropriate.  Furthermore, 3sort*
+of a list is like 3delq* in that it should not be used for effect;
+the result is conceptually the same as the argument but in fact is a
+different Lisp object.
+
+Should the comparison predicate cause an error, such as a wrong type
+argument error, the state of the list or vector being sorted is
+undefined.  However, if the error is corrected the sort proceeds
+correctly. 
+
+The sorting package is smart about compact lists; it sorts compact
+sublists as if they were vectors.  See (cdr-code) for an explanation
+of compact lists, and MIT A. I. Lab Memo 587 by Guy L. Steele Jr.
+for an explanation of the sorting algorithm.
+
+.defun sort sequence predicate
+The first argument to 3sort* is a vector or a list whose elements are
+to be sorted.  The second is a predicate, which must be applicable to
+all the objects in the sequence.  The predicate should take two
+arguments, and return non-3nil* if and only if the first argument is
+strictly less than the second (in some appropriate sense). 
+
+The 3sort* function proceeds to reorder the elements of the sequence
+according to the predicate, and returns a modified sequence.  Note that
+since sorting requires many comparisons, and thus many calls to the
+predicate, sorting is much faster if the predicate is a compiled
+function rather than interpreted. 
+.br
+.nopara
+Example: Sort a list alphabetically by the first symbol found at any level
+in each element.
+
+.lisp
+(defun mostcar (x)
+    (cond ((symbolp x) x)
+          ((mostcar (car x)))))
+
+(sort 'fooarray
+      #'(lambda (x y)
+	  (string-lessp (mostcar x) (mostcar y))))
+.end_lisp
+
+If 3fooarray* contained these items before the sort:
+'cindex scream
+
+.lisp
+(Tokens (The alien lurks tonight))
+(Carpenters (Close to you))
+((Rolling Stones) (Brown sugar))
+((Beach Boys) (I get around))
+(Beatles (I want to hold you up))
+.end_lisp
+
+.nopara
+then after the sort 3fooarray* would contain:
+
+.lisp
+((Beach Boys) (I get around))
+(Beatles (I want to hold you up))
+(Carpenters (Close to you))
+((Rolling Stones) (Brown sugar))
+(Tokens (The alien lurks tonight))
+.end_lisp
+
+When 3sort* is given a list, it may change the order of the conses of
+the list (using 3rplacd*), and so it cannot be used merely for
+side-effect; only the 2returned value* of 3sort* is the sorted
+list.  The original list may have some of its elements missing when
+3sort* returns.  If you need both the original list and the sorted
+list, you must copy the original and sort the copy (see 3copylist*,
+(copylist-fun)).
+
+Sorting a vector just moves the elements of the vector into different
+places, and so sorting a vector for side-effect only is all right.
+
+If the argument to 3sort* is a vector with a fill pointer, note that,
+like most functions, 3sort* considers the active length of the vector
+to be the length, and so only the active part of the vector is
+sorted (see 3array-active-length*, (array-active-length-fun)).
+.end_defun
+
+.defun sortcar sequence predicate
+3sortcar* is the same as 3sort* except that the predicate is applied
+to the cars of the elements of 2sequence*, instead of directly to the
+elements of 2sequence*.  Example:
+.lisp
+(sortcar '((3 . dog) (1 . cat) (2 . bird)) #'<)
+                   =>   ((1 . cat) (2 . bird) (3 . dog))
+.end_lisp
+
+Remember that 3sortcar*, when given a list, may change the order of the
+conses of the list (using 3rplacd*), and so it cannot be used merely
+for side-effect; only the 2returned value* of 3sortcar* is the
+sorted list.  The original list is destroyed by sorting.
+.end_defun
+
+.defun stable-sort sequence predicate
+3stable-sort* is like 3sort*, but if two elements of 2sequence* are equal,
+i.e. 2predicate* returns 3nil* when applied to them in either order,
+then they remain in their original order.
+.end_defun
+
+.defun stable-sortcar sequence predicate
+3stable-sortcar* is like 3sortcar*, but if two elements of 2sequence* are equal,
+i.e. 2predicate* returns 3nil* when applied to their cars in either order,
+then they remain in their original order.
+.end_defun
+
+.defun sort-grouped-array array group-size predicate
+3sort-grouped-array* considers its array argument to
+be composed of records of 2group-size* elements each.
+These records are considered as units, and are sorted with respect
+to one another.  The 2predicate* is applied to the first element
+of each record; so the first elements act as the keys on which
+the records are sorted.
+.end_defun
+
+.defun sort-grouped-array-group-key array group-size predicate
+This is like 3sort-grouped-array* except that the
+2predicate* is applied to four arguments:  an array,
+an index into that array, a second array, and an index into
+the second array.  2predicate* should consider each index
+as the subscript of the first element of a record in the corresponding
+array, and compare the two records.  This is more general
+than 3sort-grouped-array* since the function can get at
+all of the elements of the relevant records, instead of only the first element.
+.end_defun
+
+.defun merge result-type sequence1 sequence2 predicate &key key
+Returns a single sequence containing the elements of 2sequence1* and
+2sequence2* interleaved in order according to 2predicate*.  The
+length of the result sequence is the sum of the lengths of 2sequence1*
+and 2sequence2*.  2result-type* specifies the type of sequence to
+create, as in 3make-sequence*.
+
+The interleaving is done by taking the next element of 2sequence1* unless
+the next element of 2sequence2* is ``less'' than it according to 2predicate*.
+Therefore, if each of the argument sequences is sorted, the result of
+3merge* is also sorted.
+
+2key*, if non-3nil*, is applied to each element to get the object to
+pass to 2predicate*, rather than the element itself.  Thus, if 2key* is
+3car*, the cars of the elements are compared rather than the entire elements.
+
+.lisp
+(merge 'list '(1 2 5 6) '(3 5.0 5.1) '<)
+  =>  (1 2 3 5 5.0 5.1 6)
+.end_lisp
+.end_defun

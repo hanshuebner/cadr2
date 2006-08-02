@@ -1,0 +1,526 @@
+.c -*- Mode: Bolio -*-
+
+.section The Patch Facility
+.setq patch-facility section-page
+.cindex patch
+.cindex system maintenance
+
+The patch facility allows a system maintainer to manage new releases of a
+large system and issue patches to correct bugs.  It is designed to be
+used to maintain both the Lisp Machine system itself and applications
+systems that are large enough to be loaded up and saved on a disk
+partition.
+
+When a system of programs is very large, it needs to be maintained.
+Often problems are found and need to be fixed, or other little changes
+need to be made.  However, it takes a long time to load up all of the
+files that make up such a system, and so rather than having every user
+load up all the files every time he wants to use the system, usually the
+files just get loaded once into a Lisp world, which is then saved away
+on a disk partition.  Users then use this disk partition, copies of
+which may appear on many machines.  The problem is that since the users
+don't load up the system every time they want to use it, they don't get
+all the latest changes.
+
+The purpose of the patch system is to solve this problem.  A 2patch* file
+is a little file that, when you load it, updates
+the old version of the system into the new version of the system.  Most
+often, patch files just contain new function definitions; old functions
+are redefined to do their new thing.  When you want to use a system, you
+first use the Lisp environment saved on the disk, and then you load all
+the latest patches.  Patch files are very small, so loading them doesn't
+take much time.  You can even load the saved environment, load up the
+latest patches, and then save it away, to save future users the trouble
+of even loading the patches.  (Of course, new patches may be made
+later, and then these will have to be loaded if you want to get the
+very latest version.)
+
+For every system, there is a series of patches that have been made to
+that system.  To get the latest version of the system, you load each
+patch file in the series, in order.  Sooner or later, the maintainer of a
+system wants to stop building more and more patches, and recompile
+everything, starting afresh.  A complete recompilation is also necessary when
+a system is changed in a far-reaching way, that can't be done with a
+small patch; for example, if you completely reorganize a program, or
+change a lot of names or conventions, you might need to completely
+recompile it to make it work again.  After a complete recompilation has
+been done, the old patch files are no longer suitable to use; loading
+them in might even break things.
+
+The way all this is kept track of is by labelling each version of a
+system with a two-part number.  The two parts are called the 2major
+version number* and the 2minor version number*.  The minor version
+number is increased every time a new patch is made; the patch is
+identified by the major and minor version number together.  The major
+version number is increased when the program is completely recompiled,
+and at that time the minor version number is reset to zero.  A complete
+system version is identified by the major version number, followed by
+a dot, followed by the minor version number.  Thus, patch 393.9*
+is for major version 93 and minor version 9; it is followed by patch
+393.10*.
+
+To clarify this, here is a typical scenario.  A new system is created;
+its initial version number is 31.0*.  Then a patch file is created;
+the version of the program that results from loading the first patch
+file into version 31.0* is called 31.1*.  Then another patch file
+might be created, and loading that patch file into system 31.1*
+creates version 31.2*.  Then the entire system is recompiled, creating
+version 32.0* from scratch.  Now the two patch files are irrelevant,
+because they fix old software; the changes that they reflect are
+integrated into system 32.0*.
+
+Note that the second patch file should only be loaded into system
+31.1* in order to create system 31.2*; you shouldn't load it into
+31.0* or any other system besides 31.1*.  It is important that all
+the patch files be loaded in the proper order, for two reasons.  First,
+it is very useful that any system numbered 31.1* be exactly the same
+software as any other system numbered 31.1*, so that if somebody
+reports a bug in version 31.1*, it is clear just which software is
+being complained about.  Secondly, one patch might patch another patch;
+loading them in some other order might have the wrong effect.
+
+The patch facility keeps track of all the patch
+files that exist, remembering which version each one creates.  There
+is a separate numbered sequence of patch files for each major version
+of each system.  All of them are stored in the file system, and the
+patch facility keeps track of where they all are.  In addition to the
+patch files themselves, there are 2patch directory* files that contain
+the patch facility's data base by which it keeps track of what minor
+versions exist for a major version, and what the last major version
+of a system is.  These files and how to make them are described below.
+
+In order to use the patch facility, you must define your system with
+3defsystem* (see (system-system)) and declare it as patchable with the
+3:patchable* option.  When you load your system (with 3make-system*,
+see (make-system-fun)), it is added to the list of all systems present in
+the world.  The patch facility keeps track of which version of each
+patchable system is present and where the data about that system reside in
+the file system.  This information can be used to update the Lisp world
+automatically to the latest versions of all the systems it contains.  Once
+a system is present, you can ask for the latest patches to be loaded, ask
+which patches are already loaded, and add new patches.
+
+You can also load in patches or whole new systems and then save the
+entire Lisp environment away in a disk partition.  This is explained on
+(disk-partition).
+
+When a Lisp Machine is booted, it prints out a line of information
+for each patchable system present in the booted Lisp world, saying
+which major and minor versions are loaded.  This is done by
+3print-herald* (see (print-herald-fun)).
+
+.defun print-system-modifications &rest system-names
+With no arguments, this lists all the systems present in this world and, for
+each system, all the patches that have been loaded into this world.  For each patch
+it shows the major version number (which is always the same since
+a world can only contain one major version), the minor version number,
+and an explanation of what the patch does, as typed in by the person who
+made the patch.
+
+If 3print-system-modifications* is called with arguments, only the
+modifications to the systems named are listed.
+.end_defun
+
+.defun print-herald &optional format-dest
+Prints the names and loaded version numbers of all patchable systems
+loaded, and the microcode.  Also printed are the number of the band you
+booted, the amount of physical and virtual memory you have, the host
+name of the machine, and its associated machine name.  Example:
+.lisp
+MIT System, band 7 of CADR-1.
+640K physical memory, 16127K virtual memory.
+ System        98.43
+ CADR          3.6
+ ZMail         53.10
+ MIT-Specific  22.0
+ Microcode     309
+MIT Lisp Machine One, with associated machine OZ.
+.end_lisp
+2format-dest* defaults to 3t*; if it is 3nil* the answer is
+returned as a string rather than printed out.  2format-dest* can also
+be a stream to print on.
+.end_defun
+
+.defun si:get-system-version &optional system
+Returns two values, the major and minor version numbers of the version
+of 2system* currently loaded into the machine, or 3nil* if that
+system is not present.  2system* defaults to 3"System"*.
+.end_defun
+
+.defun si:system-version-info &optional (brief-p 3nil*)
+Returns a string giving information about which systems and what
+versions of the systems are loaded into the machine, and what microcode
+version is running.  A typical string for it to produce is:
+.lisp
+"System 98.48, CADR 3.6, MIT-Specific 22.0, microcode 309"
+.end_lisp
+If 2brief-p* is 3t*, it uses short names, suppresses the microcode
+version, any systems which should not appear in the disk label comment,
+the name 3System*, and the commas:
+.lisp
+"98.48"
+.end_lisp
+.end_defun
+
+.subsection Defining a System
+
+In order to use the patch facility, you must declare your system as
+patchable by giving the 3:patchable* option to 3defsystem* (see
+(system-system)).  The major version of your system in the file system
+is incremented whenever 3make-system* is used to compile it.
+Thus a major version is associated with a set of QFASL files.
+The major version of your system that is remembered as having been loaded into the
+Lisp environment is set to the major version in the file system
+whenever 3make-system* is used to load your system and the
+major version in the file system is greater than what you had loaded before.
+
+After loading your system, you can save it with the 3disk-save*
+function (see (disk-save-fun)).  3disk-save* asks you for any
+additional information you want printed as part of the greeting when the
+machine is booted.  This is in addition to the names and versions of all
+the systems present in this world.  If the system version does not fit
+in the partition comment field allocated in the disk label, 3disk-save*
+asks you to type in an abbreviated form.
+
+.subsection Loading Patches
+
+.defun load-patches &rest options
+This function is used to bring the current world up to the latest minor
+version of whichever major version it is, for all systems present, or
+for certain specified systems.  If there are any patches
+available, 3load-patches* offers to read them in. 
+With no arguments, 3load-patches* updates all the systems present in
+this world.  If you do not specify the systems to operate on, 3load-patches* also reloads
+the site files if they have changed ((site-files)), and reloads the files defining
+logical host translations if they have changed ((fs:make-logical-pathname-host-fun)).
+
+2options* is a list of keywords.  Some keywords are followed by an argument.
+The following options are accepted:
+.table 3
+.item :systems 2list*
+'kindex :systems load-patches
+2list* is a list of names of systems to be brought up to date.  If this
+option is not specified, all patchable systems loaded are processed.
+
+.kitem :unreleased
+Loads unreleased patches with no special querying.  These patches
+should be loaded for experimental use if you wish the benefit of the
+latest bug fixes, but should not be loaded if you plan to save a band.
+
+.kitem :site
+Loads the latest site files if they have been changed since last loaded.
+This is the default if you do not specify explicitly which systems to process.
+
+.kitem :nosite
+Prevents loading of site files.  This is the default when you specify the
+systems to process.
+
+.kitem :hosts
+Reloads the files defining logical host translations if they have been
+changed since last loaded.  This is the default if you do not specify
+explicitly which systems to process.
+
+.kitem :nohosts
+Prevents loading of logical host translation files.  This is the default
+when you specify the systems to process.
+
+.kitem :verbose
+Prints an explanation of what is being done.  This is the default.
+
+.kitem :selective
+For each patch, says what it is and then ask the user whether or not to
+load it.  This is the default.  If the user answers 3P* (for
+`Proceed'), selective mode is turned off for any remaining patches to
+the current system.
+
+.kitem :noselective
+Turns off 3:selective*.
+
+.kitem :silent
+Turns off both 3:selective* and 3:verbose*.  In 3:silent* mode all necessary
+patches are loaded without printing anything and without querying the user.
+
+.kitem :force-unfinished
+Loads patches that have not been finished yet, if they have been
+compiled.
+.end_table
+
+3load-patches* returns 3t* if any patches were loaded.
+.end_defun
+
+When you load a patchable system with 3make-system*,
+3load-patches* is called automatically on that system.
+
+.defun si:patch-loaded-p major-version minor-version &optional (system-name 3"SYSTEM"*)
+Returns 3t* if the changes in patch
+2major-version*.2minor-version* of system 2system-name* are
+loaded.  If 2major-version* is the major version of that system which
+is currently loaded, then the changes in that patch are loaded if the
+current minor version is greater than or equal to 2minor-version*.  If
+the currently loaded major version is greater than 2major-version*
+then it is assumed that the newer system version contains all the
+improvements patched into earlier versions, so the value is 3t*.
+.end_defun
+
+.subsection Making Patches
+
+There are two editor commands that are used to create patch files.
+During a typical maintenance session on a system you will make several
+edits to its source files.  The patch system can be used to copy these
+edits into a patch file so that they can be automatically incorporated
+into the system to create a new minor version.  Edits in a patch file
+can be modified function definitions, new functions, modified
+3defvar*'s and 3defconst*'s, or arbitrary forms to be evaluated, even including
+3load*'s of new files.
+
+The first step in making a patch is to 2start* it.  At this stage you
+must specify which patchable system you are making a patch for.  Then you 2add*
+one or more pieces of code from other source files to the patch.
+Finally you 2finish* the patch.  This is when you fill in the description
+of what the patch does; this description is what 3load-patches* prints
+when it offers to load the patch.  If you have any doubts about whether
+the patch will load and work properly, you finish it 2unreleased*;
+then you can load it to test it but no bands can be saved containing the
+patch until you explicitly release it later.
+
+It is important that any change you patch should go in a patch for the
+patchable system to which the changed source file belongs.  This makes
+sure that nobody loads the change into a Lisp world which does not
+contain the file you were changing--something that might cause trouble.
+Also, it ensures that you never patch changes to the same piece of
+code in two different patchable systems' patches.  This would lead to
+disaster because there is no constraint on the order in which patches to
+two different systems are loaded.
+
+Starting a patch can be done with 3Meta-X Start Patch*.  It reads the
+name of the system to patch with the minibuffer.  3Meta-X Add Patch*
+can also start a patch, so an explicit 3Meta-X Start Patch* is needed
+only infrequently.
+
+3Meta-X Add Patch* adds the region (if there is one) or the current
+``defun'' to the patch file currently being constructed.  If you change a
+function, you should recompile it, test it, then once it works use 3Add
+Patch* to put it in the patch file.  If no patch is being constructed,
+one is started for you; you must type in the name of the system to patch.
+
+A convenient way to add all your changes to a patch file is to use
+3Meta-X Add Patch Changed Sections* or 3Meta-X Add Patch Buffer
+Changed Sections*.  These commands ask you, for each changed function
+(or each changed function in the current buffer), whether to add it to
+the patch being constructed.  If you use these commands more than once,
+a function which has been added to the patch and has not been changed
+since is considered ``unchanged''.
+
+The patch file being constructed is in an ordinary editor buffer.  If
+you mistakenly 3Add Patch* something that doesn't work, you can select
+the buffer containing the patch file and delete it.  Then later you can
+3Add Patch* the corrected version.
+
+While you are making your patch file, the minor version number that has
+been allocated for you is reserved so that nobody else can use it.  This
+way if two people are patching a system at the same time, they do not
+both get the same minor version number.
+
+After testing and patching all of your changes, use 3Meta-X Finish Patch* to
+install the patch file so that other users can load it.  This compiles
+the patch file if you have not done so yourself (patches are always compiled).
+It also asks you for a comment describing the reason for the patch; 3load-patches*
+and 3print-system-modifications* print these comments.  If the patch is
+complex or it has a good chance of causing new problems, you should not use
+3Meta-X Finish Patch*; instead, you should make an unreleased patch.
+
+.cindex unreleased patches
+A finished patch can be 2released* or 2unreleased*.  If a patch is
+unreleased, it can be loaded in the usual manner if the user says `yes' to
+a special query, but once it has been loaded the user will be strongly
+discouraged from saving a band.  Therefore, you still have a chance to
+edit the patch file and recompile it if there is something wrong with
+it.  You can be sure that the old broken patch will not remain
+permanently in saved bands.
+
+To finish a patch without releasing it, use the command 3Meta-X Finish
+Patch Unreleased*.  Then the patch can be tested by loading it.
+After a sufficient period for testing, you can release the patch with
+3Meta-X Release Patch*.  If you discover a bug in the patch after this
+point, it is not sufficient to correct it in this patch file; you must
+put the fix in a new patch to correct any bands already saved with the
+broken version of this patch.
+
+It is a good principle not to add any new features or fix any additional
+bugs in a patch once that patch is released; change it only to correct
+problems with that patch.  New fixes to other bugs should go in new
+patches.
+
+You can only be constructing one patch at any time.  3Meta-X Add Patch*
+automatically adds to the patch you are constructing.  But you can start
+constructing a different patch without finishing the first.  If you use
+the command 3Meta-X Start Patch* while constructing a patch, you are
+given the option of starting a new patch.  The old patch ceases to be
+the one you are constructing but the patch file remains in its editor buffer.
+Later, or in another session, you can go back to constructing the first
+patch with the command 3Meta-X Resume Patch*.  This commands asks for
+both a patchable system name and the patch version to resume constructing.
+You can simply save the editor buffer of a patch file and resume
+constructing that patch in a later session.  You can even resume constructing a finished
+patch; though it rarely makes sense to do this unless the patch is
+unreleased.
+
+If you start to make a patch and change your mind, use the command
+3Meta-X Cancel Patch*.  This deletes the record that says that
+this patch is being worked on.  It also tells the editor that you
+are no longer constructing any patch.  You can undo a finished (but unreleased)
+patch by using 3Resume Patch* and then 3Cancel Patch*.  If a patch
+is released, you cannot remove it from saved bands, so it is not
+reasonable to cancel it at that stage.
+
+.subsection Private Patches
+
+A private patch is a file of changes which is not installed to be loaded
+automatically in sequence by all users.  It is loaded only by explicit
+request (using the function 3load*).  A private patch is not
+associated with any particular patchable system, and has no version
+number.
+
+To make a private patch, use the editor command 3Meta-X Start Private
+Patch*.  Instead of a patchable system name, you must specify a
+filename to use for the patch file; since the patch is not to be
+installed, there is no standard naming convention for it to follow.  Add
+text to the patch using 3Meta-X Add Patch* and finish it using
+3Meta-X Finish Patch*.  There is no concept of release for private
+patches so there is no point in using 3Meta-X Finish Patch
+Unreleased*.  There is also no data base recording all private patches,
+so 3Meta-X Start Private Patch* will resume an existing patch, or even
+a finished patch.  In fact, finishing a private patch is merely a way
+to write a comment into it and compile it.
+
+Once the private patch file is made, you can load it like any other file.
+
+The private patch facility is just an easy way to copy code from various
+files into one new file with 3Patch-File: T* in its attribute list (to
+prevent warnings about redefining functions defined in other files) and
+compile that file.
+
+.subsection System Status
+.setq patch-system-status section-page
+.cindex status, of a patchable system
+
+The patch system has the concept of the 2status* of a major version of a
+system.  A status keyword is recorded in the Lisp world for each
+patchable system that is loaded.  There is also a current status for
+each major version of each system, recorded in the patch directory file
+for that major version.  Loading patches updates the status in the Lisp
+world to match the current status stored in the patch directory.  The
+status in the patch directory is changed with 3si:set-system-status*.
+
+The status is displayed when the system version is displayed, in places
+such as the system greeting message (3print-herald*) and the disk
+partition comment.
+
+The status is one of the following keywords:
+.table 3
+.item :experimental
+The system has been built but has not yet been fully debugged and released to users.
+This is the default status when a new major version is created, unless it is
+overridden with the 3:initial-status* option to 3defsystem*.
+
+.item :released
+The system is released for general use.  This status produces no extra text
+in the system greeting and the disk partition comment.
+
+.item :obsolete
+The system is no longer supported.
+
+.item :broken
+This is like 3:experimental*, but is used when the system was thought incorrectly
+to have been debugged, and hence was 3:released* for a while.
+
+.item :inconsistent
+Unreleased patches to this system have been loaded.
+If any patchable system is in this status, 3disk-save* demands extra
+confirmation, and the resulting saved band is identified as ``Bad'' in its
+disk partition comment.
+.end_table
+
+.defun si:set-system-status system status &optional major-version
+Changes the current status of a system, as recorded in the patch
+directory file.  2system* is the name of the system.
+2major-version* is the number of the major version to be changed; if
+unsupplied it defaults to the version currently loaded into the Lisp
+world.  2status* should be one of the keywords above.
+
+Do not set the current system status to 3:inconsistent*.  A status of
+3:inconsistent* is set up in the Lisp world when an unreleased patch
+is loaded, and once set that way it never changes in that Lisp world.
+The status recorded in the system's patch directory file should describe
+the situation where all currently released patches are loaded.
+It should never be 3:inconsistent*.
+.end_defun
+
+.subsection Patch Files
+
+The patch system maintains several different types of files in
+the directory associated with your system.  This directory is specified
+to 3defsystem* via either the 3:patchable* option or the 3:pathname-default*
+option.  These files are maintained automatically, but they are described here
+so that you can know what they are and when they are obsolete and can be deleted. 
+
+If the 3:patchable* option to 3defsystem* had no argument, then the
+patch data files are stored on the host, device and directory specified as
+the system's pathname default.  The names and types of the filenames
+are all standard and do not include the name of the system in any way.
+
+If the 3:patchable* option to 3defsystem* is given an argument, this
+argument is a file namestring specifying the host, device and directory
+to use for storing the patch data files.  In addition, the system's short name
+is used in constructing the names of the files.  This allows you to store
+the patch data files for several systems in the same directory.
+
+There are three kinds of files that record patch information:
+.table 1 0 200
+.item 7**  the system patch directory
+
+This file records the current major version number,
+so that when the system is recompiled a new number can be allocated.
+
+On Tops-20, this file has, by default, a name like 3OZ:PS:<MYDIR>PATCH.DIRECTORY*,
+where the host, device, and directory (3OZ:PS:<MYDIR>*) come
+from the system's 3:pathname-default* as explained above.
+
+If 3:patchable* is given an argument, this file for system 3FOO* has
+a name like 3OZ:PS:<PATDIR>FOO.PATCH-DIRECTORY*, where the host, device and directory
+come from 3:patchable*'s argument.
+
+.item 7**  the patch directory of a major version
+
+There is a file of this kind for each major version of the system.
+It records the patches that have been made for that major version:
+the minor version, author, description and release status of each one.
+
+The data in this file are in the form of a printed representation of a
+Lisp list with two elements.  The first is the system status of this
+major version (3:experimental*, 3:released*, 3:broken* or
+3:obsolete*).  The second is another list with an element for each
+patch.  The element for a patch is a list of length four: the minor
+version, the patch description (a string) or 3nil* for an unfinished
+patch, the author's name (a string), and a flag that is 3t* if the
+patch is unreleased.
+
+On a Tops-20, for major version 259, this file has, by default, a name like
+3OZ:PS:<MYDIR>PATCH-259.DIRECTORY*.
+
+If 3:patchable* is given an argument, this file for system 3FOO* has a name like
+3OZ:PS:<PATDIR>FOO-259.PATCH-DIRECTORY*.
+
+.item 7**  the individual patch
+
+For each patch made, there is a Lisp source file and a QFASL file.
+
+On a Tops-20, for version 259.12, these files have, by default, names like
+3OZ:PS:<MYDIR>PATCH-259-12.LISP* and 3OZ:PS:<MYDIR>PATCH-259-12.QFASL*.
+
+If 3:patchable* is given an argument, this file for system 3FOO* has a name like
+3OZ:PS:<PATDIR>FOO-259-12.PATCH-DIRECTORY*.
+.end_table
+
+On certain types of file systems, slightly different naming conventions
+are used to keep the names short enough to be legal.
