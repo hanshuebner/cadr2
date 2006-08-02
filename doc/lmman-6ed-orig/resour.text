@@ -1,6 +1,6 @@
 .c -*- Mode:Bolio -*-
 
-.section Resources
+.chapter Resources
 .cindex resource
 .cindex allocation of storage
 .cindex storage allocation

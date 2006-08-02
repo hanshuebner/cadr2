@@ -20,12 +20,13 @@
 
 ;; Document constants
 
-(defvar *manual-filenames* '(title intro fd-dtp fd-flo fd-eva fd-con fd-sym
-                             fd-num fd-arr generic fd-str fd-fun fd-clo
-                             fd-sg fd-loc fd-sub areas compil macros looptm
-                             defstr flavor ios rdprt fd-fio pathnm files chaos
-                             packd maksys proces errors code query init
-                             time fd-hac))
+(defvar *manual-filenames* )
+
+(defvar *manual-filenames*
+  '(title intro fd-dtp fd-eva fd-flo fd-con resour fd-sym fd-num
+    fd-arr generic fd-str fd-fun fd-clo fd-sg fd-loc fd-sub areas compil
+    macros looptm defstr flavor ios rdprt pathnm files chaos packd maksys
+    patch proces errors code query init time fd-hac))
 
 (defvar *unicode-cp0-chars* #(#\DOT_OPERATOR
                               #\DOWNWARDS_ARROW
@@ -229,6 +230,12 @@
 (define-unparsed-bolio-handler xitem (string)
   (handle-item string))
 
+(define-unparsed-bolio-handler item1 (string)
+  (handle-item string))
+
+(define-unparsed-bolio-handler xitem1 (string)
+  (handle-item string))
+
 (defun make-index-entry (index title)
   (xml-newline)
   (with-element "index-entry"
@@ -253,6 +260,11 @@
 
 (define-unparsed-bolio-handler path_preposition_index (title)
   (make-index-entry "loop-path-preposition" title))
+
+(define-unparsed-bolio-handler insert (file)
+  (with-element "include"
+    (attribute "file" file))
+  (process-bolio-file file))
 
 (define-bolio-handler lisp ()
   (with-element "lisp"
@@ -390,20 +402,20 @@ The line given as argument is assumed to begin with .def"
                                           (make-pathname :name name :type "xml"))))
     (ensure-directories-exist output-pathname)
     (format *debug-io* "~&Processing ~A => ~A" input-pathname output-pathname)
-    (setq *current-file* (namestring input-pathname))
-    (setq *current-file-name* name)
-    (setq *font-stack* nil)
-    (setq *current-line-number* 0)
-    (with-open-file (*bolio-input-stream* input-pathname)
-      (with-open-file (output output-pathname
-                              :direction :output
-                              :if-does-not-exist :create
-                              :if-exists :supersede
-                              :external-format charset:utf-8)
-        (with-xml-output (make-character-stream-sink output)
-          (continue-parsing))))
-    (when *font-stack*
-      (file-warn "imbalanced font specifications"))))
+    (let ((*current-file* (namestring input-pathname))
+          (*current-file-name* name)
+          (*font-stack* nil)
+          (*current-line-number* 0))
+      (with-open-file (*bolio-input-stream* input-pathname)
+        (with-open-file (output output-pathname
+                                :direction :output
+                                :if-does-not-exist :create
+                                :if-exists :supersede
+                                :external-format charset:utf-8)
+          (with-xml-output (make-character-stream-sink output)
+            (continue-parsing))))
+      (when *font-stack*
+        (file-warn "imbalanced font specifications")))))
 
 (defun process-bolio-files ()
   (setq *chapter-number* 0)

@@ -5,4 +5,5 @@
         :cl-user
         :cl-ppcre
         :cl-interpol
-        :cxml))
+        :cxml)
+  (:shadowing-import-from :cl-interpol #:quote-meta-chars))
