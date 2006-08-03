@@ -133,11 +133,12 @@
 (defun lookup-ref (key)
   (gethash key *global-directory*))
 
-(defun enter-ref (key value)
-  (when (and (lookup-ref key)
-             (not (equal value (lookup-ref key))))
-    (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
-  (setf (gethash key *global-directory*) value))
+(defun enter-ref (key type value)
+  (let ((value (cons type value)))
+    (when (and (lookup-ref key)
+               (not (equal value (lookup-ref key))))
+      (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
+    (setf (gethash key *global-directory*) value)))
 
 (defun ref-expand (line)
   (aif (position #\Syn line)
@@ -147,7 +148,7 @@
          (text (subseq line 0 it))
          (with-element "ref"
            (aif (lookup-ref key)
-                (attribute "file" it)
+                (attribute (string-downcase (symbol-name (car it))) (princ-to-string cdr it))
                 (pushnew key *unresolved-references*))
            (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
@@ -176,7 +177,6 @@
 
 (defvar *unparsed-handlers* (make-hash-table))
 (defvar *parsed-handlers* (make-hash-table))
-(defvar *bolio-variables* (make-hash-table))
 (defvar *chapter-number* 0)
 (defvar *section-number* 0)
 (defvar *subsection-number* 0)
@@ -254,7 +254,7 @@
 (defun handle-item (string)
   (with-element "tr"
     (with-element "td"
-      (text string))
+      (font-expand string))
     (with-element "td"
       (continue-parsing :stop-before '(end_table item vitem)))))
 
@@ -326,13 +326,13 @@
   (case (intern (string-upcase value))
     (chapter-number
      (make-anchor name)
-     (enter-ref name *chapter-number*))
+     (enter-ref name :chapter *chapter-number*))
     (css-number
      (make-anchor name)
-     (enter-ref name *section-number*))
+     (enter-ref name :section *section-number*))
     ((page section-page)
      (make-anchor name)
-     (enter-ref name *current-file-name*))
+     (enter-ref name :file *current-file-name*))
     (t
      (file-warn "don't know how to enter ~A as reference" value))))
 
@@ -340,7 +340,7 @@
   (with-element "exdent"
     (attribute "amount" amount)
     (with-element "caption"
-      (text (format nil "~{~A ~}" caption)))
+      (font-expand (format nil "~{~A ~}" caption)))
     (continue-parsing :stop-any t)))
 
 (defvar *bolio-input-stream*)
@@ -379,8 +379,10 @@ The line given as argument is assumed to begin with .def"
              ((equal type "const") "var")
              (t type)))
      (when (equal type "method")
-       (setf method-name (subseq (first (split " " args)) 1))
-       (setf args (regex-replace #?r"^\S+\s" args "")))
+       (register-groups-bind
+        (method-name-buf args-buf) (#?r"^:(\S+)\s*(.*)$" args)
+        (setf method-name method-name-buf)
+        (setf args args-buf)))
      (unless no-index
        (enter-ref (format nil "~A~@[-~(~A~)~]-~A"
                           name
@@ -388,7 +390,7 @@ The line given as argument is assumed to begin with .def"
                           (if (find type '("spec" "mac") :test #'equal)
                               "fun"
                               type))
-                  *current-file-name*))
+                  :definition-in-file *current-file-name*))
      (with-element "define"
        (attribute "type" type)
        (attribute "name" name)
@@ -396,9 +398,7 @@ The line given as argument is assumed to begin with .def"
          (attribute "no-index" "1"))
        (unless (equal "" args)
          (with-element "args"
-           (dolist (arg (split #?r"\s+" args))
-             (with-element "arg"
-               (font-expand arg))))
+           (font-expand args))
          (xml-newline))
        (unless (equal "1" modifier)
          (xml-newline)
@@ -411,7 +411,7 @@ The line given as argument is assumed to begin with .def"
         ((read-input-line ()
            (incf *current-line-number*)
            (setf last-line-position (file-position *bolio-input-stream*))
-           (unquote-string (read-line *bolio-input-stream* nil)))
+           (read-line *bolio-input-stream* nil))
          (unread-input-line ()
            (decf *current-line-number*)
            (file-position *bolio-input-stream* last-line-position))
@@ -450,7 +450,7 @@ The line given as argument is assumed to begin with .def"
                   (when stop-any
                     (unread-input-line)
                     (return-from continue-parsing))
-                  (handle-bolio-command line))
+                  (handle-bolio-command (unquote-string line)))
                  (t
                   (when (and (equal *in-paragraph* "p")
                              *paragraph-has-lines*
@@ -462,7 +462,7 @@ The line given as argument is assumed to begin with .def"
                   (cond
                     (*in-paragraph*
                      (setf *paragraph-has-lines* t)
-                     (font-expand (expand-tabs line))
+                     (font-expand (expand-tabs (unquote-string line)))
                      (xml-newline))
                     (t
                      (unless (equal "" line)
@@ -472,12 +472,12 @@ The line given as argument is assumed to begin with .def"
                        (xml-newline))))))))))
 
 (defun process-bolio-file (name)
+  (format *debug-io* "~&Processing ~A" name)
   (let ((input-pathname (merge-pathnames *input-directory*
                                          (make-pathname :name name :type "text")))
         (output-pathname (merge-pathnames *output-directory*
                                           (make-pathname :name name :type "xml"))))
     (ensure-directories-exist output-pathname)
-    (format *debug-io* "~&Processing ~A => ~A" input-pathname output-pathname)
     (let ((*current-file* (namestring input-pathname))
           (*current-file-name* name)
           (*font-stack* nil)
@@ -490,14 +490,17 @@ The line given as argument is assumed to begin with .def"
                                 :if-exists :supersede
                                 :external-format charset:utf-8)
           (with-xml-output (make-character-stream-sink output)
+            (continue-parsing)
             (handler-case
-                (continue-parsing)
+                nil
               (error (e)
                 (file-warn "Error: ~A" e))))))
       (when *font-stack*
         (file-warn "imbalanced font specifications")))))
 
-(defun process-bolio-files ()
+(defun process-bolio-files (&key (keep-state t))
+  (unless keep-state
+    (setf *global-directory* (make-hash-table :test #'equal)))
   (setq *chapter-number* 0)
   (setq *section-number* 0)
   (setq *subsection-number* 0)
@@ -507,6 +510,20 @@ The line given as argument is assumed to begin with .def"
   (when *unresolved-references*
     (format *debug-io* "~&~A unresolved references" (length *unresolved-references*))))
 
-(defun show-bolio-variables ()
-  (loop for key being the hash-keys of *bolio-variables*
-        do (format *debug-io* "~A => ~A~%" key (gethash key *bolio-variables*))))
+(defun check-xml-file-for-bad-characters (name)
+  (let ((pathname (merge-pathnames *output-directory*
+                                   (make-pathname :name name :type "xml"))))
+    (with-open-file (input pathname)
+      (do ((line (read-line input nil) (read-line input nil))
+           (line-number 1 (1+ line-number)))
+          ((not line))
+        (dotimes (i (length line))
+          (let ((char (aref line i)))
+            (unless (or (< 31 (char-code char))
+                        (eq char #\Newline))
+              (format t "~&~A:~A invalid character ~A" (namestring pathname) line-number char))))))))
+
+(defun check-xml-files-for-bad-characters ()
+  (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
+    (format t "~&checking ~A" name)
+    (check-xml-file-for-bad-characters name)))

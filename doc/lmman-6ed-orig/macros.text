@@ -1578,8 +1578,8 @@ to produce the macro expansion.  For certain special forms, 3macro-function*
 returns the ``alternate macro definition'' (see below).
 Otherwise, 3macro-function* returns 3nil*.
 
-Since a definition as a macro is really a list of the form 3(macro
-. 2expander-function*)*, you can get the expander function using
+Since a definition as a macro is really a list of the form
+3(macro . 2expander-function*)*, you can get the expander function using
 3(cdr (fdefinition 2function-spec*))*.  But it is cleaner to use
 3macro-function*.
 
