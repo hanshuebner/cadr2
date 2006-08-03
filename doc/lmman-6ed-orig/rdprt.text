@@ -52,7 +52,7 @@ things.  For example, without escaping, the pathname 3SYS: SYS; QCP1 LISP* pri
 exactly those characters.  The string with those contents prints indistinguishably.
 With escaping, the pathname prints as 
 .lisp
-#FS:LOGICAL-PATHNAME "SYS: SYS; QCP1 LISP"
+#FS:LOGICAL-PATHNAME "SYS: SYS; QCP1 LISP"
 .end_lisp
 and the string prints as 3"SYS: SYS; QCP1 LISP"*.
 
@@ -67,7 +67,7 @@ the object should be printed with escaping:
 Your output is in the file SYS: SYS; QCP1 QFASL.
 .exdent 96 vs
 Expected pathname properties missing from
- #FS:LOGICAL-PATHNAME "SYS: SYS; QCP1 LISP".
+ #FS:LOGICAL-PATHNAME "SYS: SYS; QCP1 LISP".
 .end_lisp
 
 .cindex Common Lisp syntax
@@ -367,7 +367,7 @@ function's responsibility to output a suitable printed representation to
 the stream.  This allows a user to define his own p.r. for his named
 structures; more information can be found in the named structure section
 (see (named-structure)).  Typically the printed representation used
-starts with either 7#*3<* if it is not supposed to be readable or 7#*
+starts with either 7#*3<* if it is not supposed to be readable or 7#*
 (see (horseshoe-read)) if it is supposed to be readable.
 
 If the named structure symbol does not have a 3named-structure-invoke*
@@ -430,7 +430,7 @@ instances.  Most such objects print like ``any other data type'' below,
 except with additional information such as a name.  Some objects print
 only their name when escaping is not in effect (when
 3princ*'ed).  Some objects, including pathnames, use a printed
-representation that begins with 7#*, ends with 3*, and contains
+representation that begins with 7#*, ends with 3*, and contains
 sufficient information for the reader to reconstruct an
 equivalent object.  See (horseshoe-read).  If the object cannot handle
 3:print-self*, it is printed like ``any other data type''.
@@ -1122,14 +1122,14 @@ must precede it by a slash character.  Examples:
 7#/*3CTRL-META-/(*.
 
 An obsolete method of specifying control bits in a character is to
-insert the characters 3*, 3*, 3*, 3* and 3* between the
+insert the characters 3*, 3*, 3*, 3* and 3* between the
 7#* and the 7/*.  Those stand for 3control*, 3meta*,
 3control-meta*, 3super* and 3hyper*, respectively.  This syntax should
 be converted to the new 7#\*3control-meta-x* syntax described below.
 
 3greek* (or 3front*), 3top*, and 3shift* (or 3sh*) are also
 allowed as prefixes of names.  Thus, 7#/*3top-g* is equivalent to
-7#/* or 7#/*3uparrow*.  7#/*3top-g* should be used if you are
+7#/* or 7#/*3uparrow*.  7#/*3top-g* should be used if you are
 specifying the keyboard commands of a program and the mnemonic
 significance belongs to the `3G*' rather than to the actual character
 code.
@@ -1389,12 +1389,12 @@ This is considered obsolete; use 7#+*3maclisp* instead.
 or compiled to run in NIL, otherwise it reads as nothing (white space).
 This is considered obsolete; use 7#+*3nil* instead.
 
-.item #
-7#*3* introduces an expression in infix notation.  3* should be used
+.item #
+7#*3* introduces an expression in infix notation.  3* should be used
 to terminate it.  The text in between describes a Lisp object such as a symbol,
 number or list but using a nonstandard, infix-oriented syntax.  For example,
 .lisp
-#x:y+car(a1[i,j])
+#x:y+car(a1[i,j])
 .exdent 96 is equivalent to
 (setq x (+ y (car (aref a1 i j))))
 .end_lisp
@@ -1410,14 +1410,14 @@ For full details, refer to the file 3SYS: IO1; INFIX LISP*.
 This is not legal reader syntax.  It is used in the p.r. of objects that cannot
 be read back in.  Attempting to read a 7#*3<* signals an error.
 
-.item #
+.item #
 .setq horseshoe-read page
 This is used in the p.r. of miscellaneous objects (usually named
-structures or instances) that can be read back in.  7#*3* should be
+structures or instances) that can be read back in.  7#*3* should be
 followed by a typename and any other data needed to construct an
 object, terminated with a 3*.  For example, a pathname might print as
 .lisp
-#FS:ITS-PATHNAME "AI: RMS; TEST 5"
+#FS:ITS-PATHNAME "AI: RMS; TEST 5"
 .end_lisp
 The typename is a keyword that 3read* uses to figure out how to read in
 the rest of the printed representation and construct the object.  It is read in in

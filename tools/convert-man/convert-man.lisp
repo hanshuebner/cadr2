@@ -88,6 +88,9 @@
                      (string (unquote-char (aref line (1+ dc1-position))))
                      (unquote-string (subseq line (+ 2 dc1-position)))))))
 
+(defun convert-charset (string)
+  (regex-replace-all "" (unquote-string string) (string #\NO-BREAK_SPACE)))
+
 (defun expand-tabs (line)
   (with-output-to-string (s)
     (do ((i 0 (1+ i))
@@ -148,7 +151,7 @@
          (text (subseq line 0 it))
          (with-element "ref"
            (aif (lookup-ref key)
-                (attribute (string-downcase (symbol-name (car it))) (princ-to-string cdr it))
+                (attribute (string-downcase (symbol-name (car it))) (princ-to-string (cdr it)))
                 (pushnew key *unresolved-references*))
            (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
@@ -450,7 +453,7 @@ The line given as argument is assumed to begin with .def"
                   (when stop-any
                     (unread-input-line)
                     (return-from continue-parsing))
-                  (handle-bolio-command (unquote-string line)))
+                  (handle-bolio-command (convert-charset line)))
                  (t
                   (when (and (equal *in-paragraph* "p")
                              *paragraph-has-lines*
@@ -462,7 +465,7 @@ The line given as argument is assumed to begin with .def"
                   (cond
                     (*in-paragraph*
                      (setf *paragraph-has-lines* t)
-                     (font-expand (expand-tabs (unquote-string line)))
+                     (font-expand (expand-tabs (convert-charset line)))
                      (xml-newline))
                     (t
                      (unless (equal "" line)

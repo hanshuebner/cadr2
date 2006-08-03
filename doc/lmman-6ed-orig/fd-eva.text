@@ -1575,7 +1575,7 @@ returns an arbitrary Lisp object.
 (setq x (quote (some list)))   x => (some list)
 .end_lisp
 	Since 3quote* is so useful but somewhat cumbersome to type, the reader normally
-converts any form preceded by a single quote (3'*) character into a 3quote* form.
+converts any form preceded by a single quote (3'*) character into a 3quote* form.
 .lisp
 .exdent 96 For example,
 (setq x '(some list))

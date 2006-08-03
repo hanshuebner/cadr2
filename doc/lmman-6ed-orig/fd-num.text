@@ -1643,7 +1643,7 @@ Returns bits 25 through 48 (the most significant half) of the product of
 2num1* and 2num2*, regarded as unsigned integers.  If you call this
 and 3%pointer-times* on the same arguments 2num1* and 2num2*, you
 can combine the results into a double-precision product.  If 2num1*
-and 2num2* are regarded as two's-complement fractions, -1 3
+and 2num2* are regarded as two's-complement fractions, -1 3
 2num** < 1, 3%multiply-fractions* returns 1/2 of their correct
 product as a fraction.
 

@@ -137,7 +137,8 @@ meaning of 3loop* the programmer intended: in the traditional 3loop*
 macro, it must be a symbol, while in the Common Lisp 3loop* it is
 useless to use a symbol there.  Therefore, if the first argument of
 a 3loop* form is not a symbol, it is treated as a Common Lisp 3loop*.
-
+
+.page
 .chapter Clauses
 
 	Internally, 3loop* constructs a 3prog* which includes
@@ -891,7 +892,8 @@ If one instead desires the loop to have some return value when it
 finishes normally, one may place a call to the 3return* function in the
 epilogue (with the 3finally* clause, (loop-finally-clause)).
 .end_table
-
+
+.page
 .chapter Loop Synonyms
 
 .defmac define-loop-macro keyword
@@ -910,7 +912,7 @@ one may now write an iteration as
 predecessor of 3loop*.  Its unconstrained use is not recommended,
 as it tends to decrease the transportability of the code and
 needlessly uses up a function name.
-.c 
+.c .page
 .c .loop_chapter "Data Types"
 .c .setq loop-data-type-section css-number
 .c .setq loop-data-type-page page
@@ -963,7 +965,8 @@ needlessly uses up a function name.
 .c 	If local data-type declarations must be inhibited, one can use
 .c the 3nodeclare* clause, which is described on
 .c (loop-nodeclare-clause).
-
+
+.page
 .chapter Destructuring
 .setq loop-destructuring-section css-number
 .setq loop-destructuring-page page
@@ -1048,7 +1051,8 @@ of the symbol, the property name, and the value of that property.
 .c then one should set this variable to 3t*;  however, there is
 .c little if any efficiency loss if this is not done.
 .c .end_defvar
-
+
+.page
 .chapter The Iteration Framework
 .setq loop-iteration-framework-section css-number
 .setq loop-iteration-framework-page page
@@ -1137,7 +1141,8 @@ is incorrect, but
 .end_lisp
 is safe because the endtest is explicitly dissociated from the
 stepping.
-
+
+.page
 .chapter Iteration Paths
 .setq iteration-path-page page
 	Iteration paths provide a mechanism for user extension of
@@ -1624,7 +1629,8 @@ Note that although the second 3`(= ,index-var ,size-var)* could
 have been placed earlier (where the second 3nil* is), it is best
 for it to match up with the equivalent test in the first iteration
 specification grouping.
-
+
+.page
 .c Local Modes:
 .c Auto Fill Mode:1
 
