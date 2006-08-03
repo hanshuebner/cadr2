@@ -182,7 +182,6 @@
 
 (defmacro with-paragraph (tag &body body)
   `(let ((*in-paragraph* ,tag))
-    (file-warn "start paragraph ~A" ,tag)
     (with-element ,tag
       ,@body)))
 
@@ -224,7 +223,7 @@
   (with-element "sp"))
 
 (define-bolio-handler group ()
-  (with-element "group"
+  (with-paragraph "group"
     (continue-parsing :stop-after 'apart)))
 
 (define-bolio-handler page ()
@@ -447,7 +446,6 @@ The line given as argument is assumed to begin with .def"
                              *paragraph-has-lines*
                              (or (zerop (length line))
                                  (eq #\Tab (aref line 0))))
-                    (file-warn "end of P paragraph detected (~S)" line)
                     (unless (zerop (length line))
                       (unread-input-line))
                     (return-from continue-parsing))
@@ -457,10 +455,11 @@ The line given as argument is assumed to begin with .def"
                      (font-expand (unquote-line line))
                      (xml-newline))
                     (t
-                     (with-paragraph "p"
-                       (unread-input-line)
-                       (continue-parsing))
-                     (xml-newline)))))))))
+                     (unless (equal "" line)
+                       (with-paragraph "p"
+                         (unread-input-line)
+                         (continue-parsing))
+                       (xml-newline))))))))))
 
 (defun process-bolio-file (name)
   (let ((input-pathname (merge-pathnames *input-directory*
@@ -481,7 +480,10 @@ The line given as argument is assumed to begin with .def"
                                 :if-exists :supersede
                                 :external-format charset:utf-8)
           (with-xml-output (make-character-stream-sink output)
-            (continue-parsing))))
+            (handler-case
+                (continue-parsing)
+              (error (e)
+                (file-warn "Error: ~A" e))))))
       (when *font-stack*
         (file-warn "imbalanced font specifications")))))
 
