@@ -153,7 +153,7 @@
            (aif (lookup-ref key)
                 (progn
                   (attribute (string-downcase (symbol-name (first it))) (princ-to-string (second it)))
-                  (attribute "title" (third it)))
+                  (attribute "title" (princ-to-string (third it))))
                 (pushnew key *unresolved-references*))
            (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
