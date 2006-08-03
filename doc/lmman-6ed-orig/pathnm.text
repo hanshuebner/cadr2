@@ -85,7 +85,7 @@ This is the inverse of parsing.  3princ* of a pathname also does this,
 then prints the contents of the string.  Flavor operations such as
 3:string-for-dired* exist which convert all or part of a pathname to a
 string in other fashions that are designed for specific applications.
-3prin1* of a pathname prints the pathname using the 7#* syntax so
+3prin1* of a pathname prints the pathname using the 7#* syntax so
 it can be read back in to produce an equivalent pathname (or the same
 pathname, if read in the same session).
 
@@ -1020,7 +1020,7 @@ For this reason, generic pathnames are defined to be backtranslated, i.e.
 the generic pathname of a pathname that is (or could be) the result of a logical host
 translation has the host and directory of the logical pathname.  For
 example, the generic pathname of 3OZ:<L.WINDOW>;STREAM LISP* would be
-3SYS:WINDOW;STREAM  * if 3OZ* is the system host.
+3SYS:WINDOW;STREAM* if 3OZ* is the system host.
 
   All version numbers of a particular pathname share the
 same identical generic pathname.  If the values of particular properties have
@@ -1430,14 +1430,14 @@ six characters.
 
 Special characters (space, colon, and semicolon) in a component of an ITS pathname
 can be quoted by prefixing them with right horseshoe (7*)
-or equivalence sign (7*).  Right horseshoe is the same character code in the
+or equivalence sign (7*).  Right horseshoe is the same character code in the
 Lisp Machine character set as control-Q in the ITS character set.
 
 An ITS pathname can have a structured name, which is a list of two strings,
 the FN1 and the FN2.  In this case there is neither a type nor a version.
 
 An ITS pathname with an FN2 but no FN1 (i.e. a type and/or version but no name)
-is represented with the placeholder FN1 `7*', because ITS pathname syntax
+is represented with the placeholder FN1 `7*', because ITS pathname syntax
 provides no way to write an FN2 without an FN1 before it.
 
 The ITS init file naming convention is 3"2homedir*; 2user* 2program*"*.
@@ -1539,10 +1539,10 @@ Thirdly, file types (called ``extensions'' in VMS terminology) are
 limited to three characters.  Each of the system's canonical types has a
 special mapping for VMS pathnames, which is three characters long:
 .lisp
-:lisp  LSP	:text  TXT	:qfasl  QFS	:midas  MID
-:press  PRS	:widths  WID	:patch-directory  PDR
-:qwabl  QWB	:babyl  BAB	:mail  MAI	:xmail  XML
-:init  INI 	:unfasl  UNF	:output  OUT
+:lisp  LSP	:text  TXT	:qfasl  QFS	:midas  MID
+:press  PRS	:widths  WID	:patch-directory  PDR
+:qwabl  QWB	:babyl  BAB	:mail  MAI	:xmail  XML
+:init  INI 	:unfasl  UNF	:output  OUT
 .end_lisp
 
 .subsection Unix and Multics Pathnames
@@ -1595,10 +1595,10 @@ preferred mappings of all canonical types are one or two characters
 long.  We give here the mappings in raw form; they are actually
 specified in interchange form.
 .lisp
-:lisp  l	:text  tx	:qfasl  qf	:midas  md
-:press  pr	:widths  wd	:patch-directory  pd
-:qwabl  qw	:babyl  bb	:mail  ma	:xmail  xm
-:init  in	:unfasl  uf	:output  ot
+:lisp  l	:text  tx	:qfasl  qf	:midas  md
+:press  pr	:widths  wd	:patch-directory  pd
+:qwabl  qw	:babyl  bb	:mail  ma	:xmail  xm
+:init  in	:unfasl  uf	:output  ot
 .end_lisp
 
 .cindex Multics pathnames
@@ -1866,9 +1866,9 @@ There is no way to specify a device; parsing a logical pathname
 always returns a pathname whose device component is 3:unspecific*.
 This is because devices don't have any meaning in logical pathnames.
 
-The equivalence-sign character (3*) can be used for quoting special
+The equivalence-sign character (3*) can be used for quoting special
 characters such as spaces and semicolons.  The double-arrow character
-(`3*') can be used as a place-holder for components that are 3nil*,
+(`3*') can be used as a place-holder for components that are 3nil*,
 and the up-horseshoe (`3*') indicates 3:unspecific* (generic pathnames
 typically have 3:unspecific* as the type and the version).
 All letters are mapped to upper case unless quoted.  The 3:newest*, 3:oldest*,
@@ -1913,7 +1913,7 @@ pathname that follows 3ED-FILE*, when the pathname is parsed.
 Each host known to the Lisp Machine is represented by a flavor instance
 known as a host object.  The host object records such things as the name(s)
 of the host, its operating system type, and its network address(es).
-Host objects print like 3#FS:TOPS20-CHAOS-HOST "MIT-OZ"*, so they
+Host objects print like 3#FS:TOPS20-CHAOS-HOST "MIT-OZ"*, so they
 can be read back in.
 
 Not all hosts support file access.  Those that do support it appear on the list

@@ -388,7 +388,7 @@ in the original control string.
 .end_lisp
 likewise returns 3"4 24 9"*.
 
-.item ~2str*~
+.item ~2str*~
 Performs the formatting specified by 2str*, with indentation on
 any new lines.  Each time a 3Return* is printed during the processing of 2str*,
 it is followed by indentation sufficient to line up underneath the place

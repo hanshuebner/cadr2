@@ -605,7 +605,7 @@ returns a value, the form and the values are printed out preceded by a
 backwards arrow (7*) character; if there is more than one value
 being returned, an and-sign (7*) character is printed between the
 values.  When the stepper has evaluated the args to a form and is about
-to apply the function, it prints a lambda (7*) because entering the
+to apply the function, it prints a lambda (7*) because entering the
 lambda is the next thing to be done.
 
 	Since the forms may be very long, the stepper does not print all

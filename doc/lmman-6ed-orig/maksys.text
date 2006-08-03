@@ -394,7 +394,8 @@ or special variables defined in 3c*) you would write the transformations
 (:compile-load a (:fasload b c) (:fasload c))
 (:compile-load b (:fasload c))
 .end_lisp
-
+
+.page
 .section Making a System
 
 .defun make-system name &rest keywords
@@ -506,7 +507,8 @@ so that such programs can include forms like
 (make-system 'mysys (if compile-p :compile :noop))
 .end_lisp
 .end_table
-
+
+.page
 .section Adding New Keywords to make-system
 
 3make-system* keywords are defined as functions on the

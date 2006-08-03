@@ -1,0 +1,9 @@
+.arg {
+        font-style: italic;
+}
+
+.obj {
+        font-family: sans-serif;
+        font-size: 80%;
+        font-weight: bold;
+}

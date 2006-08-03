@@ -136,8 +136,8 @@
 (defun lookup-ref (key)
   (gethash key *global-directory*))
 
-(defun enter-ref (key type value)
-  (let ((value (cons type value)))
+(defun enter-ref (key type value &optional (title value))
+  (let ((value (list type value title)))
     (when (and (lookup-ref key)
                (not (equal value (lookup-ref key))))
       (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
@@ -151,7 +151,9 @@
          (text (subseq line 0 it))
          (with-element "ref"
            (aif (lookup-ref key)
-                (attribute (string-downcase (symbol-name (car it))) (princ-to-string (cdr it)))
+                (progn
+                  (attribute (string-downcase (symbol-name (first it))) (princ-to-string (second it)))
+                  (attribute "title" (third it)))
                 (pushnew key *unresolved-references*))
            (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
@@ -374,7 +376,23 @@ The line given as argument is assumed to begin with .def"
    (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)$" line)
    (let ((no-index (equal modifier "_no_index"))
          (end-symbol (intern (format nil "~:@(end_def~A~)" type)))
-         method-name)
+         method-name
+         (type-title (case (intern type)
+                       (un "Function")
+                       (method "Method")
+                       (metamethod "Meta-Method")
+                       (const "Constant")
+                       (condition "Condition")
+                       (spec "Special Form")
+                       (mac "Macro")
+                       (flavor "Flavor")
+                       (flavor-condition "Flavor Condition")
+                       (condition-flavor "Condition Flavor")
+                       (var "Variable")
+                       (initoption "Initialization Option")
+                       (meter "Meter")
+                       (t type)))
+         (name-title name))
      (setf type
            (cond
              ((equal type "un") "fun")
@@ -384,6 +402,7 @@ The line given as argument is assumed to begin with .def"
      (when (equal type "method")
        (register-groups-bind
         (method-name-buf args-buf) (#?r"^:(\S+)\s*(.*)$" args)
+        (setf name-title (format nil "~A :~A" name method-name-buf))
         (setf method-name method-name-buf)
         (setf args args-buf)))
      (unless no-index
@@ -393,7 +412,8 @@ The line given as argument is assumed to begin with .def"
                           (if (find type '("spec" "mac") :test #'equal)
                               "fun"
                               type))
-                  :definition-in-file *current-file-name*))
+                  :definition-in-file *current-file-name*
+                  (format nil "~A ~A" type-title name-title)))
      (with-element "define"
        (attribute "type" type)
        (attribute "name" name)
@@ -493,11 +513,14 @@ The line given as argument is assumed to begin with .def"
                                 :if-exists :supersede
                                 :external-format charset:utf-8)
           (with-xml-output (make-character-stream-sink output)
-            (continue-parsing)
-            (handler-case
-                nil
-              (error (e)
-                (file-warn "Error: ~A" e))))))
+            (sax:processing-instruction cxml::*sink* "xml-stylesheet" "type=\"text/xsl\" href=\"lmman.xsl\"")
+            (with-element "document-part"
+              (xml-newline)
+              (handler-case
+                  (continue-parsing)
+                (error (e)
+                  (file-warn "Error: ~A" e)))
+              (xml-newline)))))
       (when *font-stack*
         (file-warn "imbalanced font specifications")))))
 
@@ -530,3 +553,19 @@ The line given as argument is assumed to begin with .def"
   (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
     (format t "~&checking ~A" name)
     (check-xml-file-for-bad-characters name)))
+
+(defun xmllint-file (name)
+  (let ((pathname (merge-pathnames *output-directory*
+                                   (make-pathname :name name :type "xml"))))
+    (ext:run-program "xmllint" :arguments `("-noout" ,(namestring pathname)))
+    #+(or)
+    (with-open-stream (stream (ext:run-program "xmllint" :arguments `("-noout" ,(namestring pathname)) :output :stream))
+      (do ((line (read-line stream nil) (read-line stream nil)))
+          ((not line))
+        (princ line)))))
+
+(defun xmllint-files ()
+  (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
+    (format t "~&xmllinting ~A" name)
+    (xmllint-file name)))
+
