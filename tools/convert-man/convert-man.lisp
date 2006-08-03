@@ -182,6 +182,7 @@
 
 (defmacro with-paragraph (tag &body body)
   `(let ((*in-paragraph* ,tag))
+    (file-warn "start paragraph ~A" ,tag)
     (with-element ,tag
       ,@body)))
 
@@ -392,7 +393,7 @@ The line given as argument is assumed to begin with .def"
          (xml-newline))
        (unless (equal "1" modifier)
          (xml-newline)
-         (with-element "description"
+         (with-paragraph "description"
            (continue-parsing :stop-after end-symbol)))))))
 
 (defun continue-parsing (&key stop-before stop-after stop-any)
@@ -433,6 +434,7 @@ The line given as argument is assumed to begin with .def"
                           (unless *suppress-warnings*
                             (file-warn "unknown bolio command ~A" command)))))))))
       (loop for line = (read-input-line)
+            with *paragraph-has-lines* = nil
             while line
             do (cond
                  ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
@@ -442,19 +444,23 @@ The line given as argument is assumed to begin with .def"
                   (handle-bolio-command line))
                  (t
                   (when (and (equal *in-paragraph* "p")
+                             *paragraph-has-lines*
                              (or (zerop (length line))
                                  (eq #\Tab (aref line 0))))
+                    (file-warn "end of P paragraph detected (~S)" line)
                     (unless (zerop (length line))
                       (unread-input-line))
                     (return-from continue-parsing))
                   (cond
                     (*in-paragraph*
+                     (setf *paragraph-has-lines* t)
                      (font-expand (unquote-line line))
                      (xml-newline))
                     (t
                      (with-paragraph "p"
                        (unread-input-line)
-                       (continue-parsing))))))))))
+                       (continue-parsing))
+                     (xml-newline)))))))))
 
 (defun process-bolio-file (name)
   (let ((input-pathname (merge-pathnames *input-directory*
