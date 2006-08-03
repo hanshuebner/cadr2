@@ -20,8 +20,6 @@
 
 ;; Document constants
 
-(defvar *manual-filenames* )
-
 (defvar *manual-filenames*
   '(title intro fd-dtp fd-eva fd-flo fd-con resour fd-sym fd-num
     fd-arr generic fd-str fd-fun fd-clo fd-sg fd-loc fd-sub areas compil
