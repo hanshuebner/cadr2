@@ -793,7 +793,7 @@ is equivalent to:
 .lisp
 (do ((i 0 (1+ i))
      (count (truncate m n)))
-    (( i count))
+    (( i count))
   (frob i))
 .end_lisp
 except that the name 3count* is not used.  Note that 3i* takes on
