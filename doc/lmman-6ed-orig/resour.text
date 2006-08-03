@@ -181,8 +181,8 @@ and would not reuse a pre-existing array very often.  So you might write:
 .lisp
 (defresource sloppy-two-dimensional-array (rows columns)
     :constructor (make-array (list rows columns))
-    :matcher (and ( (array-dimension-n 1 object) rows)
-		  ( (array-dimension-n 2 object) columns)))
+    :matcher (and ( (array-dimension-n 1 object) rows)
+		  ( (array-dimension-n 2 object) columns)))
 .end_lisp
 .end_defmac
 
