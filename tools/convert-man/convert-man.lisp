@@ -170,6 +170,7 @@
 (defvar *chapter-number* 0)
 (defvar *section-number* 0)
 (defvar *subsection-number* 0)
+(defvar *in-paragraph*)
 
 (defmacro define-unparsed-bolio-handler (name (arg) &body body)
   `(setf (gethash ',name *unparsed-handlers*)
@@ -178,6 +179,11 @@
 (defmacro define-bolio-handler (name (&rest args) &body body)
   `(setf (gethash ',name *parsed-handlers*)
     (lambda (,@args) ,@body)))
+
+(defmacro with-paragraph (tag &body body)
+  `(let ((*in-paragraph* ,tag))
+    (with-element ,tag
+      ,@body)))
 
 (define-unparsed-bolio-handler chapter (title)
   (incf *chapter-number*)
@@ -206,8 +212,32 @@
 (define-unparsed-bolio-handler c (comment)
   )
 
+(define-bolio-handler nofill ()
+  (with-element "pre"
+    (continue-parsing :stop-after 'fill)))
+
+(define-bolio-handler br ()
+  (with-element "br"))
+
+(define-bolio-handler sp ()
+  (with-element "sp"))
+
+(define-bolio-handler group ()
+  (with-element "group"
+    (continue-parsing :stop-after 'apart)))
+
+(define-bolio-handler page ()
+  (with-element "page"))
+
+(define-bolio-handler need (amount)
+  (with-element "need"
+    (attribute "amount" amount)))
+
+(define-bolio-handler nopara ()
+  (with-element "nopara"))
+
 (define-bolio-handler table (&rest args)
-  (with-element "table"
+  (with-paragraph "table"
     (with-element "tbody"
       (continue-parsing :stop-after 'end_table))))
 
@@ -266,8 +296,12 @@
     (attribute "file" file))
   (process-bolio-file file))
 
+(define-bolio-handler eof ()
+  (with-element "disabled"
+    (continue-parsing)))
+
 (define-bolio-handler lisp ()
-  (with-element "lisp"
+  (with-paragraph "lisp"
     (continue-parsing :stop-after 'end_lisp)))
 
 (defun dbg (format &rest args)
@@ -324,16 +358,31 @@ documented together in one text block.  These commands are handled
 seperately since they require a lot of special processing.
 The line given as argument is assumed to begin with .def"
   (register-groups-bind
-   (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)" line)
-   (let ((end-symbol (intern (format nil "~:@(end_def~A~)" type))))
-     (when (equal type "un")
-       (setf type "fun"))
-     (let ((ref-key (format nil "~A-~A" name (if (find type '("spec" "mac") :test #'equal) "fun" type))))
-       (enter-ref ref-key *current-file-name*))
+   (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)$" line)
+   (let ((no-index (equal modifier "_no_index"))
+         (end-symbol (intern (format nil "~:@(end_def~A~)" type)))
+         method-name)
+     (setf type
+           (cond
+             ((equal type "un") "fun")
+             ((equal type "metamethod") "method")
+             ((equal type "const") "var")
+             (t type)))
+     (when (equal type "method")
+       (setf method-name (subseq (first (split " " args)) 1))
+       (setf args (regex-replace #?r"^\S+\s" args "")))
+     (unless no-index
+       (enter-ref (format nil "~A~@[-~(~A~)~]-~A"
+                          name
+                          method-name
+                          (if (find type '("spec" "mac") :test #'equal)
+                              "fun"
+                              type))
+                  *current-file-name*))
      (with-element "define"
        (attribute "type" type)
        (attribute "name" name)
-       (when (equal modifier "_no_index")
+       (when no-index
          (attribute "no-index" "1"))
        (unless (equal "" args)
          (with-element "args"
@@ -353,6 +402,9 @@ The line given as argument is assumed to begin with .def"
            (incf *current-line-number*)
            (setf last-line-position (file-position *bolio-input-stream*))
            (read-line *bolio-input-stream* nil))
+         (unread-input-line ()
+           (decf *current-line-number*)
+           (file-position *bolio-input-stream* last-line-position))
          (handle-bolio-command (line)
            (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
                                                                     (length line))))))
@@ -365,8 +417,7 @@ The line given as argument is assumed to begin with .def"
                (file-warn "expected ~A but saw ~A" stop-after command))
              (cond
                ((find command (ensure-list stop-before))
-                (decf *current-line-number*)
-                (file-position *bolio-input-stream* last-line-position)
+                (unread-input-line)
                 (dbg "stopped before ~A" stop-before)
                 (return-from continue-parsing))
                ((eq command stop-after)
@@ -383,17 +434,27 @@ The line given as argument is assumed to begin with .def"
                             (file-warn "unknown bolio command ~A" command)))))))))
       (loop for line = (read-input-line)
             while line
-            do (progn
-                 (cond
-                   ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
-                    (when stop-any
-                      (decf *current-line-number*)
-                      (file-position *bolio-input-stream* last-line-position)
-                      (return-from continue-parsing))
-                    (handle-bolio-command line))
-                   (t
-                    (font-expand (unquote-line line))
-                    (xml-newline))))))))
+            do (cond
+                 ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
+                  (when stop-any
+                    (unread-input-line)
+                    (return-from continue-parsing))
+                  (handle-bolio-command line))
+                 (t
+                  (when (and (equal *in-paragraph* "p")
+                             (or (zerop (length line))
+                                 (eq #\Tab (aref line 0))))
+                    (unless (zerop (length line))
+                      (unread-input-line))
+                    (return-from continue-parsing))
+                  (cond
+                    (*in-paragraph*
+                     (font-expand (unquote-line line))
+                     (xml-newline))
+                    (t
+                     (with-paragraph "p"
+                       (unread-input-line)
+                       (continue-parsing))))))))))
 
 (defun process-bolio-file (name)
   (let ((input-pathname (merge-pathnames *input-directory*
@@ -405,7 +466,8 @@ The line given as argument is assumed to begin with .def"
     (let ((*current-file* (namestring input-pathname))
           (*current-file-name* name)
           (*font-stack* nil)
-          (*current-line-number* 0))
+          (*current-line-number* 0)
+          (*in-paragraph* nil))
       (with-open-file (*bolio-input-stream* input-pathname)
         (with-open-file (output output-pathname
                                 :direction :output

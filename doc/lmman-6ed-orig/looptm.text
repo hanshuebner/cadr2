@@ -13,7 +13,7 @@
 .c differring lisp implementations, the users of which often know
 .c little about the others.
 
-.if_lmman_chapter_else_noop The LOOP Iteration Macro
+.chapter The LOOP Iteration Macro
 
 .chapter Introduction
 .c For the sake of the Lispm Manual:
@@ -72,7 +72,7 @@ flexible and convenient.  The former are invited to stick to 3do*.
 .end_lisp
 prints each element in its argument, which
 should be a list.  It returns 3nil*.
-.end_group
+.apart
 .space 1
 .group
 .lisp
@@ -83,7 +83,7 @@ should be a list.  It returns 3nil*.
 takes an association list and
 returns a list of the keys;  that is, 3(gather-alist-entries
 '((foo 1 2) (bar 259) (baz)))* returns 3(foo bar baz)*.
-.end_group
+.apart
 .space 1
 .group
 .lisp
@@ -94,7 +94,7 @@ returns a list of the keys;  that is, 3(gather-alist-entries
 takes two arguments, which should be
 integers, and returns a list of all the numbers in that range
 (inclusive) which satisfy the predicate 3interesting-p*.
-.end_group
+.apart
 .space 1
 .group
 .lisp
@@ -104,7 +104,7 @@ integers, and returns a list of all the numbers in that range
 .end_lisp
 returns the maximum of the elements
 of its argument, a one-dimensional array.
-.end_group
+.apart
 .group
 .space 1
 .lisp
@@ -114,7 +114,7 @@ of its argument, a one-dimensional array.
 .end_lisp
 is like the standard function 3remove*, except
 that it copies the entire list.
-.end_group
+.apart
 .space 1
 .group
 .lisp
@@ -127,7 +127,7 @@ that it copies the entire list.
 returns the first element of its list argument which
 satisfies the predicate 3frobp*.  If none is found, an error is
 signaled.
-.end_group
+.apart
 
 Common Lisp defines 3loop* as equivalent to 3do-forever*: it is used
 with a body consisting only of forms to be evaluated until a nonlocal
@@ -652,7 +652,7 @@ The following computes the average of the entries in the list
       sum x into sum-var
     finally (return (cli:// sum-var count-var)))
 .end_lisp
-.end_group
+.apart
 
 .section Endtests
 .topic terminating the iteration
@@ -852,7 +852,7 @@ may only be used in the first.  If multiple 3when*s,
 3unless*es, and/or 3if*s occur in sequence, the value
 substituted for 3it* will be that of the last test performed.
 The 3it* keyword is not recognized in an 3else*-phrase.
-.end_group
+.apart
 
 .section Miscellaneous Other Clauses
 
@@ -1032,7 +1032,7 @@ that type.  That is, the previous form could be written as
 .end_lisp
 maps 2fn* over the properties on 2symbol*, giving it arguments
 of the symbol, the property name, and the value of that property.
-.end_group
+.apart
 .c 	In Lisp implementations where 3loop* performs its own
 .c destructuring, notably Multics Maclisp and Zetalisp, one can
 .c cause 3loop* to use already provided destructuring support
@@ -1361,7 +1361,7 @@ for 2var* being the array-elements of 2array*
 will step 2var* over the elements of 2array*, starting from
 element 0.  The sequence path function also accepts 3in* as a
 synonym for 3of*.
-.end_group
+.apart
 	The range and stepping of the iteration may be specified with
 the use of all of the same keywords which are accepted by the 3loop*
 arithmetic stepper (3for 2var* from ...*);  they are

@@ -45,7 +45,7 @@ would instead be interpreted as the following form:
 All of the functions are traced with the same options.  Each 2function* can
 be either a symbol or a general function-spec.
 .end_table
-.end_defun
+.end_defspec
 
 	The following 3trace* options exist:
 .table 3 0 1500
@@ -236,7 +236,7 @@ Undoes the effects of 3trace* and restores functions to
 their normal, untraced state.  3untrace* accepts multiple specifications,
 e.g. 3(untrace foo quux fuphoo)*.  Calling 3untrace* with no arguments
 will untrace all functions currently being traced.
-.end_defun
+.end_defspec
 
 .defvar trace-compile-flag
 If the value of 3trace-compile-flag* is non-3nil*, the functions
