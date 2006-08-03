@@ -337,7 +337,7 @@ and modifier bit prefixes have been printed then
 a single-character escape character is printed before it.
 
 In traditional syntax, the p.r. is the similar except that the 7\* is
-replaced by 7/*.
+replaced by 7/*.
 
 .need 1800
 .nopara
@@ -1143,10 +1143,10 @@ in either case.
 In Common Lisp syntax, 7#\* produces a character object rather than
 a fixnum representing a character.
 
-.item #/
-7#/*2x* is the traditional syntax way to produce a character object.
+.item #/
+7#/*2x* is the traditional syntax way to produce a character object.
 It is used just like 7#/*.  Thus, Common Lisp 7#\* is equivalent to
-traditional syntax 7#/*.
+traditional syntax 7#/*.
 
 .item #^
 7#^2x** is exactly like 7#/*3control-2x** if the input is being

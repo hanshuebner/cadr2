@@ -624,9 +624,9 @@ Like 3position-if* and 3find-if* but search for an element which matches 2i
 using 2test* or 2test-not* for comparison.
 .lisp
 (position #\A "BabA" :test 'char-equal)  =>  1
-(position #/A "BabA" :test 'equalp)  =>  1
+(position #/A "BabA" :test 'equalp)  =>  1
 (position #\A "BabA" :test 'char=)  =>  3
-(position #/A "BabA" :test 'eq)  =>  3
+(position #/A "BabA" :test 'eq)  =>  3
 .end_lisp
 3find-position-in-list* is equivalent to 3position* with
 3eq* as the value of 2test*.

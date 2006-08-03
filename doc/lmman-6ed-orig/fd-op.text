@@ -89,7 +89,7 @@ that two strings are 3equalp* if they match ignoring case and font information
 Because 3equalp* is a Common Lisp function, it regards a string as having
 character objects as its elements:
 .lisp
-(equalp "Foo" #(#/F #/o #/o)) => t
+(equalp "Foo" #(#/F #/o #/o)) => t
 (equalp "Foo" #(#/F #/o #/o)) => nil
 .end_lisp
 .end_defun

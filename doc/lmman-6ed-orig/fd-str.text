@@ -16,7 +16,7 @@ fixnums.  A character object is actually the same as a fixnum except
 that it has a recognizably different data type and prints differently.
 Without escaping, a character object is printed by outputting the
 character it represents.  With escaping, a character object prints as
-3#\2char** in Common Lisp syntax or as 3#/2char** in
+3#\2char** in Common Lisp syntax or as 3#/2char** in
 traditional syntax; see (character-set) and (sharp-slash).  By
 contrast, a fixnum would in all cases print as a sequence of digits.
 Character objects are accepted by most numeric functions in place of
@@ -63,7 +63,7 @@ if given a string.  For all other kinds of arrays, 3aref* and 3cli:aref*
 are equivalent.
 .lisp
 (aref "Foo" 1)  =>  #o157
-(cli:aref "Foo" 1)  =>  #/o
+(cli:aref "Foo" 1)  =>  #/o
 .end_lisp
 
 It is also legal to store into strings, for example using 3setf* of
@@ -744,7 +744,7 @@ is like 3string-equal* except that case is significant.
 .end_lisp
 .end_defun
 
-.defun string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun string string1 string2 &key (start1 30*) end1 (start2 30*) end2
 .defun1 string//= string1 string2 &key (start1 30*) end1 (start2 30*) end2
 3(not (string= ...))*.  Note that in Common Lisp syntax you would
 write 3string/=*, not 3string//=*.
@@ -775,8 +775,8 @@ not met, the value is 3nil*.
 .defun1 string> string1 string2 &key (start1 30*) end1 (start2 30*) end2
 .defun1 string>= string1 string2 &key (start1 30*) end1 (start2 30*) end2
 .defun1 string<= string1 string2 &key (start1 30*) end1 (start2 30*) end2
-.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
-.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
+.defun1 string string1 string2 &key (start1 30*) end1 (start2 30*) end2
 Like 3string-lessp*, etc., but treat case and font as significant
 when comparing characters.
 .lisp

@@ -79,14 +79,26 @@
     (t
      (warn "Unknown non-printable character with code ~A encountered" (char-code char)))))
 
-(defun unquote-line (line)
+(defun unquote-string (line)
   (let ((dc1-position (position #\dc1 line)))
     (if (null dc1-position)
         line
         (concatenate 'string
                      (subseq line 0 dc1-position)
                      (string (unquote-char (aref line (1+ dc1-position))))
-                     (unquote-line (subseq line (+ 2 dc1-position)))))))
+                     (unquote-string (subseq line (+ 2 dc1-position)))))))
+
+(defun expand-tabs (line)
+  (with-output-to-string (s)
+    (do ((i 0 (1+ i))
+         (col 0 (1+ col)))
+        ((eql i (length line)))
+      (let ((char (aref line i)))
+        (case char
+          (#\Tab (let ((spaces (- 8 (mod col 8))))
+                   (princ (make-string spaces :initial-element #\Space) s)
+                   (incf col (1- spaces))))
+          (t (princ char s)))))))
 
 (defun file-warn (&rest args)
   (format *debug-io* "~&~A:~A: " *current-file* *current-line-number*)
@@ -386,7 +398,7 @@ The line given as argument is assumed to begin with .def"
          (with-element "args"
            (dolist (arg (split #?r"\s+" args))
              (with-element "arg"
-               (text arg))))
+               (font-expand arg))))
          (xml-newline))
        (unless (equal "1" modifier)
          (xml-newline)
@@ -399,7 +411,7 @@ The line given as argument is assumed to begin with .def"
         ((read-input-line ()
            (incf *current-line-number*)
            (setf last-line-position (file-position *bolio-input-stream*))
-           (read-line *bolio-input-stream* nil))
+           (unquote-string (read-line *bolio-input-stream* nil)))
          (unread-input-line ()
            (decf *current-line-number*)
            (file-position *bolio-input-stream* last-line-position))
@@ -450,7 +462,7 @@ The line given as argument is assumed to begin with .def"
                   (cond
                     (*in-paragraph*
                      (setf *paragraph-has-lines* t)
-                     (font-expand (unquote-line line))
+                     (font-expand (expand-tabs line))
                      (xml-newline))
                     (t
                      (unless (equal "" line)
