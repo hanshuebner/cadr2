@@ -206,12 +206,15 @@
   (setf *subsection-number* 0)
   (with-element "chapter"
     (attribute "title" title)
+    (attribute "number" (princ-to-string *chapter-number*))
     (continue-parsing)))
 
 (define-unparsed-bolio-handler section (title)
-  #+(or) (setf (context-section-title *current-context*) title)
+  (incf *section-number*)
   (with-element "section"
     (attribute "title" title)
+    (attribute "chapter-number" (princ-to-string *chapter-number*))
+    (attribute "number" (princ-to-string *section-number*))
     (continue-parsing :stop-before 'section)))
 
 (define-unparsed-bolio-handler subsection (title)
@@ -251,17 +254,22 @@
 (define-bolio-handler nopara ()
   (with-element "nopara"))
 
-(define-bolio-handler table (&rest args)
-  (with-paragraph "table"
-    (with-element "tbody"
-      (continue-parsing :stop-after 'end_table))))
+(defvar *table-font* (font-name #\1))
+
+(define-bolio-handler table (&optional (font "1") &rest args)
+  (let ((*table-font* (font-name (aref font 0))))
+    (with-paragraph "table"
+      (with-element "tbody"
+        (continue-parsing :stop-after 'end_table)))))
 
 (defun handle-item (string)
   (with-element "tr"
     (with-element "td"
-      (font-expand string))
+      (with-element *table-font*
+        (font-expand string)))
     (with-element "td"
-      (continue-parsing :stop-before '(end_table item vitem)))))
+      (continue-parsing :stop-before '(end_table
+                                       item vitem kitem xitem item1 xitem1)))))
 
 (define-unparsed-bolio-handler item (string)
   (handle-item string))
@@ -324,20 +332,17 @@
     (apply #'format *debug-io* format args)
     (terpri *debug-io*)))
 
-(define-unparsed-bolio-handler cindex (name)
-  #+(or) (setf (chapter-index *current-chapter*) name))
-
 (define-bolio-handler setq (name value)
   (case (intern (string-upcase value))
     (chapter-number
      (make-anchor name)
-     (enter-ref name :chapter *chapter-number*))
+     (enter-ref name :definition-in-file *current-file-name* :chapter *chapter-number*))
     (css-number
      (make-anchor name)
-     (enter-ref name :section *section-number*))
+     (enter-ref name :definition-in-file *current-file-name* :section *section-number*))
     ((page section-page)
      (make-anchor name)
-     (enter-ref name :file *current-file-name*))
+     (enter-ref name :definition-in-file *current-file-name*))
     (t
      (file-warn "don't know how to enter ~A as reference" value))))
 
@@ -377,7 +382,7 @@ The line given as argument is assumed to begin with .def"
    (let ((no-index (equal modifier "_no_index"))
          (end-symbol (intern (format nil "~:@(end_def~A~)" type)))
          method-name
-         (type-title (case (intern type)
+         (type-title (case (intern (string-upcase type))
                        (un "Function")
                        (method "Method")
                        (metamethod "Meta-Method")

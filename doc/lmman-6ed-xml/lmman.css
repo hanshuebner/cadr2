@@ -7,3 +7,12 @@
         font-size: 80%;
         font-weight: bold;
 }
+
+p {
+        text-indent: 2em;
+        margin-bottom: 1em;
+}
+
+table, pre {
+        margin-left: 3em;
+}

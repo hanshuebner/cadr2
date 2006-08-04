@@ -27,17 +27,19 @@
  <!-- structural elements -->
 
  <xsl:template match="chapter">
-  <h1><xsl:value-of select="@title"/></h1>
+  <h1><xsl:value-of select="number"/>. <xsl:value-of select="@title"/></h1>
   <xsl:apply-templates/>
  </xsl:template>
 
  <xsl:template match="section">
-  <h2><xsl:value-of select="@title"/></h2>
+  <h2><xsl:value-of select="chapter-number"/>.<xsl:value-of select="number"/> <xsl:value-of select="@title"/></h2>
   <xsl:apply-templates/>
  </xsl:template>
 
  <xsl:template match="p">
-  <xsl:apply-templates/>
+  <p>
+   <xsl:apply-templates/>
+  </p>
  </xsl:template>
 
  <xsl:template match="pre">
