@@ -1,3 +1,7 @@
+body {
+        width: 40em;
+}
+
 .arg {
         font-style: italic;
 }
@@ -9,10 +13,43 @@
 }
 
 p {
-        text-indent: 2em;
+        margin-left: 1em;
+        margin-right: 1em;
         margin-bottom: 1em;
 }
 
-table, pre {
+p.indented {
+        text-indent: 2em;
+}
+
+pre {
         margin-left: 3em;
+        margin-right: 3em;
+}
+
+.definition {
+        margin-top: 1em;
+        width: 100%;
+}
+
+.definition-type-title {
+        right: 0px;
+}
+
+.description {
+        margin-left: 5em;
+}
+
+.arguments {
+        font-style: italic;
+}
+
+table {
+        margin-top: 1em;
+        margin-left: 3em;
+        margin-right: 3em;
+}
+
+td {
+        vertical-align: top;
 }

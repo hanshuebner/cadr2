@@ -136,12 +136,11 @@
 (defun lookup-ref (key)
   (gethash key *global-directory*))
 
-(defun enter-ref (key type value &optional (title value))
-  (let ((value (list type value title)))
-    (when (and (lookup-ref key)
-               (not (equal value (lookup-ref key))))
-      (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
-    (setf (gethash key *global-directory*) value)))
+(defun enter-ref (key &rest attributes)
+  (when (and (lookup-ref key)
+             (not (equal attributes (lookup-ref key))))
+    (file-warn "symbol ~A defined to two values (~A and ~A)" key attributes (lookup-ref key)))
+  (setf (gethash key *global-directory*) attributes))
 
 (defun ref-expand (line)
   (aif (position #\Syn line)
@@ -151,9 +150,9 @@
          (text (subseq line 0 it))
          (with-element "ref"
            (aif (lookup-ref key)
-                (progn
-                  (attribute (string-downcase (symbol-name (first it))) (princ-to-string (second it)))
-                  (attribute "title" (princ-to-string (third it))))
+                (loop for (key value) on it by #'cddr
+                      do (attribute (string-downcase (symbol-name key))
+                                    (princ-to-string value)))
                 (pushnew key *unresolved-references*))
            (attribute "key"  key))
          (ref-expand (subseq line (1+ close-paren-pos))))
@@ -200,17 +199,38 @@
     (with-element ,tag
       ,@body)))
 
+(defvar *chapter-title->name* (make-hash-table :test #'equal))
+(defvar *section-title->name* (make-hash-table :test #'equal))
+
+(defvar *current-chapter-title* "")
+(defvar *current-section-title* "")
+
+(defun possibly-unquote (string)
+  "remove quotes from string"
+  (register-groups-bind
+   (unquoted-string) (#?r"^\"(.*)\"$" string)
+   (return-from possibly-unquote unquoted-string))
+  string)
+
 (define-unparsed-bolio-handler chapter (title)
+  (setf title (possibly-unquote title))
   (incf *chapter-number*)
   (setf *section-number* 0)
   (setf *subsection-number* 0)
+  (setf *current-chapter-title* title)
+  (awhen (gethash title *chapter-title->name*)
+    (make-anchor it))
   (with-element "chapter"
     (attribute "title" title)
     (attribute "number" (princ-to-string *chapter-number*))
     (continue-parsing)))
 
 (define-unparsed-bolio-handler section (title)
+  (setf title (possibly-unquote title))
   (incf *section-number*)
+  (setf *current-section-title* title)
+  (awhen (gethash title *chapter-title->name*)
+    (make-anchor it))
   (with-element "section"
     (attribute "title" title)
     (attribute "chapter-number" (princ-to-string *chapter-number*))
@@ -218,11 +238,13 @@
     (continue-parsing :stop-before 'section)))
 
 (define-unparsed-bolio-handler subsection (title)
+  (setf title (possibly-unquote title))
   (with-element "subsection"
     (attribute "title" title)
     (continue-parsing :stop-before '(section subsection))))
 
 (define-unparsed-bolio-handler loop_subsection (title)
+  (setf title (possibly-unquote title))
   (with-element "subsection"
     (attribute "title" title)
     (continue-parsing :stop-before '(section subsection))))
@@ -335,14 +357,25 @@
 (define-bolio-handler setq (name value)
   (case (intern (string-upcase value))
     (chapter-number
-     (make-anchor name)
-     (enter-ref name :definition-in-file *current-file-name* :chapter *chapter-number*))
+     (setf (gethash *current-chapter-title* *chapter-title->name*) name)
+     (enter-ref name
+                :type "chapter"
+                :definition-in-file *current-file-name*
+                :chapter *chapter-number*
+                :title *chapter-number*))
+    (section-page
+     (setf (gethash *current-section-title* *section-title->name*) name))
     (css-number
      (make-anchor name)
-     (enter-ref name :definition-in-file *current-file-name* :section *section-number*))
-    ((page section-page)
-     (make-anchor name)
-     (enter-ref name :definition-in-file *current-file-name*))
+     (enter-ref name
+                :type "css"
+                :definition-in-file *current-file-name*
+                :section *section-number*
+                :title (format nil "~A.~A" *chapter-number* *section-number*)))
+    (page
+     (enter-ref name
+                :type "page"
+                :definition-in-file *current-file-name*))
     (t
      (file-warn "don't know how to enter ~A as reference" value))))
 
@@ -370,6 +403,33 @@
       (list thing)
       thing))
 
+(let ((last-line-position))
+  (defun read-input-line ()
+    (incf *current-line-number*)
+    (setf last-line-position (file-position *bolio-input-stream*))
+    (read-line *bolio-input-stream* nil))
+
+  (defun unread-input-line ()
+    (decf *current-line-number*)
+    (file-position *bolio-input-stream* last-line-position)))
+
+(defun type-title (type-symbol)
+  (ecase type-symbol
+    (message "Message")
+    (fun "Function")
+    (method "Method")
+    (metamethod "Meta-Method")
+    (const "Constant")
+    (condition "Condition")
+    (spec "Special Form")
+    (mac "Macro")
+    (flavor "Flavor")
+    (flavor-condition "Flavor Condition")
+    (condition-flavor "Condition Flavor")
+    (var "Variable")
+    (initoption "Initialization Option")
+    (meter "Meter")))
+
 (defun handle-bolio-definition (line)
   "Defining commands in bolio begin with .def - The command may be
 suffixed with _no_index if the definition should not be indexed, or
@@ -377,127 +437,124 @@ with 1 if the definition is one of multiple definitions which are
 documented together in one text block.  These commands are handled
 seperately since they require a lot of special processing.
 The line given as argument is assumed to begin with .def"
-  (register-groups-bind
-   (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)$" line)
-   (let ((no-index (equal modifier "_no_index"))
-         (end-symbol (intern (format nil "~:@(end_def~A~)" type)))
-         method-name
-         (type-title (case (intern (string-upcase type))
-                       (un "Function")
-                       (method "Method")
-                       (metamethod "Meta-Method")
-                       (const "Constant")
-                       (condition "Condition")
-                       (spec "Special Form")
-                       (mac "Macro")
-                       (flavor "Flavor")
-                       (flavor-condition "Flavor Condition")
-                       (condition-flavor "Condition Flavor")
-                       (var "Variable")
-                       (initoption "Initialization Option")
-                       (meter "Meter")
-                       (t type)))
-         (name-title name))
-     (setf type
-           (cond
-             ((equal type "un") "fun")
-             ((equal type "metamethod") "method")
-             ((equal type "const") "var")
-             (t type)))
-     (when (equal type "method")
-       (register-groups-bind
-        (method-name-buf args-buf) (#?r"^:(\S+)\s*(.*)$" args)
-        (setf name-title (format nil "~A :~A" name method-name-buf))
-        (setf method-name method-name-buf)
-        (setf args args-buf)))
-     (unless no-index
-       (enter-ref (format nil "~A~@[-~(~A~)~]-~A"
-                          name
-                          method-name
-                          (if (find type '("spec" "mac") :test #'equal)
-                              "fun"
-                              type))
-                  :definition-in-file *current-file-name*
-                  (format nil "~A ~A" type-title name-title)))
-     (with-element "define"
-       (attribute "type" type)
-       (attribute "name" name)
-       (when no-index
-         (attribute "no-index" "1"))
-       (unless (equal "" args)
-         (with-element "args"
-           (font-expand args))
-         (xml-newline))
-       (unless (equal "1" modifier)
-         (xml-newline)
-         (with-paragraph "description"
-           (continue-parsing :stop-after end-symbol)))))))
+  (let (end-symbol)
+    (labels
+        ((handle-one-definition (line)
+           (register-groups-bind
+            (type modifier name nil args) (#?r"^.def(\S+?)(|1|_no_index)\s+(\S+)(\s|$)(.*)$" line)
+            (when (equal type "un")
+              (setf type "fun"))
+            #+(or)
+            (format t "~&type ~A modifier ~A name ~A args ~A" type modifier name args)
+            (let* ((no-index (equal modifier "_no_index"))
+                   method-name
+                   (type-symbol (intern (string-upcase type)))
+                   (type-name (string-downcase (symbol-name type-symbol)))
+                   (type-title (type-title type-symbol))
+                   (name-title name)
+                   (key-suffix (case type-symbol
+                                 ((fun spec mac) "fun")
+                                 (metamethod "method")
+                                 (const "var")
+                                 (t type))))
+              (setf end-symbol (if (eq type-symbol 'fun)
+                                   'end_defun
+                                   (intern (format nil "~:@(end_def~A~)" type))))
+              #+(or)
+              (format t "~&name ~A type ~A type-symbol ~A type-name ~A type-title ~A key-suffix ~A"
+                      name type type-symbol type-name type-title key-suffix)
+              (when (find type-symbol '(method metamethod))
+                (register-groups-bind
+                 (method-name-buf args-buf) (#?r"^:(\S+)\s*(.*)$" args)
+                 (setf name-title (format nil "~A :~A" name method-name-buf))
+                 (setf method-name method-name-buf)
+                 (setf args args-buf)))
+              (unless no-index
+                (make-index-entry type-name (format nil "~A~@[ ~A~]" name method-name))
+                (enter-ref (format nil "~A~@[-~(~A~)~]-~A"
+                                   name
+                                   method-name
+                                   key-suffix)
+                           :type type-name
+                           :definition-in-file *current-file-name*
+                           :title (format nil "~A ~A" type-title name-title)))
+              (with-element "define"
+                (attribute "type" type-name)
+                (attribute "name" name)
+                (when no-index
+                  (attribute "no-index" "1"))
+                (unless (equal "" args)
+                  (with-element "args"
+                    (font-expand args)))
+                (xml-newline))))))
+      (with-element "definition"
+        (handle-one-definition line)
+        (do ((alternate-definition-line (read-input-line) (read-input-line)))
+            ((not (scan #?r"^\.def" alternate-definition-line)) (unread-input-line))
+          (handle-one-definition (convert-charset alternate-definition-line)))
+        (xml-newline)
+        (with-paragraph "description"
+          (continue-parsing :stop-after end-symbol))))))
 
 (defun continue-parsing (&key stop-before stop-after stop-any)
-  (let (last-line-position)
-    (labels
-        ((read-input-line ()
-           (incf *current-line-number*)
-           (setf last-line-position (file-position *bolio-input-stream*))
-           (read-line *bolio-input-stream* nil))
-         (unread-input-line ()
-           (decf *current-line-number*)
-           (file-position *bolio-input-stream* last-line-position))
-         (handle-bolio-command (line)
-           (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
-                                                                    (length line))))))
-                 (arg-string (aif (position #\Space line)
-                                  (subseq line (1+ it))
-                                  "")))
-             (when (and stop-after
-                        (scan "^END" (symbol-name command))
-                        (not (eq command stop-after)))
-               (file-warn "expected ~A but saw ~A" stop-after command))
-             (cond
-               ((find command (ensure-list stop-before))
-                (unread-input-line)
-                (dbg "stopped before ~A" stop-before)
-                (return-from continue-parsing))
-               ((eq command stop-after)
-                (dbg "stopped after ~A" stop-after)
-                (return-from continue-parsing))
-               ((equal "def" (subseq line 1 (min (length line) 4)))
-                (handle-bolio-definition line))
+  (labels
+      ((handle-bolio-command (line)
+         (let ((command (intern (string-upcase (subseq line 1 (or (position #\Space line)
+                                                                  (length line))))))
+               (arg-string (aif (position #\Space line)
+                                (subseq line (1+ it))
+                                "")))
+           (when (and stop-after
+                      (scan "^END" (symbol-name command))
+                      (not (eq command stop-after)))
+             (file-warn "expected ~A but saw ~A" stop-after command))
+           (cond
+             ((find command (ensure-list stop-before))
+              (unread-input-line)
+              (dbg "stopped before ~A" stop-before)
+              (return-from continue-parsing))
+             ((eq command stop-after)
+              (dbg "stopped after ~A" stop-after)
+              (return-from continue-parsing))
+             ((equal "def" (subseq line 1 (min (length line) 4)))
+              (handle-bolio-definition line))
+             (t
+              (aif (gethash command *unparsed-handlers*)
+                   (funcall it arg-string)
+                   (aif (gethash command *parsed-handlers*)
+                        (apply it (parse-arguments arg-string))
+                        (unless *suppress-warnings*
+                          (file-warn "unknown bolio command ~A" command)))))))))
+    (loop for line = (read-input-line)
+          with *paragraph-has-lines* = nil
+          while line
+          do (cond
+               ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
+                (when stop-any
+                  (unread-input-line)
+                  (return-from continue-parsing))
+                (handle-bolio-command (convert-charset line)))
                (t
-                (aif (gethash command *unparsed-handlers*)
-                     (funcall it arg-string)
-                     (aif (gethash command *parsed-handlers*)
-                          (apply it (parse-arguments arg-string))
-                          (unless *suppress-warnings*
-                            (file-warn "unknown bolio command ~A" command)))))))))
-      (loop for line = (read-input-line)
-            with *paragraph-has-lines* = nil
-            while line
-            do (cond
-                 ((and (not (zerop (length line))) (find (aref line 0) '(#\. #\')))
-                  (when stop-any
-                    (unread-input-line)
-                    (return-from continue-parsing))
-                  (handle-bolio-command (convert-charset line)))
-                 (t
-                  (when (and (equal *in-paragraph* "p")
-                             *paragraph-has-lines*
-                             (or (zerop (length line))
-                                 (eq #\Tab (aref line 0))))
-                    (unless (zerop (length line))
-                      (unread-input-line))
-                    (return-from continue-parsing))
-                  (cond
-                    (*in-paragraph*
-                     (setf *paragraph-has-lines* t)
-                     (font-expand (expand-tabs (convert-charset line)))
-                     (xml-newline))
-                    (t
-                     (unless (equal "" line)
-                       (with-paragraph "p"
-                         (unread-input-line)
-                         (continue-parsing))
-                       (xml-newline))))))))))
+                (when (and (equal *in-paragraph* "p")
+                           *paragraph-has-lines*
+                           (or (zerop (length line))
+                               (eq #\Tab (aref line 0))))
+                  (unless (zerop (length line))
+                    (unread-input-line))
+                  (return-from continue-parsing))
+                (cond
+                  (*in-paragraph*
+                   (setf *paragraph-has-lines* t)
+                   (font-expand (expand-tabs (convert-charset line)))
+                   (xml-newline))
+                  (t
+                   (unless (equal "" line)
+                     (with-paragraph "p"
+                       (when (eq #\Tab (aref line 0))
+                         (attribute "indent" "1"))
+                       (unread-input-line)
+                       (continue-parsing))
+                     (xml-newline)))))))))
 
 (defun process-bolio-file (name)
   (format *debug-io* "~&Processing ~A" name)

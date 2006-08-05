@@ -1,4 +1,4 @@
- .c This file is part of the Lisp Machine manual.	-*-Bolio-*-
+.c This file is part of the Lisp Machine manual.	-*-Bolio-*-
 .c Macros: introduction, examples, DEFMACRO, backquote.
 .c Note: there are still some sections to be written; see end of the file.
 
