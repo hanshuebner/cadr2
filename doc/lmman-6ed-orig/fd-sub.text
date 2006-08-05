@@ -45,7 +45,7 @@ access or modify the cell addressed by the locative without regard to what
 object the cell is inside.  Subprimitives can be used to create locatives
 to strange places.
 
-.section Data Types
+.section Data Types 
 
 .defun data-type arg
 3data-type* returns a symbol that is the name for the internal
