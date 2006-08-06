@@ -66,9 +66,27 @@
  <xsl:template match="define">
   <div class="define">
    <a name="{@name}-{@type}"/>
+   <span class="definition-type-title">
+    <xsl:choose>
+     <xsl:when test="@type = 'message'">Message</xsl:when>
+     <xsl:when test="@type = 'fun'">Function</xsl:when>
+     <xsl:when test="@type = 'method'">Method</xsl:when>
+     <xsl:when test="@type = 'metamethod'">Meta-Method</xsl:when>
+     <xsl:when test="@type = 'const'">Constant</xsl:when>
+     <xsl:when test="@type = 'condition'">Condition</xsl:when>
+     <xsl:when test="@type = 'spec'">Special Form</xsl:when>
+     <xsl:when test="@type = 'mac'">Macro</xsl:when>
+     <xsl:when test="@type = 'flavor'">Flavor</xsl:when>
+     <xsl:when test="@type = 'flavor-condition'">Flavor Condition</xsl:when>
+     <xsl:when test="@type = 'condition-flavor'">Condition Flavor</xsl:when>
+     <xsl:when test="@type = 'var'">Variable</xsl:when>
+     <xsl:when test="@type = 'initoption'">Initialization Option</xsl:when>
+     <xsl:when test="@type = 'meter'">Meter</xsl:when>
+     <xsl:otherwise><xsl:value-of select="@type"/></xsl:otherwise>
+    </xsl:choose>
+   </span>
    <b><xsl:value-of select="@name"/></b>
    <xsl:apply-templates/>
-   <span class="definition-type-title"><xsl:value-of select="@type"/></span>
   </div>
  </xsl:template>
 
@@ -89,6 +107,9 @@
  </xsl:template>
 
  <!-- font selections -->
+ <xsl:template match="standard">
+  <span class="standard"><xsl:apply-templates/></span>
+ </xsl:template>
 
  <xsl:template match="obj">
   <span class="obj"><xsl:apply-templates/></span>
@@ -105,7 +126,7 @@
  <!-- tables -->
 
  <xsl:template match="table">
-  <table border="1">
+  <table>
    <tbody>
     <xsl:apply-templates/>
    </tbody>

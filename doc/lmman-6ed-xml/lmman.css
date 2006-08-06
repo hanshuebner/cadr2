@@ -12,8 +12,11 @@ body {
         font-weight: bold;
 }
 
+.standard {
+        font-style: normal;
+}
+
 p {
-        margin-left: 1em;
         margin-right: 1em;
         margin-bottom: 1em;
 }
@@ -33,11 +36,13 @@ pre {
 }
 
 .definition-type-title {
-        right: 0px;
+        margin-right: 2em;
+        float: right;
+        font-style: italic;
 }
 
 .description {
-        margin-left: 5em;
+        margin-left: 3em;
 }
 
 .arguments {

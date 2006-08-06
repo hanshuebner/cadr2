@@ -229,18 +229,24 @@
   (setf title (possibly-unquote title))
   (incf *section-number*)
   (setf *current-section-title* title)
-  (awhen (gethash title *chapter-title->name*)
+  (awhen (gethash title *section-title->name*)
     (make-anchor it))
+  (xml-newline)
   (with-element "section"
     (attribute "title" title)
     (attribute "chapter-number" (princ-to-string *chapter-number*))
     (attribute "number" (princ-to-string *section-number*))
+    (xml-newline)
     (continue-parsing :stop-before 'section)))
 
 (define-unparsed-bolio-handler subsection (title)
   (setf title (possibly-unquote title))
+  (awhen (gethash title *section-title->name*)
+    (make-anchor it))
+  (xml-newline)
   (with-element "subsection"
     (attribute "title" title)
+    (xml-newline)
     (continue-parsing :stop-before '(section subsection))))
 
 (define-unparsed-bolio-handler loop_subsection (title)
@@ -279,6 +285,8 @@
 (defvar *table-font* (font-name #\1))
 
 (define-bolio-handler table (&optional (font "1") &rest args)
+  (when (equal (font "0"))
+    (setf font "1"))
   (let ((*table-font* (font-name (aref font 0))))
     (with-paragraph "table"
       (with-element "tbody"
@@ -362,9 +370,17 @@
                 :type "chapter"
                 :definition-in-file *current-file-name*
                 :chapter *chapter-number*
-                :title *chapter-number*))
+                :title *current-chapter-title*))
     (section-page
-     (setf (gethash *current-section-title* *section-title->name*) name))
+     (setf (gethash *current-section-title* *section-title->name*) name)
+     (enter-ref name
+                :type "section"
+                :definition-in-file *current-file-name*
+                :chapter *chapter-number*
+                :section *section-number*
+                :title (if (zerop *section-number*)
+                           *current-chapter-title*
+                           *current-section-title*)))
     (css-number
      (make-anchor name)
      (enter-ref name
@@ -485,7 +501,7 @@ The line given as argument is assumed to begin with .def"
                   (attribute "no-index" "1"))
                 (unless (equal "" args)
                   (with-element "args"
-                    (font-expand args)))
+                    (font-expand (regex-replace-all #?r"&(\S+)" args "1&\\1*"))))
                 (xml-newline))))))
       (with-element "definition"
         (handle-one-definition line)
