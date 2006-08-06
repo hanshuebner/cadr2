@@ -25,5 +25,21 @@
 .insert MACROS
 .insert LOOPTM
 .insert DEFSTR
+.insert FLAVOR
+.insert IOS
+.insert RDPRT
+.insert PATHNM
+.insert FILES
+.insert CHAOS
+.insert PACKD
+.insert MAKSYS
+.insert PATCH
+.insert PROCES
+.insert ERRORS
+.insert CODE
+.insert QUERY
+.insert INIT
+.insert TIME
+.insert FD-HAC
 .save-cumulative-state
 

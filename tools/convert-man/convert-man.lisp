@@ -285,7 +285,8 @@
 (defvar *table-font* (font-name #\1))
 
 (define-bolio-handler table (&optional (font "1") &rest args)
-  (when (equal (font "0"))
+  (declare (ignore args))
+  (when (equal font "0")
     (setf font "1"))
   (let ((*table-font* (font-name (aref font 0))))
     (with-paragraph "table"
@@ -345,6 +346,7 @@
   (make-index-entry "loop-path-preposition" title))
 
 (define-unparsed-bolio-handler insert (file)
+  (setf file (string-downcase file))
   (with-element "include"
     (attribute "file" file))
   (process-bolio-file file))
@@ -602,17 +604,17 @@ The line given as argument is assumed to begin with .def"
       (when *font-stack*
         (file-warn "imbalanced font specifications")))))
 
-(defun process-bolio-files (&key (keep-state t))
-  (unless keep-state
-    (setf *global-directory* (make-hash-table :test #'equal)))
+(define-bolio-handler save-cumulative-state ()
+  (when *unresolved-references*
+    (format *debug-io* "~&~A unresolved references" (length *unresolved-references*)))
   (setq *chapter-number* 0)
   (setq *section-number* 0)
   (setq *subsection-number* 0)
   (setq *unresolved-references* nil)
-  (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
-    (process-bolio-file name))
-  (when *unresolved-references*
-    (format *debug-io* "~&~A unresolved references" (length *unresolved-references*))))
+  (ext:gc))
+
+(defun clear-cumulative-state ()
+  (setf *global-directory* (make-hash-table :test #'equal)))
 
 (defun check-xml-file-for-bad-characters (name)
   (let ((pathname (merge-pathnames *output-directory*
