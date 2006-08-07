@@ -20,12 +20,6 @@
 
 ;; Document constants
 
-(defvar *manual-filenames*
-  '(title intro fd-dtp fd-eva fd-flo fd-con resour fd-sym fd-num
-    fd-arr generic fd-str fd-fun fd-clo fd-sg fd-loc fd-sub areas compil
-    macros looptm defstr flavor ios rdprt pathnm files chaos packd maksys
-    patch proces errors code query init time fd-hac))
-
 (defvar *unicode-cp0-chars* #(#\DOT_OPERATOR
                               #\DOWNWARDS_ARROW
                               #\GREEK_SMALL_LETTER_ALPHA
@@ -137,10 +131,11 @@
   (gethash key *global-directory*))
 
 (defun enter-ref (key &rest attributes)
-  (when (and (lookup-ref key)
-             (not (equal attributes (lookup-ref key))))
-    (file-warn "symbol ~A defined to two values (~A and ~A)" key attributes (lookup-ref key)))
-  (setf (gethash key *global-directory*) attributes))
+  (let ((value (concatenate 'list (list :key key) attributes)))
+    (when (and (lookup-ref key)
+               (not (equal value (lookup-ref key))))
+      (file-warn "symbol ~A defined to two values (~A and ~A)" key value (lookup-ref key)))
+    (setf (gethash key *global-directory*) value)))
 
 (defun ref-expand (line)
   (aif (position #\Syn line)
@@ -153,8 +148,7 @@
                 (loop for (key value) on it by #'cddr
                       do (attribute (string-downcase (symbol-name key))
                                     (princ-to-string value)))
-                (pushnew key *unresolved-references*))
-           (attribute "key"  key))
+                (pushnew key *unresolved-references*)))
          (ref-expand (subseq line (1+ close-paren-pos))))
        (text line)))
 
@@ -214,40 +208,46 @@
 
 (define-unparsed-bolio-handler chapter (title)
   (setf title (possibly-unquote title))
-  (incf *chapter-number*)
-  (setf *section-number* 0)
-  (setf *subsection-number* 0)
-  (setf *current-chapter-title* title)
-  (awhen (gethash title *chapter-title->name*)
-    (make-anchor it))
-  (with-element "chapter"
-    (attribute "title" title)
-    (attribute "number" (princ-to-string *chapter-number*))
-    (continue-parsing)))
+  (let ((chapter-name (gethash title *chapter-title->name*)))
+    (incf *chapter-number*)
+    (setf *section-number* 0)
+    (setf *subsection-number* 0)
+    (setf *current-chapter-title* title)
+    (when chapter-name
+      (make-anchor chapter-name))
+    (with-element "chapter"
+      (attribute "name" chapter-name)
+      (attribute "title" title)
+      (attribute "number" (princ-to-string *chapter-number*))
+      (continue-parsing))))
 
 (define-unparsed-bolio-handler section (title)
   (setf title (possibly-unquote title))
-  (incf *section-number*)
-  (setf *current-section-title* title)
-  (awhen (gethash title *section-title->name*)
-    (make-anchor it))
-  (xml-newline)
-  (with-element "section"
-    (attribute "title" title)
-    (attribute "chapter-number" (princ-to-string *chapter-number*))
-    (attribute "number" (princ-to-string *section-number*))
+  (let ((section-name (gethash title *section-title->name*)))
+    (incf *section-number*)
+    (setf *current-section-title* title)
+    (when section-name
+      (make-anchor section-name))
     (xml-newline)
-    (continue-parsing :stop-before 'section)))
+    (with-element "section"
+      (attribute "name" section-name)
+      (attribute "title" title)
+      (attribute "chapter-number" (princ-to-string *chapter-number*))
+      (attribute "number" (princ-to-string *section-number*))
+      (xml-newline)
+      (continue-parsing :stop-before 'section))))
 
 (define-unparsed-bolio-handler subsection (title)
   (setf title (possibly-unquote title))
-  (awhen (gethash title *section-title->name*)
-    (make-anchor it))
-  (xml-newline)
-  (with-element "subsection"
-    (attribute "title" title)
+  (let ((section-name (gethash title *section-title->name*)))
+    (when section-name
+      (make-anchor section-name))
     (xml-newline)
-    (continue-parsing :stop-before '(section subsection))))
+    (with-element "subsection"
+      (attribute "name" section-name)
+      (attribute "title" title)
+      (xml-newline)
+      (continue-parsing :stop-before '(section subsection)))))
 
 (define-unparsed-bolio-handler loop_subsection (title)
   (setf title (possibly-unquote title))
@@ -474,7 +474,8 @@ The line given as argument is assumed to begin with .def"
                                  ((fun spec mac) "fun")
                                  (metamethod "method")
                                  (const "var")
-                                 (t type))))
+                                 (t type)))
+                   key)
               (setf end-symbol (if (eq type-symbol 'fun)
                                    'end_defun
                                    (intern (format nil "~:@(end_def~A~)" type))))
@@ -487,18 +488,20 @@ The line given as argument is assumed to begin with .def"
                  (setf name-title (format nil "~A :~A" name method-name-buf))
                  (setf method-name method-name-buf)
                  (setf args args-buf)))
+              (setf key (format nil "~A~@[-~(~A~)~]-~A"
+                                name
+                                method-name
+                                key-suffix))
               (unless no-index
                 (make-index-entry type-name (format nil "~A~@[ ~A~]" name method-name))
-                (enter-ref (format nil "~A~@[-~(~A~)~]-~A"
-                                   name
-                                   method-name
-                                   key-suffix)
+                (enter-ref key
                            :type type-name
                            :definition-in-file *current-file-name*
                            :title (format nil "~A ~A" type-title name-title)))
               (with-element "define"
                 (attribute "type" type-name)
                 (attribute "name" name)
+                (attribute "key" key)
                 (when no-index
                   (attribute "no-index" "1"))
                 (unless (equal "" args)

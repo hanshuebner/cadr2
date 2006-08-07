@@ -27,18 +27,19 @@
  <!-- structural elements -->
 
  <xsl:template match="chapter">
-  <h1><xsl:value-of select="@number"/>. <xsl:value-of select="@title"/></h1>
+  <h1><xsl:value-of select="@number"/>.<xsl:value-of select="' '"/><xsl:value-of select="@title"/></h1>
   <xsl:apply-templates/>
  </xsl:template>
 
  <xsl:template match="section">
-  <h2><xsl:value-of select="@chapter-number"/>.<xsl:value-of select="@number"/> <xsl:value-of select="@title"/></h2>
+  <a name="{@name}-section"/>
+  <h2><xsl:value-of select="@chapter-number"/>.<xsl:value-of select="@number"/><xsl:value-of select="' '"/><xsl:value-of select="@title"/></h2>
   <xsl:apply-templates/>
  </xsl:template>
 
  <xsl:template match="p">
   <xsl:if test="@indent = '1'">
-   <xsl:attribute name="class" value="indented"/>
+   <xsl:attribute name="class">indented</xsl:attribute>
   </xsl:if>
   <p>
    <xsl:apply-templates/>
@@ -65,7 +66,7 @@
 
  <xsl:template match="define">
   <div class="define">
-   <a name="{@name}-{@type}"/>
+   <a name="{@key}"/>
    <span class="definition-type-title">
     <xsl:choose>
      <xsl:when test="@type = 'message'">Message</xsl:when>
@@ -86,6 +87,7 @@
     </xsl:choose>
    </span>
    <b><xsl:value-of select="@name"/></b>
+   <xsl:value-of select="' '"/>
    <xsl:apply-templates/>
   </div>
  </xsl:template>
