@@ -108,6 +108,10 @@
   <a href="{@definition-in-file}.xml#{@key}"><xsl:value-of select="@title"/></a>
  </xsl:template>
 
+ <xsl:template match="a">
+  <a href="@href"><xsl:apply-templates/></a>
+ </xsl:template>
+
  <!-- font selections -->
  <xsl:template match="standard">
   <span class="standard"><xsl:apply-templates/></span>
