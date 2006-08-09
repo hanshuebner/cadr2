@@ -52,6 +52,10 @@
 </pre>
  </xsl:template>
 
+ <xsl:template match="center">
+  <h3><xsl:apply-templates/></h3>
+ </xsl:template>
+
  <!-- hyperlinks -->
 
  <xsl:template match="a">

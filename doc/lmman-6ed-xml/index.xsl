@@ -26,6 +26,12 @@
        <xsl:sort select="@title"/>
       </xsl:apply-templates>
      </ul>
+     <h1>Functions</h1>
+     <ul>
+      <xsl:apply-templates select="key('index', 'functions')">
+       <xsl:sort select="@title"/>
+      </xsl:apply-templates>
+     </ul>
     </body>
   </html>
  </xsl:template>

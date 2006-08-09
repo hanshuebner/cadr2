@@ -43,8 +43,19 @@
   <xsl:param name="file"/>
   <index-entry>
    <xsl:attribute name="file"><xsl:value-of select="$file"/></xsl:attribute>
-   <xsl:attribute name="index"><xsl:value-of select="@type"/></xsl:attribute>
-   <xsl:attribute name="key"><xsl:value-of select="@key"/></xsl:attribute>
+   <xsl:attribute name="index">
+    <xsl:choose>
+     <xsl:when test="@type = 'fun'">functions</xsl:when>
+     <xsl:when test="@type = 'metamethod'">method</xsl:when>
+     <xsl:when test="@type = 'const'">constant</xsl:when>
+     <xsl:when test="@type = 'spec'">functions</xsl:when>
+     <xsl:when test="@type = 'mac'">functions</xsl:when>
+     <xsl:when test="@type = 'var'">variables</xsl:when>
+     <xsl:when test="@type = 'meter'">meter</xsl:when>
+     <xsl:otherwise><xsl:value-of select="@type"/></xsl:otherwise>
+    </xsl:choose>
+   </xsl:attribute>
+   <xsl:attribute name="key"><xsl:value-of select="concat(@key, '-', @type)"/></xsl:attribute>
    <xsl:attribute name="title"><xsl:value-of select="@name"/></xsl:attribute>
   </index-entry>
  </xsl:template>
