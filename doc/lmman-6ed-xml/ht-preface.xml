@@ -1,6 +1,6 @@
 <?xml-stylesheet type="text/xsl" href="lmman.xsl"?>
 <document-part>
- <chapter name="ht-intro-chapter" number="0" title="Introduction to the Hypertext Edition">
+ <chapter name="ht-preface-chapter" number="0" title="Preface to the Hypertext Edition">
   <p>
    This is the hypertext edition of the Lisp Machine Manual.  It
    describes the Lisp Machine system software, which has been
