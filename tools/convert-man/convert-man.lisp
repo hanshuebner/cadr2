@@ -190,6 +190,7 @@
 
 (defmacro with-paragraph (tag &body body)
   `(let ((*in-paragraph* ,tag))
+    (xml-newline)
     (with-element ,tag
       ,@body)))
 
@@ -223,7 +224,7 @@
 
 (define-unparsed-bolio-handler section (title)
   (setf title (possibly-unquote title))
-  (let ((section-name (gethash title *section-title->name*)))
+  (let ((section-name (or (gethash title *section-title->name*) title)))
     (incf *section-number*)
     (setf *current-section-title* title)
     (when section-name
@@ -267,6 +268,10 @@
 
 (define-bolio-handler sp ()
   (with-element "sp"))
+
+(define-unparsed-bolio-handler center (text)
+  (with-element "center"
+    (font-expand (possibly-unquote text))))
 
 (define-bolio-handler group ()
   (with-paragraph "group"
@@ -323,8 +328,8 @@
 (defun make-index-entry (index title)
   (xml-newline)
   (with-element "index-entry"
-    (attribute "name" index)
-    (attribute "title" title))
+    (attribute "index" index)
+    (attribute "title" (possibly-unquote title)))
   (xml-newline))
 
 (define-unparsed-bolio-handler cindex (title)
@@ -493,7 +498,6 @@ The line given as argument is assumed to begin with .def"
                                 method-name
                                 key-suffix))
               (unless no-index
-                (make-index-entry type-name (format nil "~A~@[ ~A~]" name method-name))
                 (enter-ref key
                            :type type-name
                            :definition-in-file *current-file-name*
