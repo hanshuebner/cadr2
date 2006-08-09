@@ -3,7 +3,7 @@
  <center>Preface to the Hypertext Edition</center>
  <p>
   This is the hypertext edition of the Lisp Machine Manual.  It
-  describes the Lisp Machine system software, which has been
+  describes the Lisp Machine system software, which had been
   developed between 1978 and 1984 at the MIT.
  </p>
  <p>
@@ -17,22 +17,21 @@
  <p>
   Originally, the manual was authored as text files with markup for
   the ``Bolio'' text processor, which ran on the PDP-10 systems and
-  Lisp machines at the MIT in the 1980ies.  Neither the source nor
-  the documentation for Bolio were available at the time the
-  conversion has been done.  As such the meaning of the markup had to
-  be deduced from the context andthere may be errors of deficiencies
-  in the hypertext edition that are a result of the conversion
-  process.
+  Lisp machines at the MIT in the 1980s.  Neither the source nor the
+  documentation for Bolio were available at the time the conversion
+  was done.  As such the meaning of the markup had to be deduced from
+  the context and there may be errors or deficiencies in the hypertext
+  edition that are a result of the conversion process.
  </p>
  <p>
   The conversion was done with slightly edited Bolio source files.
   The edits were done to correct problems introduced while converting
-  the tape backups back to text files and slight structural changes
-  to ease the conversion.  Additionally, the chapter on Resources has
-  not been an own chapter in the printed 6th edition, but rather a
-  section in the "Manipulating List Structure" chapter.  This
-  presumably happened by accident.  I changed that so that
-  "Resources" is now an own chapter.
+  the tape backups back to text files and slight structural changes to
+  ease the conversion.  Additionally, the chapter on Resources has not
+  been an own chapter in the printed 6th edition, but rather a section
+  in the "Manipulating List Structure" chapter.  This presumably
+  happened by accident.  The source was changed that so that
+  "Resources" is now in it's own chapter.
  </p>
  <p>
   The hypertext edition of the manual consists of files in an XML
@@ -44,7 +43,7 @@
   matter.
  </p>
  <p>
-  if you have comments, bug reports or suggestions, please contact <a
+  If you have comments, bug reports or suggestions, please contact <a
   href="mailto:hans.huebner@gmail.com">Hans Hübner</a>.
  </p>
 </document-part>
