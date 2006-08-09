@@ -727,7 +727,9 @@ which are suitable arguments for 3format*, but the warning is 2not*
 printed when you call this function.  Those arguments will be used to
 reprint the warning later.
 
-.defun1 sys:record-and-print-warning type severity location-info format-string &rest args
+.c This used to be a defun1, but the xml converter does not properly grok that
+.end_defun
+.defun sys:record-and-print-warning type severity location-info format-string &rest args
 Records a warning and also prints it.
 
 2type* is a symbol that identifies the specific cause of the warning.

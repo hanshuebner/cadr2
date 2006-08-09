@@ -15,7 +15,7 @@
 
 .chapter The LOOP Iteration Macro
 
-.chapter Introduction
+.section Introduction
 .c For the sake of the Lispm Manual:
 .setq loop-chapter chapter-number
 .mindex loop
@@ -139,7 +139,7 @@ useless to use a symbol there.  Therefore, if the first argument of
 a 3loop* form is not a symbol, it is treated as a Common Lisp 3loop*.
 
 .page
-.chapter Clauses
+.section Clauses
 
 	Internally, 3loop* constructs a 3prog* which includes
 variable bindings, pre-iteration (initialization) code,
@@ -176,7 +176,7 @@ bindings will be performed inside of that binding environment.
 When the same variables are stepped, all the new values are computed
 and then the variables are set.
 
-.section Iteration-Driving Clauses
+.subsection Iteration-Driving Clauses
 
 	These clauses all create a 2variable of iteration*, which
 is bound locally to the loop and takes on a new value on each
@@ -368,7 +368,7 @@ may appear.  See the section on Iteration Paths
 ((iteration-path-page)) for complete documentation.
 .end_table
 
-.section Bindings
+.subsection Bindings
 .setq with-clause page
 .kindex with
 'topic variable bindings
@@ -481,7 +481,7 @@ section (loop-destructuring-section).
 .c to not take effect, and may not be diagnosed.
 .c .end_table
 
-.section Entrance and Exit
+.subsection Entrance and Exit
 
 .table 3 250 500
 .item initially 2expression*
@@ -512,7 +512,7 @@ to return values in a non-standard way:
 .end_lisp
 .end_table
 
-.section Side Effects
+.subsection Side Effects
 .setq side-effects-section css-number
 .table 3 250 500
 .item do 2expression*
@@ -523,7 +523,7 @@ the 3print-elements-of-list* example on
 (print-elements-of-list-example).
 .end_table
 
-.section Values
+.subsection Values
 .setq values-section css-number
 	The following clauses accumulate a return value for the
 iteration in some manner.  The general form is
@@ -655,7 +655,7 @@ The following computes the average of the entries in the list
 .end_lisp
 .apart
 
-.section Endtests
+.subsection Endtests
 .topic terminating the iteration
 	The following clauses may be used to provide additional
 control over when the iteration gets terminated, possibly causing
@@ -705,7 +705,7 @@ This particular example would be better written as 3until (= x 4)*
 in place of the 3do* clause.
 .end_defmac
 
-.section Aggregated Boolean Tests
+.subsection Aggregated Boolean Tests
 .setq aggregated-boolean-tests-section css-number
 	All of these clauses perform some test and may immediately
 terminate the iteration depending on the result of that test.
@@ -732,7 +732,7 @@ terminated, and that value is returned without running the epilogue
 code.
 .end_table
 
-.section Conditionalization
+.subsection Conditionalization
 .topic conditionalizing clause(s)
 	These clauses may be used to ``conditionalize'' the following
 clause.  They may precede any of the side-effecting or value-producing
@@ -855,7 +855,7 @@ substituted for 3it* will be that of the last test performed.
 The 3it* keyword is not recognized in an 3else*-phrase.
 .apart
 
-.section Miscellaneous Other Clauses
+.subsection Miscellaneous Other Clauses
 
 .table 3 250 500
 .item named 2name*
@@ -894,7 +894,7 @@ epilogue (with the 3finally* clause, (loop-finally-clause)).
 .end_table
 
 .page
-.chapter Loop Synonyms
+.section Loop Synonyms
 
 .defmac define-loop-macro keyword
 May be used to make 2keyword*, a 3loop* keyword (such as
@@ -967,7 +967,7 @@ needlessly uses up a function name.
 .c (loop-nodeclare-clause).
 
 .page
-.chapter Destructuring
+.section Destructuring
 .setq loop-destructuring-section css-number
 .setq loop-destructuring-page page
 	2Destructuring* provides one with the ability to
@@ -1053,7 +1053,7 @@ of the symbol, the property name, and the value of that property.
 .c .end_defvar
 
 .page
-.chapter The Iteration Framework
+.section The Iteration Framework
 .setq loop-iteration-framework-section css-number
 .setq loop-iteration-framework-page page
 	This section describes the way 3loop* constructs
@@ -1143,7 +1143,7 @@ is safe because the endtest is explicitly dissociated from the
 stepping.
 
 .page
-.chapter Iteration Paths
+.section Iteration Paths
 .setq iteration-path-page page
 	Iteration paths provide a mechanism for user extension of
 iteration-driving clauses.  The interface is constrained so that the
@@ -1258,7 +1258,7 @@ syntax for some feature they provide.
 .c first format; this behavior is defined by the default loop path
 .c function which Brand X defines, not by 3loop*.
 
-.section Pre-Defined Paths
+.subsection Pre-Defined Paths
 .setq predefined-paths-section css-number
 	3loop* comes with two pre-defined iteration path
 functions;  one implements a 3mapatoms*-like iteration path
@@ -1405,7 +1405,7 @@ an example) on (loop-using-crock).
 
 .insert_for_NIL "lsbdoc;()path >"
 
-.section Defining Paths
+.subsection Defining Paths
 
 	This section and the next may not be of interest to those
 not interested in defining their own iteration paths.

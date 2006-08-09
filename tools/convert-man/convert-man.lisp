@@ -498,6 +498,7 @@ The line given as argument is assumed to begin with .def"
                                 method-name
                                 key-suffix))
               (unless no-index
+                #+(or) (make-index-entry type-name (format nil "~A~@[ ~A~]" name method-name))
                 (enter-ref key
                            :type type-name
                            :definition-in-file *current-file-name*
@@ -586,7 +587,8 @@ The line given as argument is assumed to begin with .def"
   (let ((input-pathname (merge-pathnames *input-directory*
                                          (make-pathname :name name :type "text")))
         (output-pathname (merge-pathnames *output-directory*
-                                          (make-pathname :name name :type "xml"))))
+                                          (make-pathname :name name :type "xml")))
+        (stylesheet-name (if (equal name "manual") "toc" "lmman")))
     (ensure-directories-exist output-pathname)
     (let ((*current-file* (namestring input-pathname))
           (*current-file-name* name)
@@ -600,7 +602,8 @@ The line given as argument is assumed to begin with .def"
                                 :if-exists :supersede
                                 :external-format charset:utf-8)
           (with-xml-output (make-character-stream-sink output)
-            (sax:processing-instruction cxml::*sink* "xml-stylesheet" "type=\"text/xsl\" href=\"lmman.xsl\"")
+            (sax:processing-instruction cxml::*sink* "xml-stylesheet"
+                                        (format nil "type=\"text/xsl\" href=\"~A.xsl\"" stylesheet-name))
             (with-element "document-part"
               (xml-newline)
               (handler-case
@@ -623,6 +626,27 @@ The line given as argument is assumed to begin with .def"
 (defun clear-cumulative-state ()
   (setf *global-directory* (make-hash-table :test #'equal)))
 
+(defun produce-manual ()
+  (let ((*package* (find-package :convert-man)))
+    (clear-cumulative-state)
+    (format *debug-io* "~&Reference collecting run")
+    (process-bolio-file "manual")
+    (format *debug-io* "~&File production run")
+    (process-bolio-file "manual")
+    (format *debug-io* "~&Generating table of contents")
+    (unless (zerop (ext:run-program "xsltproc"
+                                    :arguments (list "-o" (namestring (merge-pathnames *output-directory* #p"toc.xml"))
+                                                     (namestring (merge-pathnames *output-directory* #p"toc.xsl"))
+                                                     (namestring (merge-pathnames *output-directory* #p"manual.xml")))))
+      (warn "cannot create TOC"))
+    (format *debug-io* "~&Generating index")
+    (unless (zerop (ext:run-program "xsltproc"
+                                    :arguments (list "-o" (namestring (merge-pathnames *output-directory* #p"index.xml"))
+                                                     (namestring (merge-pathnames *output-directory* #p"indexer.xsl"))
+                                                     (namestring (merge-pathnames *output-directory* #p"manual.xml")))))
+      (warn "cannot create index"))))
+
+#+(or)
 (defun check-xml-file-for-bad-characters (name)
   (let ((pathname (merge-pathnames *output-directory*
                                    (make-pathname :name name :type "xml"))))
@@ -636,11 +660,13 @@ The line given as argument is assumed to begin with .def"
                         (eq char #\Newline))
               (format t "~&~A:~A invalid character ~A" (namestring pathname) line-number char))))))))
 
+#+(or)
 (defun check-xml-files-for-bad-characters ()
   (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
     (format t "~&checking ~A" name)
     (check-xml-file-for-bad-characters name)))
 
+#+(or)
 (defun xmllint-file (name)
   (let ((pathname (merge-pathnames *output-directory*
                                    (make-pathname :name name :type "xml"))))
@@ -651,6 +677,7 @@ The line given as argument is assumed to begin with .def"
           ((not line))
         (princ line)))))
 
+#+(or)
 (defun xmllint-files ()
   (dolist (name (mapcar #'string-downcase (mapcar #'symbol-name *manual-filenames*)))
     (format t "~&xmllinting ~A" name)
