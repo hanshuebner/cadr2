@@ -635,7 +635,7 @@ The line given as argument is assumed to begin with .def"
     (process-bolio-file "manual")
     (format *debug-io* "~&Generating table of contents")
     (unless (zerop (ext:run-program "xsltproc"
-                                    :arguments (list "-o" (namestring (merge-pathnames *output-directory* #p"toc.xml"))
+                                    :arguments (list "-o" (namestring (merge-pathnames *output-directory* #p"toc.html"))
                                                      (namestring (merge-pathnames *output-directory* #p"toc.xsl"))
                                                      (namestring (merge-pathnames *output-directory* #p"manual.xml")))))
       (warn "cannot create TOC"))
