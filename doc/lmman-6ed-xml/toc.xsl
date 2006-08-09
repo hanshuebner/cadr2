@@ -57,7 +57,6 @@
   </li>
  </xsl:template>
 
- <xsl:template match="*" mode="toc">
- </xsl:template>
+ <xsl:template match="text()" mode="toc"></xsl:template>
 
 </xsl:stylesheet>

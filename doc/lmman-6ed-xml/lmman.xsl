@@ -58,6 +58,10 @@
   <a name="{@name}"/>
  </xsl:template>
 
+ <xsl:template match="index-entry">
+  <a name="{@title}"/>
+ </xsl:template>
+
  <xsl:template match="definition">
   <div class="definition">
    <xsl:apply-templates/>
