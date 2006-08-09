@@ -2,6 +2,28 @@ body {
         width: 40em;
 }
 
+h1, h2, h3 {
+        font-family: sans-serif;
+}
+
+div#navigation {
+        position: fixed;
+        right: 0px;
+        top: 2px;
+}
+
+div#navigation .nav-button {
+        font-family: sans-serif;
+        display: inline;
+        margin: 5px;
+        padding: 5px;
+        background-color: #CCCCCC;
+}
+
+div#navigation a {
+        text-decoration: none;
+}
+
 .arg {
         font-style: italic;
 }

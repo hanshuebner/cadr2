@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="iso-8859-1" ?>
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
 
+ <xsl:import href="common.xsl"/>
+
  <xsl:param name="mode">xml</xsl:param>
 
  <xsl:key name="index" match="index-entry" use="@index"/>
@@ -20,6 +22,7 @@
     </head>
   
     <body>
+     <xsl:call-template name="navigation"/>
      <h1>Concepts</h1>
      <ul>
       <xsl:apply-templates select="key('index', 'concepts')">
