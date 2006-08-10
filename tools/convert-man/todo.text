@@ -1,0 +1,26 @@
+One thing I keep noticing - source code following "example:" does not
+have a line break and the subsequent code does not line up correctly.
+
+for example, chapter 4, "flow of control". The first "example:"
+(".exdent 96 Example:").  This is all inside a ".lisp/.end_lisp" which
+may be the problem.
+
+If you look at the original manual the "Example:" ands up on it's own
+line, using the font of the paragraph.  The lisp code is in a different font.
+
+--
+
+Also, the navigation buttons are great.  Would it be hard to add a "next
+page" also?  (i realize that might be tough).
+
+--
+
+flavor method rendering is broken
+
+--
+
+variables and other indices missing
+
+--
+
+index lookup in javascript
