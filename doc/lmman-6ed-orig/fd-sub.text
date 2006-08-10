@@ -229,7 +229,7 @@ external value cell, but binding the symbol saves away the
 the internal value cell of the symbol.  This is how closures are implemented.
 
 3dtp-gc-forward* is not an invisible pointer at all; it only appears in
-``old spaced'' and can never be seen by any program other than the garbage
+``old space'' and can never be seen by any program other than the garbage
 collector.  When an object is found not to be garbage, and the garbage collector 
 moves it from ``old space'' to ``new space'', a 3dtp-gc-forward* is left behind
 to point to the new copy of the object.  This ensures that other references
