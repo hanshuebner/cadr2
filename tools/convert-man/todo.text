@@ -24,3 +24,17 @@ variables and other indices missing
 --
 
 index lookup in javascript
+
+--
+
+<nyef> H4ns: Structurally, the only thing I really could wish for is 
+           next-chapter / previous-chapter links.
+
+--
+
+<nyef> H4ns: Chapter 23, first paragraph. "for example, opening a file with 
+           direction :probe returns one ().", where there's a ref in the 
+           parens, but no text in the ref, so it doesn't show up.
+<H4ns> nyef: can you give me the file name?
+<nyef> ios.xml.
+<nyef> Same thing in the description for tyi, same file.
