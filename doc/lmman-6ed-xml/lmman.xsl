@@ -120,7 +120,7 @@
  </xsl:template>
 
  <xsl:template match="a">
-  <a href="@href"><xsl:apply-templates/></a>
+  <a href="{@href}"><xsl:apply-templates/></a>
  </xsl:template>
 
  <!-- font selections -->
