@@ -19,6 +19,7 @@
 (defconstant +read-response+ 11)
 (defconstant +write-request+ 12)
 (defconstant +write-response+ 13)
+
 (defconstant +max-message-size+ 1029)
 (defconstant +server-port+ 17220)
 (defconstant +disk-block-size+ 1024)
@@ -66,6 +67,14 @@
   (protocol :int))
 
 #+:win32
+(defcfun ("setsockopt" %setsockopt) :int
+  (socket :int)
+  (level :int)
+  (optname :int)
+  (optval :pointer)
+  (optlen :int))
+
+#+:win32
 (defcfun ("closesocket" %closesocket) :int
   (socket :int))
 
@@ -88,7 +97,7 @@
   (host :string))
 
 (defcfun ("inet_ntoa" %inet_ntoa) :pointer
-  (sockaddr :int))
+  (sockaddr :unsigned-int))
 
 (defcfun ("recvfrom" %recvfrom) :int
   (socket :int)
@@ -143,11 +152,18 @@
 (defclass socket ()
   ((socket)))
 
+(defconstant SOL_SOCKET #xffff)
+(defconstant SO_RCVTIMEO #x1006)
+
 (defmethod initialize-instance :after ((instance socket) &key)
   #+:win32 (start-winsock)
   (let ((socket (%socket AF_INET SOCK_DGRAM IPPROTO_UDP)))
     (when (< socket 0)
       (error "error creating socket"))
+    #+:win32 
+    (with-foreign-object (timeout :int)
+      (setf (mem-ref timeout :int) 1000)
+      (%setsockopt socket SOL_SOCKET SO_RCVTIMEO timeout 4))
     (setf (slot-value instance 'socket) socket)
     (finalize instance (lambda () (%closesocket socket)))))
 
@@ -314,3 +330,8 @@
   (send-write-request 1 #(5 6 7 8))
   (send-read-request 0)
   (send-read-request 1))
+
+(defun test-don ()
+  (with-socket socket
+    (send-to socket "192.168.197.250" +server-port+ #(#.+ping+))
+    (parse-result (receive-from socket))))
