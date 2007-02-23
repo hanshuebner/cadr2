@@ -29,8 +29,6 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity cadr2_ml401 is
 port (
-	ddr_data : 
-
 	clk	: in std_logic;
 	reset	: in std_logic
 );
