@@ -9,15 +9,15 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 --use UNISIM.VComponents.all;
 
 entity cadr2_maskright is
-  port (addr : in std_logic_vector(4 downto 0);
-  	    do : out std_logic_vector(31 downto 0));
+  port (mskr			: in std_logic_vector(4 downto 0);
+  	    msk_right_out : out std_logic_vector(31 downto 0));
 end cadr2_maskright;
 
 architecture Behavioral of cadr2_maskright is
 
 begin
-  with addr select
-  	do <= X"ffffffff" when "00000",
+  with mskr select
+  	msk_right_out <= X"ffffffff" when "00000",
 		   X"fffffffe" when "00001",
 		   X"fffffffc" when "00010",
 		   X"fffffff8" when "00011",
