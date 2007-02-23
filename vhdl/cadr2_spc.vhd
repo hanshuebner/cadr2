@@ -27,10 +27,9 @@ use UNISIM.VComponents.all;
 
 entity cadr2_spc is
   Port ( addr : in std_logic_vector(4 downto 0);
-			di : in std_logic_vector(31 downto 0);
-			do : out std_logic_vector(31 downto 0);
+			di : in std_logic_vector(18 downto 0);
+			do : out std_logic_vector(18 downto 0);
 			wr : in std_logic;
-			en : in std_logic;
 			wclk	: in std_logic
 			);
 end cadr2_spc;
@@ -39,7 +38,7 @@ architecture Behavioral of cadr2_spc is
 
 begin
 
-spc_loop: for i in 0 to 31 generate
+spc_loop: for i in 0 to 18 generate
 begin
    RAM32X1S_inst : RAM32X1S
    generic map (
