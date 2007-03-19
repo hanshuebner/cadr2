@@ -31,6 +31,8 @@ end cadr2_dispatch;
 
 architecture low_level of cadr2_dispatch is
 
+signal dip : std_logic_vector(0 downto 0);
+
 begin
 
    RAMB16_S18_0 : RAMB16_S9
@@ -62,9 +64,12 @@ begin
       ADDR => a,  -- 11-bit Address Input
       CLK => clk,    -- Clock
       DI => di(16 downto 9),      -- 8-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
       SSR => '0',    -- Synchronous Set/Reset Input
       WE => wr       -- Write Enable Input
    );
+
+dip <= "0";
 
 end low_level;

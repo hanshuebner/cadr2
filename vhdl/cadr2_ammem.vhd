@@ -44,6 +44,8 @@ end cadr2_ammem;
 
 architecture low_level of cadr2_ammem is
 
+signal dipa : std_logic_vector(1 downto 0);
+signal dipb : std_logic_vector(1 downto 0);
 signal addrb : std_logic_vector(9 downto 0);
 	
 begin
@@ -67,6 +69,8 @@ begin
       CLKB => clk,    -- Port B Clock
       DIA => a_di(15 downto 0),      -- Port A 16-bit Data Input
       DIB => m_di(15 downto 0),      -- Port B 16-bit Data Input
+		DIPA => dipa,
+		DIPB => dipb,
       ENA => a_en,      -- Port A RAM Enable Input
       ENB => m_en,      -- PortB RAM Enable Input
       SSRA => '0',    -- Port A Synchronous Set/Reset Input
@@ -94,6 +98,8 @@ begin
       CLKB => clk,    -- Port B Clock
       DIA => a_di(31 downto 16),      -- Port A 16-bit Data Input
       DIB => m_di(31 downto 16),      -- Port B 16-bit Data Input
+		DIPA => dipa,
+		DIPB => dipb,
       ENA => a_en,      -- Port A RAM Enable Input
       ENB => m_en,      -- PortB RAM Enable Input
       SSRA => '0',    -- Port A Synchronous Set/Reset Input
@@ -103,5 +109,7 @@ begin
    );
 
 addrb <= "00000" & m_addr;
+dipa <= "00";
+dipb <= "00";
 	
 end low_level;

@@ -31,6 +31,8 @@ end cadr2_pdl;
 
 architecture low_level of cadr2_pdl is
 
+signal dip : std_logic_vector(1 downto 0);
+
 begin
 
    RAMB16_S18_0 : RAMB16_S18
@@ -44,6 +46,7 @@ begin
       ADDR => addr,  -- 10-bit Address Input
       CLK => clk,    -- Clock
       DI => di(15 downto 0),      -- 16-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
       SSR => '0',    -- Synchronous Set/Reset Input
       WE => wr       -- Write Enable Input
@@ -60,10 +63,13 @@ begin
       ADDR => addr,  -- 10-bit Address Input
       CLK => clk,    -- Clock
       DI => di(31 downto 16),      -- 16-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
       SSR => '0',    -- Synchronous Set/Reset Input
       WE => wr       -- Write Enable Input
    );
+
+dip <= "00";
 
 end low_level;
 

@@ -39,6 +39,7 @@ architecture Behavioral of cadr2_vmem1 is
 
 signal dou : std_logic_vector(15 downto 0);
 signal diu : std_logic_vector(15 downto 0);
+signal dip : std_logic_vector(1 downto 0);
 
 begin
 
@@ -54,7 +55,9 @@ begin
       ADDR => ADDR,  -- 10-bit Address Input
       CLK => CLK,    -- Clock
       DI => di(15 downto 0),      -- 16-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
+		SSR => '0',
       WE => wr       -- Write Enable Input
    );
 
@@ -70,12 +73,15 @@ begin
       ADDR => ADDR,  -- 10-bit Address Input
       CLK => CLK,    -- Clock
       DI => diu,      -- 16-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
+		SSR => '0',
       WE => wr       -- Write Enable Input
    );
 
 diu <= "00000000" & di(23 downto 16);
 do(23 downto 16) <= dou(7 downto 0);
+dip <= "00";
 
 end Behavioral;
 

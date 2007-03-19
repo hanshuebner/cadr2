@@ -39,6 +39,7 @@ architecture Behavioral of cadr2_vmem0 is
 
 signal do_tmp : std_logic_vector(7 downto 0);
 signal di_tmp : std_logic_vector(7 downto 0);
+signal dip : std_logic_vector(0 downto 0);
 
 begin
 
@@ -52,6 +53,7 @@ begin
       ADDR => addr,  -- 11-bit Address Input
       CLK => clk,    -- Clock
       DI => di_tmp,      -- 8-bit Data Input
+		DIP => dip,
       EN => en,      -- RAM Enable Input
       SSR => '0',    -- Synchronous Set/Reset Input
       WE => wr       -- Write Enable Input
@@ -59,6 +61,7 @@ begin
 
 di_tmp <= "000" & di;
 do <= do_tmp(4 downto 0);
+dip <= "0";
 
 end Behavioral;
 
