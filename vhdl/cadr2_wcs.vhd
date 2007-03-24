@@ -32,6 +32,7 @@ end cadr2_wcs;
 architecture low_level of cadr2_wcs is
 
 signal dip : std_logic_vector(1 downto 0);
+signal dop : std_logic_vector(1 downto 0);
 
 begin
 
@@ -77,6 +78,7 @@ begin
       )
    port map (
       DO => do(47 downto 32),      -- 16-bit Data Output
+		DOP => dop,
       ADDR => addr(9 downto 0),  -- 10-bit Address Input
       CLK => clk,    -- Clock
       DI => di(47 downto 32),      -- 16-bit Data Input
@@ -86,6 +88,7 @@ begin
       WE => wr       -- Write Enable Input
    );
 
-dip <= "00";
+dip <= "0" & di(48);
+do(48) <= dop(0);
 
 end low_level;
