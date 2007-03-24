@@ -8,7 +8,7 @@
 -- Project Name:   cadr2
 -- Target Device:  
 -- Tool versions:  
--- Description:
+-- Description:	Top level design for Xilinx ML401 dev board
 --
 -- Dependencies:
 -- 
@@ -27,10 +27,12 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 --library UNISIM;
 --use UNISIM.VComponents.all;
 
+use work.wb_pack.all;
+
 entity cadr2_ml401 is
 port (
-	clk	: in std_logic;
-	reset	: in std_logic
+	sys_clk_in	: in std_logic;
+	sys_rst_in	: in std_logic
 );
 end cadr2_ml401;
 
@@ -38,13 +40,18 @@ architecture Behavioral of cadr2_ml401 is
 
 component cadr2_cpu is
 port (
-	clk	: in std_logic;
-	reset	: in std_logic
+	wb_out	: out wb_mem_out_type;
+	wb_in		: in wb_mem_in_type;
+	clk		: in std_logic;
+	reset		: in std_logic
 );
 end component;
 
+signal wb_out			: wb_mem_out_type;
+signal wb_in			: wb_mem_in_type;
+
 begin
 
-cpu : cadr2_cpu port map(clk, reset);
+cpu : cadr2_cpu port map(wb_out, wb_in, sys_clk_in, sys_rst_in);
 
 end Behavioral;
