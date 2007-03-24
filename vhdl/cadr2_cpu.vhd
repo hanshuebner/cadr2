@@ -24,6 +24,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
+use work.wb_pack.all;
+
 --
 --   +++++++++++++++++++++++++++                    +--------
 --   |                         |                    |
@@ -39,8 +41,10 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity cadr2_cpu is 
 port(
-	clk : in std_logic;
-	reset : in std_logic
+	wb_out	: out wb_mem_out_type;
+	wb_in		: in wb_mem_in_type;
+	clk		: in std_logic;
+	reset 	: in std_logic
 	);
 end cadr2_cpu;
 
@@ -188,8 +192,8 @@ signal destmd : std_logic;
 
 signal apass : std_logic;
 signal apass_n : std_logic;
-signal amemenb_n : std_logic;
-signal apassenb_n : std_logic;
+signal amemenb : std_logic;
+signal apassenb : std_logic;
 signal awp : std_logic;
 
 signal aadr : std_logic_vector(9 downto 0);
@@ -240,11 +244,11 @@ signal spush_n : std_logic;
 
 signal popj : std_logic;
 
-signal spcwpass_n : std_logic;
-signal spcpass_n : std_logic;
+signal spcwpass : std_logic;
+signal spcpass : std_logic;
 signal swp : std_logic;
 signal spcenb : std_logic;
-signal spcdrive_n : std_logic;
+signal spcdrive : std_logic;
 signal spcnt_n : std_logic;
 
 signal inop : std_logic;
@@ -314,10 +318,10 @@ signal lparity_n : std_logic;
 
 -- page LC
 signal lc : std_logic_vector(25 downto 0);
-signal lca : std_logic_vector(4 downto 0);
+--signal lca : std_logic_vector(4 downto 0);
 --signal lcry3 : std_logic;
 
-signal lcdrive_n : std_logic;
+signal lcdrive : std_logic;
 signal sh4_n : std_logic;
 signal sh3_n : std_logic;
 
@@ -351,8 +355,8 @@ signal wpc : std_logic_vector(13 downto 0);
 -- page MCTL
 signal mpass : std_logic;
 signal mpass_n : std_logic;
-signal mpassl_n : std_logic;
-signal mpassm_n : std_logic;
+signal mpassl : std_logic;
+signal mpassm : std_logic;
 signal srcm : std_logic;
 signal mwp : std_logic;
 signal madr : std_logic_vector(4 downto 0);
@@ -361,7 +365,7 @@ signal madr : std_logic_vector(4 downto 0);
 signal md : std_logic_vector(31 downto 0);
 signal mdhaspar : std_logic;
 signal mdpar : std_logic;
-signal mddrive_n : std_logic;
+signal mddrive : std_logic;
 signal mdgetspar : std_logic;
 signal mdclk : std_logic;
 signal mempar_in : std_logic;
@@ -379,7 +383,7 @@ signal mdparodd : std_logic;
 
 -- page MF
 signal mfenb : std_logic;
-signal mfdrive_n : std_logic;
+signal mfdrive : std_logic;
 
 -- page MLATCH
 signal mmem_latched : std_logic_vector(31 downto 0);
@@ -398,11 +402,11 @@ signal msk_left_out : std_logic_vector(31 downto 0);
 signal msk : std_logic_vector(31 downto 0);
 
 signal dcdrive : std_logic;
-signal opcdrive_n : std_logic;
-signal zero16 : std_logic;
-signal zero12_drive : std_logic;
-signal zero16_drive : std_logic;
-signal zero16_drive_n : std_logic;
+signal opcdrive : std_logic;
+--signal zero16 : std_logic;
+--signal zero12_drive : std_logic;
+--signal zero16_drive : std_logic;
+--signal zero16_drive_n : std_logic;
 
 -- page PDL
 signal pdlparity : std_logic;
@@ -410,13 +414,13 @@ signal pdl : std_logic_vector(31 downto 0);
 
 -- page PDLCTL
 signal pdla : std_logic_vector(9 downto 0);
-signal pdlp_n : std_logic;
+signal pdlp : std_logic;
 signal pdlwrite : std_logic;
 signal pwp : std_logic;
 signal pdlenb : std_logic;
-signal pdldrive_n : std_logic;
+signal pdldrive : std_logic;
 signal pdlcnt_n : std_logic;
-signal imodd_n : std_logic;
+--signal imodd_n : std_logic;
 signal destspcd : std_logic;
 signal pdlwrited : std_logic;
 signal pwidx_n : std_logic;
@@ -425,7 +429,7 @@ signal destspcd_n : std_logic;
 
 -- page PDLPTR
 signal pidrive : std_logic;
-signal ppdrive_n : std_logic;
+signal ppdrive : std_logic;
 signal pdlidx : std_logic_vector(9 downto 0);
 
 -- page Q
@@ -536,7 +540,6 @@ signal memstart : std_logic;
 signal mbusy_sync : std_logic;
 signal memop_n : std_logic;
 signal memprepare : std_logic;
-signal memstart_n : std_logic;
 
 signal wrcyc : std_logic;
 signal wmapd : std_logic;
@@ -566,7 +569,7 @@ signal vm0wp_n : std_logic;
 signal vm1wp : std_logic;
 signal vmaenb_n : std_logic;
 signal vmasel : std_logic;
-signal memdrive_n : std_logic;
+signal memdrive : std_logic;
 signal mdsel : std_logic;
 signal use_md : std_logic;
 signal wmap_n : std_logic;
@@ -581,7 +584,7 @@ signal wmap : std_logic;
 
 -- page VMA
 signal vma : std_logic_vector(31 downto 0);
-signal vmadrive_n : std_logic;
+signal vmadrive : std_logic;
 
 -- page VMAS
 signal vmas : std_logic_vector(31 downto 0);
@@ -610,7 +613,7 @@ signal vmap : std_logic_vector(4 downto 0);
 signal vm1mpar : std_logic;
 signal vm1lpar : std_logic;
 
-signal mapdrive_n : std_logic;
+signal mapdrive : std_logic;
 signal vm0par : std_logic;
 signal vm0parm : std_logic;
 signal vm0parl : std_logic;
@@ -620,8 +623,8 @@ signal i : std_logic_vector(48 downto 0);
 signal iram : std_logic_vector(48 downto 0);
 --signal spy_ir : std_logic_vector(47 downto 0);
 
-signal ramdisable : std_logic;
-signal promdisabled_n : std_logic;
+--signal ramdisable : std_logic;
+--signal promdisabled_n : std_logic;
 
 signal opcinh : std_logic;
 signal opcclk : std_logic;
@@ -633,10 +636,8 @@ signal ldstat : std_logic;
 signal idebug : std_logic;
 signal nop11 : std_logic;
 signal step : std_logic;
-signal ldstat_n : std_logic;
 signal idebug_n : std_logic;
 signal nop11_n : std_logic;
-signal step_n : std_logic;
 
 signal run : std_logic;
 
@@ -649,23 +650,23 @@ signal spcoparok : std_logic;
 signal vm0parok : std_logic;
 signal pdlparok : std_logic;
 
-signal lowerhighok_n : std_logic;
+--signal lowerhighok_n : std_logic;
 signal highok : std_logic;
 signal ldmode : std_logic;
-signal prog_reset_n : std_logic;
+--signal prog_reset_n : std_logic;
 signal reset_n : std_logic;
 signal err : std_logic;
 signal errhalt_n : std_logic;
-signal bus_reset_n : std_logic;
-signal bus_power_reset_n : std_logic;
-signal power_reset : std_logic;
-signal clock_reset_n : std_logic;
+--signal bus_reset_n : std_logic;
+--signal bus_power_reset_n : std_logic;
+--signal power_reset : std_logic;
+--signal clock_reset_n : std_logic;
 --signal prog_boot std_logic;
 signal boot_n : std_logic;
 
-signal prog_bus_reset : std_logic;
+--signal prog_bus_reset : std_logic;
 
-signal busint_lm_reset_n : std_logic;
+--signal busint_lm_reset_n : std_logic;
 
 signal opcclka : std_logic;
 
@@ -689,7 +690,6 @@ signal speed0 : std_logic;
 signal srun : std_logic;
 signal sstep : std_logic;
 signal ssdone : std_logic;
-signal promdisabled : std_logic;
 
 signal speed0a : std_logic;
 signal speed1a : std_logic;
@@ -833,6 +833,8 @@ signal iwe : std_logic;
 signal sspeed1a : std_logic;
 signal sspeed0a : std_logic;
 
+signal clk_count : integer range 0 to 1 := 0;
+
 -- Extras
 
 signal vmem1_adr : std_logic_vector(9 downto 0);
@@ -894,7 +896,7 @@ begin
 
 -- XXX do we need this when we have dual port memory
 
-do_wadr: process(clk)
+do_wadr: process(clk, destm)
   begin
     -- wadr 9  8  7  6  5  4  3  2  1  0
     --      0  0  0  0  0  18 17 16 15 14
@@ -910,11 +912,11 @@ do_wadr: process(clk)
 		end if;
 end process do_wadr;
 
---apass <= destd & (ir(41 downto 32) = wadr(9 downto 0) ? 1'b1 : 1'b0); XXX
+apass <= '1' when (destd & ir(41 downto 32)) = wadr(9 downto 0) else '0';
 apass_n <= not apass;
 
-amemenb_n <= not (apass_n and tse);
-apassenb_n <= not (apass and tse);
+amemenb <= apass_n and tse;
+apassenb <= apass and tse;
 
 awp <= destd and wp;
 
@@ -925,19 +927,17 @@ aadr <= ir(41 downto 32) when clk='1' else wadr;
 -- AML
 -- transparent latch
 --always @(CLK or amem or negedge reset_n)
-do_aml: process(clk)
+do_aml: process(clk, reset)
 	begin
-		if clk'event and clk='1' then
-			if reset='1' then
-				a_latch <= X"00000000";
-			else
-				a_latch <= amem;
-			end if;
+		if reset='1' then
+			a_latch <= X"00000000";
+		elsif clk'event and clk='1' then
+			a_latch <= amem;
 		end if;
 	end process do_aml;
 
-a <= a_latch when amemenb_n='0' else
-		l when apassenb_n='0' else
+a <= a_latch when amemenb='1' else
+		l when apassenb='1' else
 		X"FFFFFFFF";
 
 -- page ALU0-1
@@ -1161,30 +1161,28 @@ spush_n <= not (destspc or (jcalf and not jcond) or
 	(dispenb and dp and not dr) or
 	(irjump and not ir(6) and ir(8) and jcond));
 
-spcwpass_n <= not (spushd and tse);
-spcpass_n <= not (spushd_n and tse);
+spcwpass <= spushd and tse;
+spcpass <= spushd_n and tse;
 
 swp <= spushd and wp;
 spcenb <= not (srcspc_n and srcspcpop_n);
-spcdrive_n <= not (spcenb and tse);
+spcdrive <= spcenb and tse;
 spcnt_n <= spush_n and spop_n;
 
 inop_n <= not inop;
 spushd_n <= not spushd;
 iwrited_n <= not iwrited;
 
-do_control: process(clk)
+do_control: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			inop <= '0';
-			spushd <= '0';
-			iwrited <= '0';
-		else
-			inop <= n;
-			spushd <= not spush_n;
-			iwrited <= iwrite;
-		end if;
+	if reset='1' then
+		inop <= '0';
+		spushd <= '0';
+		iwrited <= '0';
+	elsif clk'event and clk='1' then
+		inop <= n;
+		spushd <= not spush_n;
+		iwrited <= iwrite;
 	end if;
 end process do_control;
 
@@ -1260,9 +1258,11 @@ dparok <= not (dpareven and dispenb);
 dmapbenb_n <= not (ir(8) or ir(9));
 dispwr <= not (irdisp_n or funct2_n);
 
-do_dc: process(clk)
+do_dc: process(clk, reset)
 begin
-	if clk'event and clk='1' then
+	if reset='1' then
+		dc <= "0000000000";
+	elsif clk'event and clk='1' then
 		if irdisp_n = '0' then
 			dc <= ir(41 downto 32);
 		end if;
@@ -1299,15 +1299,15 @@ with conds select
 				'1' when "111",
 				'0' when others;
 
-do_flags: process(clk)
+do_flags: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if (reset_n = '0') then
-			lc_byte_mode <= '0';
-			prog_unibus_reset <= '0';
-			int_enable <= '0';
-			sequence_break <= '0';
-		elsif destintctl_n = '0' then
+	if reset='1' then
+		lc_byte_mode <= '0';
+		prog_unibus_reset <= '0';
+		int_enable <= '0';
+		sequence_break <= '0';
+	elsif clk'event and clk='1' then
+		if destintctl_n = '0' then
 			lc_byte_mode <= ob(29);
 			prog_unibus_reset <= ob(28);
 			int_enable <= ob(27);
@@ -1336,52 +1336,46 @@ iparok <= imodd or iparity;
 
 -- page IREG
 
-do_ir: process(clk)
+do_ir: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			ir <= "0000000000000000000000000000000000000000000000000";
+	if reset='1' then
+		ir <= "0000000000000000000000000000000000000000000000000";
+	elsif clk'event and clk='1' then
+		if destimod1_n='1' then
+			ir(47 downto 26) <= i(47 downto 26);
 		else
-			if destimod1_n='1' then
-				ir(47 downto 26) <= i(47 downto 26);
-			else
-				ir(47 downto 26) <= ib(47 downto 26);
-			end if;
+			ir(47 downto 26) <= ib(47 downto 26);
+		end if;
 
-			if destimod0_n='1' then
-				ir(25 downto 0) <= i(25 downto 0);
-			else
-				ir(25 downto 0) <= ib(25 downto 0);
-			end if;
+		if destimod0_n='1' then
+			ir(25 downto 0) <= i(25 downto 0);
+		else
+			ir(25 downto 0) <= ib(25 downto 0);
 		end if;
 	end if;
 end process do_ir;
 
 -- page IWR
 
-do_iwr: process(clk)
+do_iwr: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			iwr <= "0000000000000000000000000000000000000000000000000";
-		else
-			iwr(48) <= '0';
-			iwr(47 downto 32) <= a(15 downto 0);
-			iwr(31 downto 0) <= m(31 downto 0);
-		end if;
+	if reset='1' then
+		iwr <= "0000000000000000000000000000000000000000000000000";
+	elsif clk'event and clk='1' then
+		iwr(48) <= '0';
+		iwr(47 downto 32) <= a(15 downto 0);
+		iwr(31 downto 0) <= m(31 downto 0);
 	end if;
 end process do_iwr;
 
 -- page L
 
-do_l: process(clk)
+do_l: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			l <= X"00000000";
-		else
-			l <= ob;
-		end if;
+	if reset='1' then
+		l <= X"00000000";
+	elsif clk'event and clk='1' then
+		l <= ob;
 	end if;
 end process do_l;
 
@@ -1393,22 +1387,27 @@ lparity_n <= '1';
 
 -- page LC
 
-do_lc: process(clk)
+do_lc: process(clk, reset, destlc_n, lc_byte_mode)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			lc <= "00000000000000000000000000";
-		elsif destlc_n='0' then
-			lc <= ob(25 downto 4) & ob(3 downto 0);
-		else
-			lc <= (lc(25 downto 4) + lca(4)) & lca(3 downto 0);
+	if reset='1' then
+		lc <= "00000000000000000000000000";
+	elsif clk'event and clk='1' then
+		if destlc_n='0' then
+			lc <= ob(25 downto 0);
+		elsif lcinc='1' then
+			if lc_byte_mode='1' then
+				lc <= lc + "00000000000000000000000001";
+			else
+				lc <= lc + "00000000000000000000000010";
+			end if;
 		end if;
 	end if;
 end process do_lc;
 
-lca <= lc(3 downto 0) + ("000" & not(lcinc_n or lc_byte_mode)) + lcinc;
+-- XXX
+--lca <= lc(3 downto 0) + ("000" & not(lcinc_n or lc_byte_mode)) + lcinc;
 
-lcdrive_n <= not (srclc and tse);
+lcdrive <= srclc and tse;
 
 -- xxx
 -- I think the above is really
@@ -1427,21 +1426,21 @@ lcdrive_n <= not (srclc and tse);
 
 -- mux MF
 mf <=	(needfetch & "0" & lc_byte_mode & prog_unibus_reset &
-					int_enable & sequence_break & lc(25 downto 1) & lc0b) when lcdrive_n='0' else
-					("000000000000000000" & opc(13 downto 0)) when opcdrive_n='0' else
+					int_enable & sequence_break & lc(25 downto 1) & lc0b) when lcdrive='1' else
+					("000000000000000000" & opc(13 downto 0)) when opcdrive='1' else
 -- zero16_drive drives top 16 bits to zero
 -- zero12_drive drives top 4 bits of lower 16 to zero
 -- don't need this since we don't pull up mf bus
 --        zero12_drive ?
 --	  { 16'b0, 4'b0, 12'b0 } :
 					("0000000000000000000000" & dc(9 downto 0)) when dcdrive='1' else
-					("0000000000000000000000" & pdlptr(9 downto 0)) when ppdrive_n='0' else
+					("0000000000000000000000" & pdlptr(9 downto 0)) when ppdrive='1' else
 					("0000000000000000000000" & pdlidx(9 downto 0)) when pidrive='1' else
 					q when qdrive='1' else
-					md when mddrive_n='0' else
-					l when mpassl_n='0' else
-					vma when vmadrive_n='0' else
-					(pfw_n & pfr_n & "1" & vmap_n(4 downto 0) & vmo(23 downto 0)) when mapdrive_n='0' else
+					md when mddrive='1' else
+					l when mpassl='1' else
+					vma when vmadrive='1' else
+					(pfw_n & pfr_n & "1" & vmap_n(4 downto 0) & vmo(23 downto 0)) when mapdrive='1' else
 					X"00000000";
 
 
@@ -1462,18 +1461,16 @@ spc1a <= spcmung or spc(1);
 lcinc <= next_instrd or (irdisp and ir(24));
 lcinc_n <= not (next_instrd or (irdisp and ir(24)));
 
-do_instrd: process(clk)
+do_instrd: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			newlc <= '0';
-			sintr <= '0';
-			next_instrd <= '0';
-		else
-			newlc <= newlc_in_n;
-			sintr <= int;
-			next_instrd <= next_instr;
-		end if;
+	if reset='1' then
+		newlc <= '0';
+		sintr <= '0';
+		next_instrd <= '0';
+	elsif clk'event and clk='1' then
+		newlc <= newlc_in_n;
+		sintr <= int;
+		next_instrd <= next_instr;
 	end if;
 end process do_instrd;
 
@@ -1518,8 +1515,8 @@ wpc <= lpc when (irdisp and ir(25))='1' else pc;
 mpass <= '1' when ("1" & ir(30 downto 26)) = (destmd & wadr(4 downto 0)) else '0';
 mpass_n <= not mpass;
 
-mpassl_n <= not (mpass and tse and not ir(31));
-mpassm_n <= not (mpass_n and tse and not ir(31));
+mpassl <= mpass and tse and not ir(31);
+mpassm <= mpass_n and tse and not ir(31);
 
 srcm <= not ir(31) and mpass_n;
 
@@ -1529,20 +1526,18 @@ madr <= ir(30 downto 26) when clk='1' else wadr(4 downto 0);
 
 -- page MD
 
-do_md: process(mdclk)
+do_md: process(mdclk, reset)
 begin
-	if mdclk'event and mdclk='1' then
-		if reset_n='0' then
-			md <= X"00000000";
-		else
-			md <= mds;
-			mdhaspar <= mdgetspar;
-			mdpar <= mempar_in;
-		end if;
+	if reset='1' then
+		md <= X"00000000";
+	elsif mdclk'event and mdclk='1' then
+		md <= mds;
+		mdhaspar <= mdgetspar;
+		mdpar <= mempar_in;
 	end if;
 end process do_md;
 
-mddrive_n <= not (not srcmd_n and tse);
+mddrive <= not srcmd_n and tse;
 mdgetspar <= ignpar_n and destmdr_n;
 mdclk <= not (loadmd or (not clk and not destmdr_n));
 
@@ -1555,13 +1550,13 @@ mdparodd <= '1';
 mempar_out <= mdparodd;
 
 -- mux MEM
-mem <= 	md when memdrive_n='0' else
+mem <= 	md when memdrive='1' else
 			busint_bus when loadmd='1' else
 			X"00000000";
 
 -- page MF
 mfenb <= not srcm and not(spcenb or pdlenb);
-mfdrive_n <= not(mfenb and tse);
+mfdrive <= mfenb and tse;
 
 -- page MLATCH
 
@@ -1579,10 +1574,10 @@ end process do_mlatch;
 mmemparok <= '1';
 
 -- mux M
-m <= mmem_latched when mpassm_n='0' else
-		pdl_latch when pdldrive_n='0' else
-		("000" & spcptr & "00000" & spco_latched) when spcdrive_n='0' else
-		mf when mfdrive_n='0' else
+m <= mmem_latched when mpassm='1' else
+		pdl_latch when pdldrive='1' else
+		("000" & spcptr & "00000" & spco_latched) when spcdrive='1' else
+		mf when mfdrive='1' else
 		X"00000000";
 
 -- page MMEM
@@ -1629,32 +1624,30 @@ msk <= msk_right_out and msk_left_out;
 npc <= "00000000000000" when trap='1' else
 			(spc(13 downto 2) & spc1a & spc(0)) when pcs1='0' and pcs0='0' else
 			ir(25 downto 12) when pcs1='0' and pcs0='1' else
-			dpc when pcs1='1' and pcs0='0';
-         -- ipc when pcs1='1 and pcs0='1';
+			dpc when pcs1='1' and pcs0='0' else
+			ipc when pcs1='1' and pcs0='1';
 
-do_npc: process(clk)
+do_npc: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			pc <= "00000000000000";
-		else
-			pc <= npc;
-		end if;
+	if reset='1' then
+		pc <= "00000000000000";
+	elsif clk'event and clk='1' then
+		pc <= npc;
 	end if;
 end process do_npc;
 
-ipc <= pc + 1;
+ipc <= pc + "00000000000001";
 
 -- page OPCD
 
 dcdrive <= not srcdc_n and tse;
-opcdrive_n <= not(not srcopc_n and tse);
+opcdrive <= not srcopc_n and tse;
 
-zero16 <= not(srcopc_n and srcpdlidx_n and srcpdlptr_n and srcdc_n);
+--zero16 <= not(srcopc_n and srcpdlidx_n and srcpdlptr_n and srcdc_n);
 
-zero12_drive <= zero16 and srcopc_n and tse;
-zero16_drive <= zero16 and tse;
-zero16_drive_n <= not (zero16 and tse);
+--zero12_drive <= zero16 and srcopc_n and tse;
+--zero16_drive <= zero16 and tse;
+--zero16_drive_n <= not (zero16 and tse);
 
 -- page PDL
 
@@ -1665,60 +1658,58 @@ i_pdl: cadr2_pdl port map (pdla, l, pdl, pwp, '1', clk);
 
 -- page PDLCTL
 
-pdla <= pdlidx when pdlp_n='1' else pdlptr;
+pdla <= pdlptr when pdlp='1' else pdlidx;
 
-pdlp_n <= not((clk and ir(30)) or (not CLK and pwidx_n));
+pdlp <= (clk and ir(30)) or (not CLK and pwidx_n);
 pdlwrite <= not(destpdltop_n and destpdl_x_n and destpdl_p_n);
 
-do_pdlctl: process(clk)
+do_pdlctl: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			pdlwrited <= '0';
-			pwidx_n <= '0';
-			imodd <= '0';
-			destspcd_n <= '0';
-		else
-			pdlwrited <= pdlwrite;
-			pwidx_n <= destpdl_x_n;
-			imodd <= imod;
-			destspcd_n <= destspc_n;
-		end if;
+	if reset='1' then
+		pdlwrited <= '0';
+		pwidx_n <= '0';
+		imodd <= '0';
+		destspcd_n <= '0';
+	elsif clk'event and clk='1' then
+		pdlwrited <= pdlwrite;
+		pwidx_n <= destpdl_x_n;
+		imodd <= imod;
+		destspcd_n <= destspc_n;
 	end if;
 end process do_pdlctl;
 
-imodd_n <= not imodd;
+--imodd_n <= not imodd;
 
 destspcd <= not destspcd_n;
 
 pwp <= pdlwrited and wp;
 
 pdlenb <= not (srcpdlpop_n and srcpdltop_n);
-pdldrive_n <= not (pdlenb and tse);
+pdldrive <= pdlenb and tse;
 
 pdlcnt_n <= (srcpdlpop_n or nop) and destpdl_p_n;
 
 -- page PDLPTR
 
 pidrive <= tse and not srcpdlidx_n;
-ppdrive_n <= not(tse and not srcpdlptr_n);
+ppdrive <= tse and not srcpdlptr_n;
 
 do_pdlptr: process(clk)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			pdlidx <= "0000000000";
-			pdlptr <= "0000000000";
-		elsif destpdlx_n='0' then
+	if reset='1' then
+		pdlidx <= "0000000000";
+		pdlptr <= "0000000000";
+	elsif clk'event and clk='1' then
+		if destpdlx_n='0' then
 			pdlidx <= ob(9 downto 0);
 		elsif destpdlp_n='0' then
 			pdlptr <= ob(9 downto 0);
 		else
 			if pdlcnt_n='0' then
 				if srcpdlpop_n='1' then
-					pdlptr <= pdlptr - 1;
+					pdlptr <= pdlptr - "0000000001";
 				else
-					pdlptr <= pdlptr + 1;
+					pdlptr <= pdlptr + "0000000001";
 				end if;
 			end if;
 		end if;
@@ -1746,14 +1737,14 @@ srcq <= not srcq_n;
 qdrive <= srcq and tse;
 
 --assign #1 QCLK = CLK;
-qclk <= tpw2;
+--qclk <= tpw2;
 
-do_q: process(qclk)
+do_q: process(clk, reset)
 begin
-	if qclk'event and qclk='1' then
-		if reset_n='0' then
-			q <= X"00000000";
-		elsif (qs(1)='1' or qs(0)='1') then
+	if reset='1' then
+		q <= X"00000000";
+	elsif clk'event and clk='1' then
+		if (qs(1)='1' or qs(0)='1') then
         case qs is
           when "01" => q <= (q(30 downto 0) & not alu(31));
           when "10" => q <= (alu(0) & q(31 downto 1));
@@ -2061,14 +2052,16 @@ destspc <= not destspc_n;
 i_spc : cadr2_spc port map (spcptr, spcw, spco, swp, clk);
 
 --always @(posedge CLK)
-do_spc: process(qclk)
+do_spc: process(clk, reset, spcnt_n, spush_n)
 begin
-	if qclk'event and qclk='1' then
+	if reset='1' then
+		spcptr <= "00000";
+	elsif clk'event and clk='1' then
 		if spcnt_n='0' then
 			if spush_n='0' then
-				spcptr <= spcptr + 1;
+				spcptr <= spcptr + "00001";
 			else
-				spcptr <= spcptr - 1;
+				spcptr <= spcptr - "00001";
 			end if;
 		end if;
 	end if;
@@ -2077,23 +2070,21 @@ end process do_spc;
 -- page SPCLCH
 
 -- mux SPC
-spc <= spco_latched when spcpass_n='0' else
-			spcw when spcwpass_n='0' else
+spc <= spco_latched when spcpass='1' else
+			spcw when spcwpass='1' else
 			"0000000000000000000";
 
 spcopar <= '0';
 
 -- transparent latch
---always @(CLK or spco or spcopar or negedge reset_n)
-do_spclch: process(clk)
+--always @(CLK or spco or spcopar or posedge reset)
+do_spclch: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			spco_latched <= "0000000000000000000";
-		else
-			spco_latched <= spco;
-			spcpar <= spcopar;
-      end if;
+	if reset='1' then
+		spco_latched <= "0000000000000000000";
+	elsif clk'event and clk='1' then
+		spco_latched <= spco;
+		spcpar <= spcopar;
 	end if;
 end process do_spclch;
 
@@ -2108,12 +2099,12 @@ spcwpar <= spcwparh xor spcwparl_n;
 
 -- page SPCW
 
-do_spcw: process(CLK)
+do_spcw: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset = '1' then
-			reta <= "00000000000000";
-		elsif n='1' then
+	if reset = '1' then
+		reta <= "00000000000000";
+	elsif clk'event and clk='1' then
+		if n='1' then
 			reta <= wpc;
 		else
 			reta <= ipc;
@@ -2165,34 +2156,28 @@ memparok_n <= not(parerr_n or trapenb);
 memop_n <= memrd_n and memwr_n and ifetch_n;
 memprepare <= not(memop_n or clk);
 
-do_memstart: process(mclk)
+do_memstart: process(mclk, reset)
 begin
-	if mclk'event and mclk='1' then
-		if reset_n='0' then
-			memstart <= '0';
-			mbusy_sync <= '0';
-		else
-			memstart <= memprepare;
-			mbusy_sync <= memrq;
-		end if;
+	if reset='1' then
+		memstart <= '0';
+		mbusy_sync <= '0';
+	elsif mclk'event and mclk='1' then
+		memstart <= memprepare;
+		mbusy_sync <= memrq;
 	end if;
 end process do_memstart;
-
-memstart_n <= not memstart;
 
 pfw_n <= not (lvmo_n(22) and wrcyc);
 vmaok_n <= not(pfr_n and pfw_n);
 
-do_wmapd: process(clk)
+do_wmapd: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			wrcyc <= '0';
-			wmapd <= '0';
-		else
-			wrcyc <= not((memprepare and memwr_n) or (not memprepare and rdcyc));
-			wmapd <= wmap;
-		end if;
+	if reset='1' then
+		wrcyc <= '0';
+		wmapd <= '0';
+	elsif clk'event and clk='1' then
+		wrcyc <= not((memprepare and memwr_n) or (not memprepare and rdcyc));
+		wmapd <= wmap;
 	end if;
 end process do_wmapd;
 
@@ -2213,7 +2198,7 @@ do_mbusy: process(MCLK)
 	end if;
 end process do_mbusy;
 
---always @(posedge MCLK or negedge reset_n)
+--always @(posedge MCLK or posedge reset)
 --  if (reset_n == 0)
 --    mbusy <= 1'b0;
 --  else
@@ -2243,21 +2228,19 @@ end process do_rd_in_progress;
 -- mfinish_n + 30ns -> mfinishd_n
 -- mfinish_n + 140ns -> rdfinish_n
 
-do_mcycle_delay: process(clk)
+do_mcycle_delay: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			mcycle_delay <= "1111111111";
-		else
-			mcycle_delay(0) <= mfinish_n;
-			mcycle_delay(1) <= mcycle_delay(0);
-			mcycle_delay(2) <= mcycle_delay(1);
-			mcycle_delay(3) <= mcycle_delay(2);
-			mcycle_delay(4) <= mcycle_delay(3);
-			mcycle_delay(5) <= mcycle_delay(4);
-			mcycle_delay(6) <= mcycle_delay(5);
-			mcycle_delay(7) <= mcycle_delay(6);
-		end if;
+	if reset='1' then
+		mcycle_delay <= "1111111111";
+	elsif clk'event and clk='1' then
+		mcycle_delay(0) <= mfinish_n;
+		mcycle_delay(1) <= mcycle_delay(0);
+		mcycle_delay(2) <= mcycle_delay(1);
+		mcycle_delay(3) <= mcycle_delay(2);
+		mcycle_delay(4) <= mcycle_delay(3);
+		mcycle_delay(5) <= mcycle_delay(4);
+		mcycle_delay(6) <= mcycle_delay(5);
+		mcycle_delay(7) <= mcycle_delay(6);
 	end if;
 end process do_mcycle_delay;
 
@@ -2286,7 +2269,7 @@ vmasel <= ifetch_n and '1';
 -- external?
 lm_drive_enb <= '0';
 
-memdrive_n <= not (wrcyc and lm_drive_enb);
+memdrive <= wrcyc and lm_drive_enb;
 
 mdsel <= not (destmdr_n or clk);
 
@@ -2310,24 +2293,24 @@ wmap <= not wmap_n;
 
 -- page VMA
 
-do_vma: process(clk)
+do_vma: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if reset_n='0' then
-			vma <= X"00000000";
-		elsif vmaenb_n='0' then
+	if reset='1' then
+		vma <= X"00000000";
+	elsif clk'event and clk='1' then
+		if vmaenb_n='0' then
 			vma <= vmas;
 		end if;
 	end if;
 end process do_vma;
 
-vmadrive_n <= not (not srcvma_n and tse);
+vmadrive <= not srcvma_n and tse;
 
 -- page VMAS
 
 vmas <= ob when vmasel='1' else ("00000000" & lc(25 downto 2));
 
-mapi <= md(23 downto 8) when memstart_n='1' else vma(23 downto 8);
+mapi <= vma(23 downto 8) when memstart='1' else md(23 downto 8);
 
 -- page VMEM0 - virtual memory map stage 0
 
@@ -2369,7 +2352,7 @@ vm0parl <= '0';
 lvmo_n <= vmo_n(23 downto 22) when memstart='1';
 pma <= vmo_n(21 downto 8) when memstart='1';
 
-mapdrive_n <= not(tse and srcmap);
+mapdrive <= tse and srcmap;
 
 -- page DEBUG
 
@@ -2396,14 +2379,13 @@ mapdrive_n <= not(tse and srcmap);
 
 -- put latched value on I bus when idebug_n asserted
 --i <= spy_ir when idebug_n='0' else iram;
+
 i <= iram;
 
 
 -- page ICTL - I RAM control
 
-promdisabled_n <= not promdisabled;
-
-ramdisable <= idebug or (promdisabled_n and iwrited_n);
+--ramdisable <= idebug or (promdisabled_n and iwrited_n);
 
 -- see clocks below
 --assign iwe  = !(wp5& iwriteda);
@@ -2431,6 +2413,9 @@ ramdisable <= idebug or (promdisabled_n and iwrited_n);
 --	 end if;
 --end process do_olord1;
 
+stathenb <= '0';
+errstop <= '0';
+
 --ldopc <= not ldopc_n;
 
 --do_olord1a: process(ldopc)
@@ -2448,8 +2433,12 @@ ramdisable <= idebug or (promdisabled_n and iwrited_n);
 --	end if;
 --end process do_olord1a;
 
---opcinh_n <= not opcinh;
---opcclk_n <= not opcclk;
+opcinh <= '0';
+opcclk <= '0';
+lpc_hold <= '0';
+
+opcinh_n <= not opcinh;
+opcclk_n <= not opcclk;
 
 --ldclk <= not ldclk_n;
 
@@ -2470,11 +2459,13 @@ ramdisable <= idebug or (promdisabled_n and iwrited_n);
 --	end if;
 --end process do_olord1b;
 
+idebug <= '0';
+ldstat <= '0';
+nop11 <= '0';
+step <= '0';
 
-ldstat_n <= not ldstat;
 idebug_n <= not idebug;
 nop11_n <= not nop11;
-step_n <= not step;
 
 --always @(posedge ldclk_n or negedge clock_reset_n or negedge boot_n)
 --  if (boot_n == 1'b0)
@@ -2487,20 +2478,16 @@ step_n <= not step;
 
 run <= '1';
 
-do_clk_reset: process(MCLK)
+do_clk_reset: process(clk, reset)
 begin
-	if MCLK'event and MCLK='1' then
-		if clock_reset_n='0' then
-			srun <= '0';
-			sstep <= '0';
-			ssdone <= '0';
-			promdisabled <= '0';
-		else
-			srun <= run;
-			sstep <= step;
-			ssdone <= sstep;
-			promdisabled <= promdisable;
-		end if;
+	if reset='1' then
+		srun <= '0';
+		sstep <= '0';
+		ssdone <= '0';
+	elsif clk'event and clk='1' then
+		srun <= run;
+		sstep <= step;
+		ssdone <= sstep;
 	end if;
 end process do_clk_reset;
 
@@ -2567,7 +2554,7 @@ begin
 	end if;
 end process do_olord2;
 
-lowerhighok_n <= '0';
+--lowerhighok_n <= '0';
 highok <= '1';
 --ldmode <= not ldmode_n;
 
@@ -2583,31 +2570,31 @@ err <= not ape_n or not mpe_n or not pdlpe_n or not dpe_n or
 errhalt_n <= not (errstop and err);
 
 -- external
-prog_bus_reset <= '0';
+--prog_bus_reset <= '0';
 
-bus_reset_n <= not (prog_bus_reset or power_reset);
-bus_power_reset_n <= not power_reset;
+--bus_reset_n <= not (prog_bus_reset or power_reset);
+--bus_power_reset_n <= not power_reset;
 
 --external power_reset_n - low by rc, external input
 --power_reset <= not power_reset_n;
 
 -- external
-busint_lm_reset_n <= '1';
+--busint_lm_reset_n <= '1';
 
-clock_reset_n <= not (power_reset or not busint_lm_reset_n);
+--clock_reset_n <= not (power_reset or not busint_lm_reset_n);
 
 --prog_boot <= ldmode and spy(7);
 
 --boot_n <= not(prog_boot);
 
-do_boot_trap: process(clk)
+do_boot_trap: process(clk, reset)
 begin
-	if clk'event and clk='1' then
-		if clock_reset_n='0' then
-			boot_trap <= '0';
+	if reset='1' then
+		boot_trap <= '1';
+	elsif clk'event and clk='1' then
 --		elsif boot_n='0' then
 --			boot_trap <= '1';
-		elsif srun='1' then
+		if srun='1' then
 			boot_trap <= '0';
 		end if;
 	end if;
@@ -2619,9 +2606,9 @@ opcclka <= not(not CLK or opcclk);
 
 opc_inh_or_clka <= opcinh or opcclka;
 
-do_opc: process(opc_inh_or_clka)
+do_opc: process(clk)
 begin
-	if opc_inh_or_clka'event and opc_inh_or_clka='1' then
+	if clk'event and clk='1' then
 		opc <= pc;
 	end if;
 end process do_opc;
@@ -2695,12 +2682,25 @@ MCLK <= not mclk0_n;
 
 -- -------
 
+do_tse: process(clk)
+begin
+	if clk'event and clk='1' then
+		if clk_count=1 then
+			clk_count <= 0;
+			tse <= '1';
+		else
+			clk_count <= clk_count + 1;
+			tse <= '0';
+		end if;
+	end if;
+end process do_tse;
+
 clk_n <= tpclk_n and machrun;
 
 lclk <= not clk_n ;
 lclk_n <= not lclk ;
 ltse_n <= not tptse ;
-tse <= not ltse_n ;
+--tse <= not ltse_n ;
 lwp_n <= not tpwp ;
 wp <= not lwp_n ;
 
@@ -2780,10 +2780,10 @@ tprend_n <=
 		not tpr4_n when sspeed1a='1' and sspeed0a='1' and ilong_n='0' else
 		not tpr2_n;
 
-do_clocks3: process(tpr1)
+do_clocks3: process(tpr1, reset)
 begin
 	if tpr1'event and tpr1='1' then
-		if clock_reset_n='0' then
+		if reset='1' then
 			speed1a <= '0';
 			speed0a <= '0';
 			sspeed1a <= '0';
@@ -2811,9 +2811,38 @@ begin
 		tpw0 <= not maskc;
 
 		hangs_n <= hang_n;
-		crbs_n <= clock_reset_n ;
+		crbs_n <= not reset ;
 	end if;
 end process do_clocks5;
+
+-- Wishbone interface
+
+wb_out.sel <= "1111";		-- we use only 32-bit access
+
+	-- this is the memory input register
+--	dout <= mem_rd_reg;
+
+wb_out.adr <= pma & vma(7 downto 0);
+
+--process(clk, reset)
+--begin
+--	if reset='1' then
+--		wb_out.dat <= (others => '0');
+--	elsif clk'event and clk='1' then
+
+--		if mem_rd='1' then
+--		elsif mem_wr='1' then
+--			wb_out.dat <= din;
+--		elsif bc_read='1' then
+--		end if;
+
+--		if wb_in.ack='1' then
+--			mem_rd_reg <= wb_in.dat;
+--		end if;
+
+--	end if;
+--end process;
+
 
 
 -- *******
