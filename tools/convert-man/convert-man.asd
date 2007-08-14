@@ -13,5 +13,7 @@
     :depends-on (:cxml :cl-ppcre :cl-interpol)
 
     :components ((:file "package")
+                 (:file "config" :depends-on ("package"))
                  (:file "utils" :depends-on ("package"))
-                 (:file "convert-man" :depends-on ("utils"))))
+                 (:file "xref" :depends-on ("config"))
+                 (:file "convert-man" :depends-on ("utils" "xref"))))

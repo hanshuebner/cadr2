@@ -13,11 +13,6 @@
 (defvar *suppress-warnings* nil)
 (defvar *debug* nil)
 
-;; Configuration
-
-(defvar *input-directory* #p"/home/hans/cadr2/doc/lmman-6ed-orig/")
-(defvar *output-directory* #p"/home/hans/cadr2/doc/lmman-6ed-xml/")
-
 ;; Document constants
 
 (defvar *unicode-cp0-chars* #(#\DOT_OPERATOR
@@ -475,6 +470,8 @@ The line given as argument is assumed to begin with .def"
                    (type-name (string-downcase (symbol-name type-symbol)))
                    (type-title (type-title type-symbol))
                    (name-title name)
+                   (source-location (lookup-source-ref (intern (format nil"~:@(de~@[f~*~]~A~)" (not (eq type 'fun)) type))
+                                                       name))
                    (key-suffix (case type-symbol
                                  ((fun spec mac) "fun")
                                  (metamethod "method")
@@ -507,6 +504,11 @@ The line given as argument is assumed to begin with .def"
                 (attribute "type" type-name)
                 (attribute "name" name)
                 (attribute "key" key)
+                (when source-location
+                  (with-element "source-location"
+                    (attribute "file" (namestring (getf source-location :file)))
+                    (attribute "position" (getf source-location :position))
+                    (attribute "package" (getf source-location :package))))
                 (when no-index
                   (attribute "no-index" "1"))
                 (unless (equal "" args)
@@ -629,6 +631,8 @@ The line given as argument is assumed to begin with .def"
 (defun produce-manual ()
   (let ((*package* (find-package :convert-man)))
     (clear-cumulative-state)
+    (format *debug-io* "~&Building source file index")
+    (xref-sources)
     (format *debug-io* "~&Reference collecting run")
     (process-bolio-file "manual")
     (format *debug-io* "~&File production run")

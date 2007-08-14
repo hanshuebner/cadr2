@@ -394,7 +394,7 @@ any new lines.  Each time a 3Return* is printed during the processing of 2str
 it is followed by indentation sufficient to line up underneath the place
 where the cursor was at the beginning of 2str*.  For example,
 .lisp
-(format t "Foo: ~8T~~A~" 2string*)
+(format t "Foo: ~8T~~A~" 2string*)
 .end_lisp
 prints 2string* with each line starting at column 8.  If 2string*
 is 3(string-append "This is" #\return "the string")* then the output is

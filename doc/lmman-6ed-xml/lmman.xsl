@@ -41,10 +41,10 @@
  </xsl:template>
 
  <xsl:template match="p">
-  <xsl:if test="@indent = '1'">
-   <xsl:attribute name="class">indented</xsl:attribute>
-  </xsl:if>
   <p>
+   <xsl:if test="@indent = '1'">
+    <xsl:attribute name="class">indented</xsl:attribute>
+   </xsl:if>
    <xsl:apply-templates/>
   </p>
  </xsl:template>
@@ -116,7 +116,16 @@
  </xsl:template>
 
  <xsl:template match="ref">
-  <a href="{@definition-in-file}.xml#{@key}"><xsl:value-of select="@title"/></a>
+  <a href="{@definition-in-file}.xml#{@key}">
+   <xsl:choose>
+    <xsl:when test="@title != ''">
+     <xsl:value-of select="@title"/>
+    </xsl:when>
+    <xsl:otherwise>
+     <xsl:value-of select="@key"/>
+    </xsl:otherwise>
+   </xsl:choose>
+  </a>
  </xsl:template>
 
  <xsl:template match="a">
