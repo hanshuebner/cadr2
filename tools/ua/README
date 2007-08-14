@@ -1,0 +1,7 @@
+Port of MIT CADR micro assembler to Common Lisp.
+
+Only tested in CMUCL.
+
+The files cadrlp.lisp and qwmcr.lisp don't work compiled yet. Need to
+explicitly load the Lisp source.
+
